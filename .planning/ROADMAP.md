@@ -36,6 +36,11 @@
 3. A query issued with tenant A's token cannot retrieve documents belonging to tenant B (RLS enforcement verified)
 4. `PgVectorStore.upsert_parent_chunks()` and `fetch_parent_chunks()` round-trip correctly for parent-child chunk relationships
 **Plans:** TBD
+Plans:
+- [ ] 01-01-PLAN.md — Test scaffolding: unit and integration test stubs for PG-01..PG-05
+- [ ] 01-02-PLAN.md — PgVectorStore: HNSW index, codec registration, RLS DDL, parent chunk methods
+- [ ] 01-03-PLAN.md — TenantService rename + set_tenant_context; pipeline.py call-site updates
+- [ ] 01-04-PLAN.md — requirements.txt pgvector package; settings.py default backend switch
 
 ### Phase 2: Security Hardening + Operational Fixes
 **Goal:** The system refuses to start with a weak or default JWT secret, enforces rate limits per-route, blocks PII-containing ingest by default, and accepts no localhost CORS origins in production.
@@ -94,7 +99,7 @@
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. pgvector Foundation | 0/0 | Not started | - |
+| 1. pgvector Foundation | 0/4 | In progress | - |
 | 2. Security Hardening + Operational Fixes | 0/0 | Not started | - |
 | 3. Error Handling Sweep | 0/0 | Not started | - |
 | 4. Image Extraction | 0/0 | Not started | - |
