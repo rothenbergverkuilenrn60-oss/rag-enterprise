@@ -78,14 +78,27 @@
 
 ## Traceability
 
-*(Filled by roadmapper)*
-
-| REQ-ID | Phase |
-|--------|-------|
-| SEC-01–04 | — |
-| ERR-01–02 | — |
-| PG-01–05 | — |
-| IMG-01–04 | — |
-| ASYNC-01–02 | — |
-| TEST-01–03 | — |
-| OPS-01–02 | — |
+| REQ-ID | Phase | Status |
+|--------|-------|--------|
+| PG-01 | Phase 1 — pgvector Foundation | Pending |
+| PG-02 | Phase 1 — pgvector Foundation | Pending |
+| PG-03 | Phase 1 — pgvector Foundation | Pending |
+| PG-04 | Phase 1 — pgvector Foundation | Pending |
+| PG-05 | Phase 1 — pgvector Foundation | Pending |
+| SEC-01 | Phase 2 — Security Hardening + Operational Fixes | Pending |
+| SEC-02 | Phase 2 — Security Hardening + Operational Fixes | Pending |
+| SEC-03 | Phase 2 — Security Hardening + Operational Fixes | Pending |
+| SEC-04 | Phase 2 — Security Hardening + Operational Fixes | Pending |
+| OPS-01 | Phase 2 — Security Hardening + Operational Fixes | Pending |
+| OPS-02 | Phase 2 — Security Hardening + Operational Fixes | Pending |
+| ERR-01 | Phase 3 — Error Handling Sweep | Pending |
+| ERR-02 | Phase 3 — Error Handling Sweep | Pending |
+| IMG-01 | Phase 4 — Image Extraction | Pending |
+| IMG-02 | Phase 4 — Image Extraction | Pending |
+| IMG-03 | Phase 4 — Image Extraction | Pending |
+| IMG-04 | Phase 4 — Image Extraction | Pending |
+| ASYNC-01 | Phase 5 — Async Ingest Tracking | Pending |
+| ASYNC-02 | Phase 5 — Async Ingest Tracking | Pending |
+| TEST-01 | Phase 6 — Test Coverage and Eval | Pending |
+| TEST-02 | Phase 6 — Test Coverage and Eval | Pending |
+| TEST-03 | Phase 6 — Test Coverage and Eval | Pending |
