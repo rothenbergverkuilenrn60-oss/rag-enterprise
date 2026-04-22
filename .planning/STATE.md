@@ -10,20 +10,20 @@
 | Field | Value |
 |-------|-------|
 | Milestone | v1 Hardening |
-| Current phase | 1 — pgvector Foundation |
-| Current plan | 01-01 through 01-04 (4 plans, 3 waves) |
-| Phase status | Planned — ready to execute |
-| Overall progress | 0/6 phases complete |
+| Current phase | 2 — Security Hardening + Operational Fixes |
+| Current plan | — |
+| Phase status | Not started |
+| Overall progress | 1/6 phases complete |
 
 ```
-Progress: [----------] 0%
+Progress: [##--------] 17%
 ```
 
 ## Phase Overview
 
 | Phase | Status |
 |-------|--------|
-| 1. pgvector Foundation | Planned ✓ |
+| 1. pgvector Foundation | Complete ✓ |
 | 2. Security Hardening + Operational Fixes | Not started |
 | 3. Error Handling Sweep | Not started |
 | 4. Image Extraction | Not started |
@@ -34,9 +34,9 @@ Progress: [----------] 0%
 
 | Metric | Value |
 |--------|-------|
-| Phases completed | 0/6 |
-| Requirements complete | 0/22 |
-| Plans executed | 0 |
+| Phases completed | 1/6 |
+| Requirements complete | 5/22 (PG-01–PG-05) |
+| Plans executed | 4 |
 
 ## Accumulated Context
 
@@ -77,9 +77,9 @@ None at project start.
 
 ### Todos
 
-- Execute Phase 1: `/gsd-execute-phase 1`
+- Plan Phase 2: `/gsd-plan-phase 2`
 
 ## Session Continuity
 
-**Last updated:** 2026-04-21 — Phase 1 plans finalized (4 plans, checker PASSED)
-**Next action:** Run `/gsd-execute-phase 1` to implement pgvector Foundation
+**Last updated:** 2026-04-22 — Phase 1 shipped (human UAT approved, commit c9653e9)
+**Next action:** Run `/gsd-plan-phase 2` to plan Security Hardening + Operational Fixes
