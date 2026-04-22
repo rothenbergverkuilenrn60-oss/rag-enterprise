@@ -136,15 +136,21 @@ class IngestionPipeline:
                 for pii_type in pii_result.pii_types:
                     pii_detected_total.labels(pii_type=pii_type).inc()
 
-                if getattr(settings, "pii_block_on_detect", False):
-                    await self._audit.log_ingest(
-                        user_id, tenant_id, doc_id, path.name,
-                        result=AuditResult.BLOCKED,
-                        pii_detected=True,
-                        error="Blocked: PII detected",
+                if getattr(settings, "pii_block_on_detect", True):
+                    block_entities: set[str] = set(
+                        getattr(settings, "pii_block_entities", [])
                     )
-                    return IngestionResponse(doc_id=doc_id, total_chunks=0, success=False,
-                                             error="Document blocked: PII detected")
+                    if block_entities and any(
+                        t in block_entities for t in pii_result.pii_types
+                    ):
+                        await self._audit.log_ingest(
+                            user_id, tenant_id, doc_id, path.name,
+                            result=AuditResult.BLOCKED,
+                            pii_detected=True,
+                            error="Blocked: PII detected",
+                        )
+                        return IngestionResponse(doc_id=doc_id, total_chunks=0, success=False,
+                                                 error="Document blocked: PII detected")
                 # 脱敏后继续处理
                 extracted.body_text = pii_result.masked_text
                 logger.info(

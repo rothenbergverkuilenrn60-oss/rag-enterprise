@@ -322,7 +322,10 @@ class Settings(BaseSettings):
     # PII 检测
     # ══════════════════════════════════════════════════════════════════════════
     pii_detection_enabled: bool = True     # 文档入库前自动检测并脱敏 PII
-    pii_block_on_detect:   bool = False    # True 时检测到 PII 阻止入库；False 时脱敏后继续
+    pii_block_on_detect:   bool = True     # True 时检测到 block_entities 中的 PII 阻止入库
+    pii_block_entities: list[str] = [      # SEC-03: entity types that trigger hard block
+        "US_SSN", "CREDIT_CARD", "US_BANK_NUMBER", "US_DRIVER_LICENSE", "US_PASSPORT",
+    ]
 
     # ══════════════════════════════════════════════════════════════════════════
     # 摘要索引
