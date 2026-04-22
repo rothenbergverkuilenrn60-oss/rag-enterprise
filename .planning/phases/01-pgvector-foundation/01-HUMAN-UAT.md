@@ -16,14 +16,14 @@ Run pytest in torch_env conda environment.
 
 expected: `pytest tests/unit/test_pgvector_store.py -v` exits 0 with all 8 tests collected and passing (or skipping gracefully if PG unavailable)
 
-result: [pending]
+result: [approved 2026-04-22 — user confirmed]
 
 ## Summary
 
 total: 1
-passed: 0
+passed: 1
 issues: 0
-pending: 1
+pending: 0
 skipped: 0
 blocked: 0
 

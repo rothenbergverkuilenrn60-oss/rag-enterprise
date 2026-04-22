@@ -31,7 +31,7 @@ def test_factory_returns_pgvector(monkeypatch):
     import services.vectorizer.vector_store as vs_module
     from services.vectorizer.vector_store import PgVectorStore
     vs_module._store_instance = None
-    monkeypatch.setattr("config.settings.settings.vector_store", "pgvector")
+    monkeypatch.setattr("config.settings.vector_store", "pgvector")
     store = vs_module.get_vector_store()
     assert isinstance(store, PgVectorStore), (
         f"Expected PgVectorStore, got {type(store).__name__}"

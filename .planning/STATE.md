@@ -11,8 +11,8 @@
 |-------|-------|
 | Milestone | v1 Hardening |
 | Current phase | 1 — pgvector Foundation |
-| Current plan | None (planning not yet started) |
-| Phase status | Not started |
+| Current plan | 01-01 through 01-04 (4 plans, 3 waves) |
+| Phase status | Planned — ready to execute |
 | Overall progress | 0/6 phases complete |
 
 ```
@@ -23,7 +23,7 @@ Progress: [----------] 0%
 
 | Phase | Status |
 |-------|--------|
-| 1. pgvector Foundation | Not started |
+| 1. pgvector Foundation | Planned ✓ |
 | 2. Security Hardening + Operational Fixes | Not started |
 | 3. Error Handling Sweep | Not started |
 | 4. Image Extraction | Not started |
@@ -77,9 +77,9 @@ None at project start.
 
 ### Todos
 
-- Start Phase 1 planning: `/gsd-plan-phase 1`
+- Execute Phase 1: `/gsd-execute-phase 1`
 
 ## Session Continuity
 
-**Last updated:** 2026-04-21 — Roadmap initialized
-**Next action:** Run `/gsd-plan-phase 1` to generate the execution plan for pgvector Foundation
+**Last updated:** 2026-04-21 — Phase 1 plans finalized (4 plans, checker PASSED)
+**Next action:** Run `/gsd-execute-phase 1` to implement pgvector Foundation
