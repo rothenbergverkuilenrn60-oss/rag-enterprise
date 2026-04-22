@@ -35,7 +35,7 @@
 2. Vector similarity queries return recall@10 within 5% of the Qdrant baseline using the HNSW index
 3. A query issued with tenant A's token cannot retrieve documents belonging to tenant B (RLS enforcement verified)
 4. `PgVectorStore.upsert_parent_chunks()` and `fetch_parent_chunks()` round-trip correctly for parent-child chunk relationships
-**Plans:** TBD
+**Plans:** 4 plans
 Plans:
 - [ ] 01-01-PLAN.md — Test scaffolding: unit and integration test stubs for PG-01..PG-05
 - [ ] 01-02-PLAN.md — PgVectorStore: HNSW index, codec registration, RLS DDL, parent chunk methods
@@ -51,7 +51,11 @@ Plans:
 2. Sending 11 rapid requests to a rate-limited route returns HTTP 429 on the 11th request; the global middleware alone is not the enforcement mechanism
 3. Submitting a document containing an SSN or credit card number to the ingest endpoint returns a rejection response, not a warning
 4. Starting the server without `MODEL_DIR` set fails at startup with a descriptive message; `Rule.check()` raises `NotImplementedError` at class definition via ABC
-**Plans:** TBD
+**Plans:** 3 plans
+Plans:
+- [ ] 02-01-PLAN.md — Settings hardening: JWT denylist validator, CORS startup validation, MODEL_DIR guard, rate-limit settings fields
+- [ ] 02-02-PLAN.md — PII blocking: flip default, add BLOCK_ENTITIES to settings, enforce rejection in preprocessor pipeline
+- [ ] 02-03-PLAN.md — Per-route rate limiting decorators (slowapi); Rule ABC enforcement
 
 ### Phase 3: Error Handling Sweep
 **Goal:** Every failure path in the codebase surfaces through the audit log or structured logger; no exception is silently swallowed and no background task drops an exception.
@@ -100,7 +104,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. pgvector Foundation | 0/4 | In progress | - |
-| 2. Security Hardening + Operational Fixes | 0/0 | Not started | - |
+| 2. Security Hardening + Operational Fixes | 0/3 | Not started | - |
 | 3. Error Handling Sweep | 0/0 | Not started | - |
 | 4. Image Extraction | 0/0 | Not started | - |
 | 5. Async Ingest Tracking | 0/0 | Not started | - |
