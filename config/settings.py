@@ -7,13 +7,41 @@ from __future__ import annotations
 import os
 from pathlib import Path
 from typing import Literal
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # BASE_DIR 优先从环境变量读取，回退到文件所在目录的上一级（项目根目录）
 # Docker 部署时设置 APP_BASE_DIR=/app 即可，无需修改代码
-BASE_DIR:  Path = Path(os.getenv("APP_BASE_DIR",  str(Path(__file__).parent.parent)))
-MODEL_DIR: Path = Path(os.getenv("APP_MODEL_DIR", "/mnt/f/my_models"))
+BASE_DIR: Path = Path(os.getenv("APP_BASE_DIR", str(Path(__file__).parent.parent)))
+
+# OPS-01: APP_MODEL_DIR is required — no hardcoded fallback
+_model_dir_raw = os.getenv("APP_MODEL_DIR")
+if _model_dir_raw is None:
+    raise RuntimeError(
+        "APP_MODEL_DIR environment variable is required. "
+        "Set it to the directory containing model files (e.g., /models). "
+        "Server will not start."
+    )
+MODEL_DIR: Path = Path(_model_dir_raw)
+
+# SEC-01: Known-weak JWT secrets that must be rejected at startup
+_JWT_DENYLIST: frozenset[str] = frozenset({
+    "CHANGE-ME-IN-PRODUCTION-USE-256BIT-KEY",
+    "secret",
+    "password",
+    "changeme",
+    "dev",
+    "test",
+    "insecure",
+    "12345678901234567890123456789012",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "00000000000000000000000000000000",
+    "11111111111111111111111111111111",
+    "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "yoursecretkey",
+    "mysecretkey",
+    "supersecretkey",
+})
 
 
 class Settings(BaseSettings):
@@ -48,9 +76,12 @@ class Settings(BaseSettings):
     api_host:           str       = "0.0.0.0"
     api_port:           int       = 8000
     api_prefix:         str       = "/api/v1"
-    cors_origins:       list[str] = ["http://localhost:3000", "http://localhost:8080"]
+    cors_origins:       list[str] = []
     rate_limit_rpm:     int       = 60       # 每 IP 每分钟最大请求数
     rate_limit_burst:   int       = 20       # 令牌桶突发余量
+    rate_limit_auth_rpm:   int    = 5        # per-route: auth endpoints (login, token)
+    rate_limit_ingest_rpm: int    = 10       # per-route: ingest endpoints
+    rate_limit_query_rpm:  int    = 30       # per-route: query endpoints
     rate_limit_redis:   bool      = True     # True=Redis 分布式限流；False=进程内（单节点）
     request_timeout_sec: int      = 120
     uvicorn_workers:    int       = 1        # uvicorn worker 进程数（生产建议 CPU*2+1）
@@ -351,20 +382,45 @@ class Settings(BaseSettings):
         p.mkdir(parents=True, exist_ok=True)
         return p
 
-    @field_validator("secret_key", mode="after")
-    @classmethod
-    def warn_default_secret_key(cls, v: str) -> str:
-        # 参考 claude-code 启动校验模式：生产环境使用默认密钥是严重安全风险
-        # JWT 签名密钥泄露会导致攻击者伪造任意 Token
-        if v == "CHANGE-ME-IN-PRODUCTION-USE-256BIT-KEY":
-            import os
-            if os.getenv("ENVIRONMENT", "development").lower() == "production":
+    @model_validator(mode="after")
+    def _validate_security(self) -> "Settings":
+        # ── SEC-01: JWT secret denylist + minimum length ──────────────────────
+        secret = self.secret_key
+        if len(secret) < 32:
+            raise ValueError(
+                f"secret_key must be at least 32 characters. "
+                f"Run: python -c \"import secrets; print(secrets.token_hex(32))\" "
+                f"and set SECRET_KEY env var. Server will not start."
+            )
+        # Repeated-character check: all same char = weak regardless of denylist
+        if len(set(secret)) == 1:
+            raise ValueError(
+                "secret_key consists of a single repeated character and is not secure. "
+                "Generate a strong key with: python -c \"import secrets; print(secrets.token_hex(32))\""
+            )
+        if secret in _JWT_DENYLIST:
+            raise ValueError(
+                "secret_key matches a known-weak value and cannot be used. "
+                "Generate a strong key with: python -c \"import secrets; print(secrets.token_hex(32))\""
+            )
+
+        # ── SEC-04: CORS origins validation ──────────────────────────────────
+        if self.environment == "production":
+            if not self.cors_origins:
                 raise ValueError(
-                    "secret_key must be changed in production. "
-                    "Run: python -c \"import secrets; print(secrets.token_hex(32))\" "
-                    "and set SECRET_KEY env var."
+                    "cors_origins must be set in production. "
+                    "Set the CORS_ORIGINS environment variable to a comma-separated list "
+                    "of allowed origins (e.g., https://app.example.com). Server will not start."
                 )
-        return v
+            _localhost_patterns = ("localhost", "127.0.0.1", "0.0.0.0", "::1")
+            bad = [o for o in self.cors_origins if any(p in o for p in _localhost_patterns)]
+            if bad:
+                raise ValueError(
+                    f"cors_origins contains localhost/loopback entries in production: {bad}. "
+                    f"Remove all localhost/127.0.0.1 entries before starting in production mode."
+                )
+
+        return self
 
     @property
     def active_model(self) -> str:
