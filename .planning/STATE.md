@@ -82,7 +82,7 @@ Progress: [#####-----] 50%
 
 1. PyMuPDF commercial license — needed for enterprise on-premise before shipping image extraction?
 2. ARQ worker process (separate Docker service) vs. `asyncio.create_task + Redis` — ops overhead decision
-3. LLM captioning cost at ingest scale — per-document budget, or CLIP as default?
+3. LLM captioning cost at ingest scale — per-document budget, or CLIP as default? *(D-03/D-04 mitigate: skip on failure, cap at 50/doc)*
 4. Eval holdout set — 20% of current documents available, or entirely synthetic bootstrap needed?
 5. asyncpg pool compatibility with RLS — `app.current_tenant` must be set per-connection; verify against current pool config
 
@@ -96,6 +96,6 @@ None.
 
 ## Session Continuity
 
-**Last updated:** 2026-04-24 — Phase 3 verification passed (re-verification after mcp_server.py gap closure)
-**Stopped at:** Phase 3 complete
-**Next action:** Begin Phase 4 — Image Extraction (`/gsd-plan-phase 4`)
+**Last updated:** 2026-04-24 — Phase 4 context captured (discuss-phase session)
+**Stopped at:** Phase 4 context gathered — `.planning/phases/04-image-extraction/04-CONTEXT.md`
+**Next action:** Plan Phase 4 — Image Extraction (`/gsd-plan-phase 4`)
