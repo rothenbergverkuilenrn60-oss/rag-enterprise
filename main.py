@@ -18,6 +18,7 @@ from loguru import logger
 
 from config.settings import settings
 from utils.logger import setup_logger
+from utils.tasks import log_task_error
 from utils.metrics import (
     get_metrics_response,
     http_requests_total,
@@ -87,11 +88,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:             # As
             from services.pipeline import get_ingest_pipeline
             from pathlib import Path
             import asyncio
-            asyncio.create_task(
+            _auto_scan_task = asyncio.create_task(
                 get_knowledge_service().scan_and_update(
                     Path(settings.data_dir), get_ingest_pipeline()
-                )
+                ),
+                name="auto-knowledge-scan",
             )
+            _auto_scan_task.add_done_callback(log_task_error)
             logger.info("Auto knowledge scan scheduled on startup")
         except Exception as exc:
             logger.warning(f"Auto update schedule failed: {exc}")
