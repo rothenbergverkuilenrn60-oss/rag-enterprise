@@ -56,7 +56,7 @@ metrics:
   completed: "2026-04-24"
   tasks_completed: 2
   files_changed: 9
-  commits: 2
+  commits: 3
 ---
 
 # Phase 03 Plan 03: Exception Narrowing — Application Layer Summary
@@ -67,10 +67,11 @@ metrics:
 |------|---------|-------------|
 | 1    | de4d322 | fix(03-03): narrow except Exception in 6 internal service files |
 | 2    | 60a675b | fix(03-03): narrow except Exception in controllers/api.py and main.py |
+| 3    | 4febce6 | fix(03-03): narrow except Exception in mcp_server.py (gap closure) |
 
 ## Deviations
 
-- **03-03 agent hit API rate limit mid-execution** — 6 of 9 files were completed in the first commit (de4d322). The remaining 2 files (controllers/api.py, main.py) were completed inline by the orchestrator in the recovery session.
+- **03-03 agent hit API rate limit mid-execution** — 6 of 9 files were completed in the first commit (de4d322). The remaining files were completed inline by the orchestrator: api.py + main.py in recovery, mcp_server.py after verifier caught the gap.
 - **D-06 shutdown sites kept as `except Exception: pass`** — per plan exemption, these 3 sites in main.py lifespan shutdown are intentionally broad to ensure graceful shutdown regardless of flush failure.
 
 ## Self-Check
