@@ -192,8 +192,8 @@ class IngestionPipeline:
                     embedder=self._vectorizer.embedder,
                     vector_store=self._vectorizer.vector_store,
                 )
-            except Exception as exc:
-                logger.warning(f"[Ingest] Summary index failed (non-fatal): {exc}")
+            except (RuntimeError, ValueError) as exc:
+                logger.warning("[Ingest] Summary index failed (non-fatal)", exc_info=exc)
 
         elapsed_ms = round((time.perf_counter() - pipeline_start) * 1000, 1)
         await self._event_bus.emit_doc_ingested(doc_id, vr.total_chunks, tenant_id)
@@ -224,8 +224,8 @@ class IngestionPipeline:
                 user_id=user_id,
                 note=req.metadata.get("note", ""),
             )
-        except Exception as exc:
-            logger.warning(f"[Ingest] Version record failed (non-fatal): {exc}")
+        except (RuntimeError, ValueError) as exc:
+            logger.warning("[Ingest] Version record failed (non-fatal)", exc_info=exc)
 
         logger.info(f"[Ingest] DONE doc_id={doc_id} chunks={vr.total_chunks} {elapsed_ms}ms")
         return IngestionResponse(doc_id=doc_id, total_chunks=vr.total_chunks,
@@ -325,8 +325,8 @@ class QueryPipeline:
                     logger.debug(
                         f"[Query] Summary search: {len(summary_chunk_ids)} candidate chunk_ids"
                     )
-            except Exception as exc:
-                logger.warning(f"[Query] Summary search failed (non-fatal): {exc}")
+            except (RuntimeError, ValueError) as exc:
+                logger.warning("[Query] Summary search failed (non-fatal)", exc_info=exc)
 
         chunks, latencies = await self._retriever.retrieve_multi_query(
             queries=nlu.rewritten_queries,
@@ -598,8 +598,8 @@ class AgentQueryPipeline:
                     tools=self._AGENT_TOOLS,
                     messages=messages,
                 )
-            except Exception as exc:
-                logger.error(f"[Agent] iter={iteration+1} API error: {exc}")
+            except anthropic.APIError as exc:
+                logger.error("[Agent] Anthropic API error", iteration=iteration + 1, exc_info=exc)
                 answer = "抱歉，智能助手在处理您的请求时遇到了错误，请稍后重试。"
                 break
             _report_usage(resp, "anthropic", model=self._llm._default_model)
