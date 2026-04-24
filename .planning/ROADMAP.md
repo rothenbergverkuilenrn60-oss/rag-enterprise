@@ -80,8 +80,11 @@ Plans:
 2. A hybrid query that matches an image caption returns that image chunk alongside text chunks; the response includes caption text and base64 bytes
 3. Uploading a standalone `.jpg` or `.png` file to the ingest endpoint produces a single image chunk with a generated caption stored and retrievable
 4. `ExtractedContent.images` is populated by Stage 2 and flows through Stage 4 chunking without pipeline errors on PDFs with no images
-**Plans:** TBD
-**UI hint**: no
+**Plans:** 3 plans
+Plans:
+- [ ] 04-01-PLAN.md — Data contracts: ExtractedImage model, images field on ExtractedContent, chunk_type + image_b64 on ChunkMetadata, DocType.IMAGE, extraction_errors on IngestionResponse
+- [ ] 04-02-PLAN.md — Image extraction: image_extractor.py (PDF + standalone); extractor.py integration; _detect_doc_type image routing
+- [ ] 04-03-PLAN.md — Image chunking + pipeline wiring: _chunk_images() with LLM captioning; D-03/D-04 failure handling; pipeline.py routing + extraction_errors forwarding
 
 ### Phase 5: Async Ingest Tracking
 **Goal:** Clients receive a task_id immediately on async ingest and can poll for job status including error detail, backed by ARQ and Redis.
@@ -110,6 +113,6 @@ Plans:
 | 1. pgvector Foundation | 0/4 | In progress | - |
 | 2. Security Hardening + Operational Fixes | 0/3 | Not started | - |
 | 3. Error Handling Sweep | 1/3 | In progress | - |
-| 4. Image Extraction | 0/0 | Not started | - |
+| 4. Image Extraction | 0/3 | Not started | - |
 | 5. Async Ingest Tracking | 0/0 | Not started | - |
 | 6. Test Coverage and Eval | 0/0 | Not started | - |
