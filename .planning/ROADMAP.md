@@ -65,7 +65,11 @@ Plans:
 1. A forced exception in any previously broad-catch site produces a structured log entry with full context rather than being silently absorbed
 2. Every `asyncio.create_task()` call has a registered `done_callback`; a task that raises an unhandled exception produces a logged error record
 3. Injecting a failure into each previously swallowed exception path shows the error in the audit log within the same request cycle
-**Plans:** TBD
+**Plans:** 3 plans
+Plans:
+- [x] 03-01-PLAN.md — create_task done_callback wiring (ERR-02): utils/tasks.py + main.py + event_bus.py
+- [ ] 03-02-PLAN.md — Narrow exceptions in external-dependency files (ERR-01): pipeline.py, retriever.py, oidc_auth.py, indexer.py
+- [ ] 03-03-PLAN.md — Narrow exceptions in internal services + app layer (ERR-01): 6 service files + mcp_server.py + controllers/api.py + main.py (D-04/D-06 preserved)
 
 ### Phase 4: Image Extraction
 **Goal:** PDF-embedded images and standalone image files are ingested as captioned, embedded chunks that are retrievable alongside text chunks with no changes to the query API.
@@ -105,7 +109,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. pgvector Foundation | 0/4 | In progress | - |
 | 2. Security Hardening + Operational Fixes | 0/3 | Not started | - |
-| 3. Error Handling Sweep | 0/0 | Not started | - |
+| 3. Error Handling Sweep | 1/3 | In progress | - |
 | 4. Image Extraction | 0/0 | Not started | - |
 | 5. Async Ingest Tracking | 0/0 | Not started | - |
 | 6. Test Coverage and Eval | 0/0 | Not started | - |

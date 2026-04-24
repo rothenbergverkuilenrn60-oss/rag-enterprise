@@ -12,7 +12,7 @@
 ### Error Handling
 
 - [ ] **ERR-01**: All `except Exception` catch sites replaced with specific exception types; swallowed errors are eliminated — every failure surfaces through audit log or structured logging
-- [ ] **ERR-02**: Every `asyncio.create_task()` call has a `done_callback` that logs or re-raises unhandled exceptions
+- [x] **ERR-02**: Every `asyncio.create_task()` call has a `done_callback` that logs or re-raises unhandled exceptions
 
 ### pgvector Migration
 
@@ -92,7 +92,7 @@
 | OPS-01 | Phase 2 — Security Hardening + Operational Fixes | Pending |
 | OPS-02 | Phase 2 — Security Hardening + Operational Fixes | Pending |
 | ERR-01 | Phase 3 — Error Handling Sweep | Pending |
-| ERR-02 | Phase 3 — Error Handling Sweep | Pending |
+| ERR-02 | Phase 3 — Error Handling Sweep | Complete ✓ |
 | IMG-01 | Phase 4 — Image Extraction | Pending |
 | IMG-02 | Phase 4 — Image Extraction | Pending |
 | IMG-03 | Phase 4 — Image Extraction | Pending |
