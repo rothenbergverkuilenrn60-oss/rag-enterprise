@@ -9,6 +9,10 @@ import time
 import uuid
 from contextlib import asynccontextmanager      # 异步上下文管理器，用于生命周期管理
 from typing import AsyncGenerator
+import asyncpg
+import httpx
+import redis
+from jose import JWTError
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -42,7 +46,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:             # As
     try:
         from utils.observability import setup_observability
         setup_observability()
-    except Exception as exc:
+    except (ImportError, OSError, RuntimeError) as exc:
         logger.warning(f"Observability setup failed (non-fatal): {exc}")
     logger.info("=" * 60)
     logger.info(f"  {settings.app_name} v{settings.app_version} starting")  
@@ -59,7 +63,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:             # As
         await vectorizer.ensure_collection()
         count = await vectorizer._store.count()
         logger.info(f"VectorStore ready: {count} vectors in collection")
-    except Exception as exc:
+    except asyncpg.PostgresError as exc:
         logger.warning(f"VectorStore warmup failed (non-fatal): {exc}")
 
     # ── 启动事件总线 ──────────────────────────────────────────────────────────
@@ -68,7 +72,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:             # As
         bus = get_event_bus()
         await bus.start()
         logger.info("EventBus started")
-    except Exception as exc:
+    except (asyncpg.PostgresError, OSError) as exc:
         logger.warning(f"EventBus start failed (non-fatal): {exc}")
 
     # ── 注册事件 Handler（反馈驱动的重索引）────────────────────────────────
@@ -78,7 +82,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:             # As
         async def _on_reindex(event):
             logger.info(f"[Event] Reindex requested: {event.payload}")
         bus.subscribe(EventType.REINDEX_REQUESTED, _on_reindex)
-    except Exception as exc:
+    except (RuntimeError, ValueError) as exc:
         logger.warning(f"Event handler registration failed: {exc}")
 
     # ── 启动时自动扫描知识库（如配置开启）──────────────────────────────────
@@ -96,7 +100,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:             # As
             )
             _auto_scan_task.add_done_callback(log_task_error)
             logger.info("Auto knowledge scan scheduled on startup")
-        except Exception as exc:
+        except RuntimeError as exc:
             logger.warning(f"Auto update schedule failed: {exc}")
 
     yield  # ── 应用运行 ──────────────────────────────────────────────────────
@@ -233,7 +237,7 @@ async def _redis_rate_check(client_ip: str, now: float) -> bool:
         results = await pipe.execute()
         count = results[2]
         return count > settings.rate_limit_rpm
-    except Exception:
+    except redis.RedisError:
         return False   # Redis 异常时放行（fail-open），不影响业务
 
 
@@ -350,7 +354,7 @@ async def auth_middleware(request: Request, call_next) -> Response:
             if user:
                 from utils.metrics import auth_attempts_total
                 auth_attempts_total.labels(result="success").inc()
-        except Exception as exc:
+        except (JWTError, httpx.HTTPError, ValueError) as exc:
             logger.debug(f"[Auth] middleware error (non-fatal): {exc}")
             from utils.metrics import auth_attempts_total
             auth_attempts_total.labels(result="failure").inc()

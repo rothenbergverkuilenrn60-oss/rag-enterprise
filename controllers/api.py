@@ -5,6 +5,10 @@
 from __future__ import annotations
 import time
 import uuid
+import asyncpg
+import httpx
+import openai
+import redis
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Request
 from fastapi.responses import StreamingResponse
 from loguru import logger
@@ -54,14 +58,14 @@ async def readiness() -> dict:
         r = await get_redis()
         await r.ping()
         checks["redis"] = "ok"
-    except Exception as e:
+    except redis.RedisError as e:
         checks["redis"] = f"error: {e}"
     # VectorStore
     try:
         from services.vectorizer.vector_store import get_vector_store
         count = await get_vector_store().count()
         checks["vector_store"] = f"ok ({count} vectors)"
-    except Exception as e:
+    except asyncpg.PostgresError as e:
         checks["vector_store"] = f"error: {e}"
 
     all_ok = all("ok" in v for v in checks.values())    # 生成器表达式：检查所有依赖的状态值都包含 'ok' 字符串
@@ -91,7 +95,7 @@ async def ingest(request: Request, req: IngestionRequest) -> APIResponse:
         )
     except HTTPException:
         raise
-    except Exception as exc:
+    except (asyncpg.PostgresError, httpx.HTTPError, openai.APIError, ValueError) as exc:
         logger.error(f"[API:ingest] trace={trace_id} error={exc}")
         raise HTTPException(status_code=500, detail="文档摄取失败，请稍后重试")
 
@@ -133,7 +137,7 @@ async def query(request: Request, req: GenerationRequest) -> APIResponse:
             data=result.model_dump(mode="json"),
             trace_id=result.trace_id or trace_id,
         )
-    except Exception as exc:
+    except (asyncpg.PostgresError, httpx.HTTPError, openai.APIError, ValueError) as exc:
         logger.error(f"[API:query] trace={trace_id} error={exc}")
         raise HTTPException(status_code=500, detail="查询处理失败，请稍后重试")
 
@@ -149,7 +153,7 @@ async def query_stream(request: Request, req: GenerationRequest) -> StreamingRes
             async for token in pipeline.stream(req):
                 yield f"data: {token}\n\n"  # SSE 协议格式：每条数据以 'data: ' 开头，两个换行结束。浏览器 EventSource 自动解析
             yield "data: [DONE]\n\n"        # 发送结束信号，前端收到 [DONE] 知道流式传输结束
-        except Exception as exc:
+        except (asyncpg.PostgresError, httpx.HTTPError, openai.APIError, ValueError) as exc:
             logger.error(f"[API:stream] error={exc}")
             # 生产环境不向客户端暴露内部异常详情（防止信息泄露）
             # 参考 claude-code errors.ts：只向客户端返回安全的通用错误消息
@@ -177,7 +181,7 @@ async def stats() -> APIResponse:
         from services.vectorizer.vector_store import get_vector_store
         count = await get_vector_store().count()
         return APIResponse(success=True, data={"total_vectors": count})
-    except Exception as exc:
+    except asyncpg.PostgresError as exc:
         logger.error(f"[API:stats] error={exc}")
         raise HTTPException(status_code=500, detail="获取统计数据失败")
 
@@ -200,7 +204,7 @@ async def submit_feedback(req: FeedbackRequest) -> APIResponse:
         )
         await get_feedback_service().submit(record)
         return APIResponse(success=True, data={"message": "反馈已记录"})
-    except Exception as exc:
+    except (asyncpg.PostgresError, ValueError) as exc:
         logger.error(f"[API:feedback] error={exc}")
         raise HTTPException(status_code=500, detail="反馈提交失败，请稍后重试")
 
