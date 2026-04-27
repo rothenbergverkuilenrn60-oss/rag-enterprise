@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Retrieval Depth & Frontend
 status: in_progress
-stopped_at: "v1.1 roadmap created; awaiting Phase 7 planning"
-last_updated: "2026-04-27T18:00:00Z"
+stopped_at: "Phase 7 executed + verified (code PASS, container HUMAN_NEEDED); Phase 8 next"
+last_updated: "2026-04-27T22:00:00Z"
 progress:
   total_phases: 4
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  completed_phases: 1
+  total_plans: 2
+  completed_plans: 2
+  percent: 25
 ---
 
 # STATE — EnterpriseRAG v1.1 Retrieval Depth & Frontend
@@ -18,31 +18,31 @@ progress:
 ## Project Reference
 
 **Core value:** Every query returns a grounded, auditable answer — no hallucinations, no silent failures, no security gaps.
-**Current focus:** Phase 7 — OCR Engine Integration (PP-StructureV3 + async/concurrency/baked models)
+**Current focus:** Phase 7 verified PASS in code (15/15 criteria); container rebuild deferred to user. Phase 8 ready to plan.
 
 ## Current Position
 
 Phase: 7
-Plan: Not started
-Phase status: Not started
+Plan: 07-01 + 07-02 complete
+Phase status: Execution complete; verification PASS (code) / HUMAN_NEEDED (container e2e)
 
 | Field | Value |
 |-------|-------|
 | Milestone | v1.1 Retrieval Depth & Frontend |
-| Current phase | 7 — OCR Engine Integration |
-| Current plan | Not started |
-| Phase status | Not started |
-| Overall progress | 0/4 phases (v1.1) |
+| Current phase | 7 — OCR Engine Integration (verified) |
+| Current plan | All plans complete (07-01, 07-02) |
+| Phase status | Execution complete + verified — pending docker rebuild for live e2e |
+| Overall progress | 1/4 phases (v1.1) |
 
 ```
-Progress: [          ] 0%
+Progress: [##        ] 25%
 ```
 
 ## Phase Overview
 
 | Phase | Status |
 |-------|--------|
-| 7. OCR Engine Integration | Not started |
+| 7. OCR Engine Integration | Complete (code) + container e2e pending user docker build |
 | 8. Multimodal Metadata + Query Filter | Not started |
 | 9. Frontend Extraction | Not started |
 | 10. Coverage Gate on New Code | Not started |
@@ -51,9 +51,12 @@ Progress: [          ] 0%
 
 | Metric | Value |
 |--------|-------|
-| Phases completed (v1.1) | 0/4 |
-| Requirements complete (v1.1) | 0/7 |
-| Plans executed (v1.1) | 0 |
+| Phases completed (v1.1) | 1/4 |
+| Requirements complete (v1.1) | 2/7 (OCR-01, OCR-02) |
+| Plans executed (v1.1) | 2 (07-01, 07-02) |
+| Phase 7 unit tests | 33/33 PASS |
+| Phase 4 regression tests | 17/17 PASS |
+| Phase 7 e2e integration test | Skip-gated (paddleocr only inside container); will run after `docker compose build rag-api` |
 
 ## Accumulated Context
 
@@ -94,12 +97,14 @@ None.
 
 ### Todos
 
-- Plan Phase 7: `/gsd-plan-phase 7`
+- User: `docker compose build rag-api` then `bash scripts/verify_ocr_bake.sh` then `pytest tests/integration/test_ocr_e2e.py -m integration -x -s` inside container — closes Phase 7 SC #1 and SC #3 live verification.
+- Plan Phase 8: `/gsd-plan-phase 8` (Multimodal Metadata + Query Filter — META-01, META-02, QUERY-01)
 
 ## Session Continuity
 
-**Last updated:** 2026-04-27 — v1.1 roadmap drafted (4 phases, 7 requirements mapped, coverage validated)
-**Stopped at:** ROADMAP.md and STATE.md written for v1.1; REQUIREMENTS.md traceability populated
-**Next action:** `/gsd-plan-phase 7` to plan OCR Engine Integration
+**Last updated:** 2026-04-27 22:00 — Phase 7 executed (2 plans, 9 commits) and verified (15/15 criteria PASS in code)
+**Stopped at:** VERIFICATION.md PASS + HUMAN_NEEDED for docker rebuild; STATE updated
+**Next action:** User runs docker rebuild + e2e; in parallel, can run `/gsd-plan-phase 8` to plan Multimodal Metadata + Query Filter
 
-**Planned Phase:** 7 (OCR Engine Integration) — plans TBD — 2026-04-27T18:00:00Z
+**Phase 7 artifacts:** 07-01-SUMMARY.md, 07-02-SUMMARY.md, VERIFICATION.md
+**Planned Phase:** 8 (Multimodal Metadata + Query Filter) — plans TBD
