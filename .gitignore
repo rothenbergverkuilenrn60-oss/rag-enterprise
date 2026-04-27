@@ -27,6 +27,7 @@ ENV/
 
 # Secrets & local config
 .env
+.env.docker
 .env.local
 .env.*.local
 
