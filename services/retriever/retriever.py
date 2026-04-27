@@ -376,6 +376,13 @@ async def multi_query_expand(query: str, llm_client, n: int = 3) -> list[str]:
 # ══════════════════════════════════════════════════════════════════════════════
 # HybridRetrieverService
 # ══════════════════════════════════════════════════════════════════════════════
+def _safe_doc_type(value: str) -> DocType:
+    try:
+        return DocType(value)
+    except ValueError:
+        return DocType.UNKNOWN
+
+
 def _to_retrieved_chunk(r: VectorSearchResult, method: str = "dense") -> RetrievedChunk:
     meta = ChunkMetadata(
         source=r.metadata.get("source", ""),
@@ -384,7 +391,7 @@ def _to_retrieved_chunk(r: VectorSearchResult, method: str = "dense") -> Retriev
         author=r.metadata.get("author", ""),
         chunk_index=r.metadata.get("chunk_index", 0),
         total_chunks=r.metadata.get("total_chunks", 0),
-        doc_type=DocType(r.metadata.get("doc_type", "unknown")),
+        doc_type=_safe_doc_type(r.metadata.get("doc_type", "")),
         language=r.metadata.get("language", "zh"),
         chunk_type=r.metadata.get("chunk_type", "text"),
         image_b64=r.metadata.get("image_b64", ""),

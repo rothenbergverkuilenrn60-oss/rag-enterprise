@@ -24,9 +24,9 @@ class TestRRFFusion:
         list1 = [("A", 0.9), ("B", 0.8), ("C", 0.7)]
         list2 = [("B", 0.95), ("D", 0.85), ("A", 0.6)]
         result = rrf_fusion([list1, list2])
-        # A と B は両リストに存在 → 上位に来るはず
+        # A and B appear in both lists → both should occupy the top 2 positions
         top2 = {r[0] for r in result[:2]}
-        assert "A" in top2 or "B" in top2
+        assert top2 == {"A", "B"}
 
     def test_empty_lists(self) -> None:
         result = rrf_fusion([[], []])
@@ -135,3 +135,8 @@ class TestToRetrievedChunkImageFields:
         chunk = _to_retrieved_chunk(r)
         assert chunk.metadata.chunk_type == "text"
         assert chunk.metadata.image_b64 == ""
+
+    def test_unknown_doc_type_does_not_raise(self) -> None:
+        r = _make_vector_search_result({"doc_type": "jpeg", "language": "en"})
+        chunk = _to_retrieved_chunk(r)
+        assert chunk.metadata.doc_type == DocType.UNKNOWN
