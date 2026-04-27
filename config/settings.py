@@ -260,6 +260,7 @@ class Settings(BaseSettings):
     ollama_model:       str   = "qwen2.5:14b"
     ollama_model_path:  Path  = MODEL_DIR / "ollama_model"
     openai_api_key:     str   = ""
+    openai_base_url:    str   = ""   # custom proxy, e.g. https://free.v36.cm/v1/; empty = official API
     openai_model:       str   = "gpt-4o"
     anthropic_api_key:  str   = ""
     anthropic_model:    str   = "claude-sonnet-4-6"

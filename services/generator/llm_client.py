@@ -235,9 +235,12 @@ class OllamaLLMClient(BaseLLMClient):
 class OpenAILLMClient(BaseLLMClient):
     def __init__(self) -> None:
         from openai import AsyncOpenAI
-        self._client = AsyncOpenAI(api_key=settings.openai_api_key)
+        self._client = AsyncOpenAI(
+            api_key=settings.openai_api_key,
+            base_url=settings.openai_base_url or None,
+        )
         self._model  = settings.openai_model
-        logger.info(f"OpenAILLMClient: model={self._model}")
+        logger.info(f"OpenAILLMClient: model={self._model} base_url={settings.openai_base_url or 'official'}")
 
     @retry(stop=stop_after_attempt(3), wait=wait_random_exponential(multiplier=1, max=10))
     async def chat(
