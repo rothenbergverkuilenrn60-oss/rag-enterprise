@@ -16,13 +16,47 @@
 from __future__ import annotations
 
 import asyncio
+import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Protocol
 
 from loguru import logger
+from tenacity import (
+    AsyncRetrying,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_fixed,
+)
 
 from config.settings import settings
+
+
+# ── Garbled-CJK heuristic ────────────────────────────────────────────────────
+# Triggered when the document was expected Chinese (lang='ch') but the OCR output
+# is mostly non-CJK noise. Per CONTEXT.md / RESEARCH.md: warn-not-raise.
+# Skip empty / very short bodies to avoid false positives on blank pages.
+_CJK_RE = re.compile(r"[一-鿿]")
+_ASCII_RE = re.compile(r"[\x20-\x7e]")
+_GARBLED_MIN_LEN = 50
+
+
+def _looks_garbled(body_text: str) -> bool:
+    """Detect probable PaddleOCR garbled output for a CJK document.
+
+    Returns True when:
+      * body_text length >= 50 chars (avoids false positives on tiny snippets), AND
+      * ASCII printable ratio < 5% (so it isn't legitimate English content), AND
+      * CJK character ratio < 30% (so it isn't legitimate Chinese content).
+
+    Pure function; no side effects. Safe to call from tests directly.
+    """
+    if not body_text or len(body_text) < _GARBLED_MIN_LEN:
+        return False
+    total = len(body_text)
+    cjk_ratio = len(_CJK_RE.findall(body_text)) / total
+    ascii_ratio = len(_ASCII_RE.findall(body_text)) / total
+    return ascii_ratio < 0.05 and cjk_ratio < 0.30
 
 
 # ── Module-level concurrency gate ────────────────────────────────────────────
@@ -86,8 +120,65 @@ class PpStructureV3Engine:
     name: str = "ppstructurev3"
 
     async def extract_pdf(self, file_path: Path) -> dict[str, Any]:
-        async with _semaphore():
-            return await asyncio.to_thread(self._run_sync, file_path)
+        """Run OCR with bounded concurrency, hard timeout, and retry-once.
+
+        Failure modes (per Phase 7 CONTEXT.md):
+          * ``asyncio.TimeoutError`` — ``asyncio.wait_for(timeout=ocr_timeout_sec)``
+            triggers. Tenacity retries exactly once after a 1s wait. On the second
+            timeout the function returns a result dict with ``body_text=""`` and
+            ``extraction_errors=["OCR timeout after Xs, retried 1x"]`` — surfacing
+            via the existing ``IngestionResponse.extraction_errors`` channel.
+          * ``MemoryError`` — bubbles up. ARQ's retry policy + worker max_jobs cap
+            handles OOM at the platform layer; we deliberately do not catch it.
+          * Garbled CJK output — detected via ``_looks_garbled``. Logs a warning;
+            does not raise or modify the result (warn-not-raise per CONTEXT).
+
+        Note: no broad ``except`` is used — ERR-01 forbids them, and OOM must
+        propagate. Only ``asyncio.TimeoutError`` is caught for the retry policy.
+        """
+        timeout = settings.ocr_timeout_sec
+
+        async def _attempt() -> dict[str, Any]:
+            async with _semaphore():
+                return await asyncio.wait_for(
+                    asyncio.to_thread(self._run_sync, file_path),
+                    timeout=timeout,
+                )
+
+        try:
+            async for attempt in AsyncRetrying(
+                retry=retry_if_exception_type(asyncio.TimeoutError),
+                stop=stop_after_attempt(2),  # 1 try + 1 retry
+                wait=wait_fixed(1),
+                reraise=True,
+            ):
+                with attempt:
+                    result = await _attempt()
+        except asyncio.TimeoutError:
+            logger.error(
+                f"[OCR] timeout after {timeout}s on {file_path.name}, "
+                f"retried 1x — surfacing in extraction_errors"
+            )
+            return {
+                "body_text": "",
+                "tables": [],
+                "pages": 0,
+                "title": file_path.stem,
+                "engine": self.name,
+                "extraction_errors": [
+                    f"OCR timeout after {timeout}s, retried 1x"
+                ],
+            }
+        # MemoryError and any other exception types are NOT caught here — they
+        # propagate to ARQ which handles retries / worker restart.
+
+        # Garbled-CJK heuristic — warn only, do not raise or modify result.
+        if _looks_garbled(result.get("body_text", "")):
+            logger.warning(
+                f"[OCR] {file_path.name}: output looks garbled "
+                f"(low CJK + low ASCII ratio) — flagging for review"
+            )
+        return result
 
     def _run_sync(self, file_path: Path) -> dict[str, Any]:
         results = _paddle_pipeline().predict(input=str(file_path))
