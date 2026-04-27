@@ -278,6 +278,8 @@ class Settings(BaseSettings):
     redis_url:      str  = "redis://localhost:6379/0"
     cache_ttl_sec:  int  = 3600
     cache_enabled:  bool = True
+    arq_keep_result_sec: int  = 86400   # ASYNC-02: 24h TTL for job results
+    arq_job_timeout:     int  = 300     # ASYNC-01/02: max seconds per worker job
 
     # ══════════════════════════════════════════════════════════════════════════
     # 可观测性
