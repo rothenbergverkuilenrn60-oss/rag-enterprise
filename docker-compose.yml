@@ -19,7 +19,7 @@ networks:
         - subnet: 172.20.0.0/16
 
 volumes:
-  qdrant-storage:
+  postgres-data:
     driver: local
   redis-data:
     driver: local
@@ -62,13 +62,14 @@ x-rag-env: &rag-common-env
   ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
   ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-4-6}
   # Embedding
-  EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-ollama}
+  EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-huggingface}
   EMBEDDING_MODEL: ${EMBEDDING_MODEL:-bge-m3}
+  EMBEDDING_MODEL_PATH: ${EMBEDDING_MODEL_PATH:-/app/models/embedding_models/bge-m3}
+  EMBEDDING_DIM: ${EMBEDDING_DIM:-1024}
   # VectorStore
-  VECTOR_STORE: ${VECTOR_STORE:-qdrant}
-  QDRANT_URL: http://qdrant:6333
-  QDRANT_COLLECTION: ${QDRANT_COLLECTION:-rag_enterprise_v3}
-  QDRANT_API_KEY: ${QDRANT_API_KEY:-}
+  VECTOR_STORE: ${VECTOR_STORE:-pgvector}
+  PG_DSN: ${PG_DSN:-postgresql+asyncpg://rag:rag@postgres:5432/ragdb}
+  APP_MODEL_DIR: ${APP_MODEL_DIR:-/app/models}
   # Redis
   REDIS_URL: redis://redis:6379/0
   CACHE_ENABLED: ${CACHE_ENABLED:-true}
@@ -93,29 +94,28 @@ x-rag-env: &rag-common-env
 services:
 
   # ══════════════════════════════════════════════════════════════════════════
-  # 1. Qdrant — 向量数据库
+  # 1. PostgreSQL + pgvector — 向量数据库
   # ══════════════════════════════════════════════════════════════════════════
-  qdrant:
-    image: qdrant/qdrant:v1.11.5
-    container_name: rag-qdrant
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: rag-postgres
     <<: [*restart-policy, *default-logging]
     networks:
       rag-net:
         ipv4_address: 172.20.0.10
     ports:
-      - "6333:6333"   # REST API
-      - "6334:6334"   # gRPC
+      - "5432:5432"
     volumes:
-      - qdrant-storage:/qdrant/storage
-      - ./docker/qdrant/config.yaml:/qdrant/config/production.yaml:ro
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     environment:
-      QDRANT__SERVICE__HTTP_PORT: 6333
-      QDRANT__SERVICE__GRPC_PORT: 6334
-      QDRANT__LOG_LEVEL: INFO
-      QDRANT__STORAGE__ON_DISK_PAYLOAD: "true"
+      POSTGRES_USER: rag
+      POSTGRES_PASSWORD: rag
+      POSTGRES_DB: ragdb
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:6333/healthz"]
-      interval: 15s
+      test: ["CMD-SHELL", "pg_isready -U rag -d ragdb"]
+      interval: 10s
       timeout: 5s
       retries: 5
       start_period: 20s
@@ -213,20 +213,18 @@ services:
       - rag-data:/app/data
       - rag-logs:/app/logs
       - eval-reports:/app/eval_reports
+      - /mnt/f/my_models:/app/models:ro
     environment:
       <<: *rag-common-env
-      # 覆盖 data/log 路径（容器内使用 /app 而非 /mnt/f）
       DATA_DIR: /app/data/raw
       PROCESSED_DIR: /app/data/processed
       INDEX_DIR: /app/data/index
       LOG_DIR: /app/logs
       CACHE_DIR: /app/cache
     depends_on:
-      qdrant:
+      postgres:
         condition: service_healthy
       redis:
-        condition: service_healthy
-      ollama:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
@@ -251,6 +249,7 @@ services:
     volumes:
       - rag-data:/app/data
       - rag-logs:/app/logs
+      - /mnt/f/my_models:/app/models:ro
     environment:
       <<: *rag-common-env
       DATA_DIR: /app/data/raw
@@ -259,11 +258,9 @@ services:
       LOG_DIR: /app/logs
       CACHE_DIR: /app/cache
     depends_on:
-      qdrant:
+      postgres:
         condition: service_healthy
       redis:
-        condition: service_healthy
-      ollama:
         condition: service_healthy
 
   # ══════════════════════════════════════════════════════════════════════════
