@@ -216,7 +216,7 @@ class AnswerQualityRule(Rule):
         if len(answer) < 20:
             return RuleResult(
                 action=RuleAction.MODIFY,
-                modified="根据现有资料，暂未找到与该问题相关的具体条款，建议直接咨询人事行政部。",
+                modified="根据现有文档资料，无法准确回答此问题，建议补充更多上下文或查阅原始文档。",
                 rule_id=self.rule_id,
             )
         if sources and "[来源" not in answer:

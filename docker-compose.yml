@@ -203,6 +203,8 @@ services:
     env_file: .env.docker
     networks:
       - rag-net
+    ports:
+      - "8000:8000"
     volumes:
       - rag-data:/app/data
       - rag-logs:/app/logs

@@ -54,6 +54,9 @@ class EntityDisambiguator:
     )
     _POLICY_VERSION = re.compile(r"[（(]\d{4}[)）]版?|v\d+(\.\d+)?")
 
+    # 只有这些 HR/政策类实体类型适用启发式消歧；其他类型（产品、特征、页码等）直接放行
+    _DISAMBIGUATABLE_TYPES = frozenset({"person", "policy", "department"})
+
     def disambiguate(
         self,
         entity_text: str,
@@ -76,6 +79,17 @@ class EntityDisambiguator:
             DisambiguatedEntity，含 resolved_id 和 confidence
         """
         normalized = self._normalize(entity_text, entity_type)
+
+        if entity_type not in self._DISAMBIGUATABLE_TYPES:
+            return DisambiguatedEntity(
+                original_text=entity_text,
+                entity_type=entity_type,
+                resolved_id=f"{entity_type}::{normalized}",
+                resolved_name=normalized,
+                confidence=1.0,
+                disambiguation_method="exact",
+                needs_clarification=False,
+            )
 
         # 提取上下文消歧线索
         dept_hint = self._extract_dept_hint(query_context)
@@ -239,6 +253,7 @@ def get_disambiguator() -> EntityDisambiguator:
     global _disambiguator
     if _disambiguator is None:
         _disambiguator = EntityDisambiguator()
+    return _disambiguator
 
 
 # ══════════════════════════════════════════════════════════════════════════════

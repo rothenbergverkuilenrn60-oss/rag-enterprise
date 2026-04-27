@@ -199,9 +199,15 @@ async def query(request: Request, req: GenerationRequest) -> APIResponse:
         # agent_mode=True → Agentic 工具循环；否则走标准 Pipeline
         pipeline = get_agent_pipeline() if req.agent_mode else get_query_pipeline()
         result: GenerationResponse = await pipeline.run(req)
+        data = result.model_dump(mode="json")
+        if not req.include_images:
+            for src in data.get("sources", []):
+                meta = src.get("metadata")
+                if isinstance(meta, dict) and meta.get("image_b64"):
+                    meta["image_b64"] = ""
         return APIResponse(
             success=True,
-            data=result.model_dump(mode="json"),
+            data=data,
             trace_id=result.trace_id or trace_id,
         )
     except (asyncpg.PostgresError, httpx.HTTPError, openai.APIError, ValueError) as exc:
