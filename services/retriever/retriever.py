@@ -386,6 +386,8 @@ def _to_retrieved_chunk(r: VectorSearchResult, method: str = "dense") -> Retriev
         total_chunks=r.metadata.get("total_chunks", 0),
         doc_type=DocType(r.metadata.get("doc_type", "unknown")),
         language=r.metadata.get("language", "zh"),
+        chunk_type=r.metadata.get("chunk_type", "text"),
+        image_b64=r.metadata.get("image_b64", ""),
     )
     return RetrievedChunk(
         chunk_id=r.chunk_id,
