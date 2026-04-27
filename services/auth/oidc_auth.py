@@ -18,6 +18,8 @@ from typing import Any
 from loguru import logger
 import httpx
 from jose import JWTError
+from fastapi import Depends, HTTPException
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from config.settings import settings
 
@@ -240,3 +242,28 @@ def get_auth_service() -> OIDCAuthService:
     if _auth_service is None:
         _auth_service = OIDCAuthService()
     return _auth_service
+
+
+_bearer = HTTPBearer(auto_error=False)
+
+
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
+) -> AuthenticatedUser:
+    """FastAPI dependency: extract + verify JWT Bearer token.
+
+    Returns the authenticated user, or raises 401 with a sanitized detail.
+    Used by Phase 5 routes (POST /ingest/async, GET /ingest/status/{task_id})
+    per ASVS V2 (Authentication) and V4 (Access Control) requirements.
+
+    SECURITY: auto_error=False prevents FastAPI's default 403 on missing
+    Authorization header — we explicitly raise 401 to match standard
+    "Authorization required" semantics. Error messages are static (no
+    token contents echoed back) to prevent token-shape leakage.
+    """
+    if credentials is None:
+        raise HTTPException(status_code=401, detail="Authorization required")
+    user = await get_auth_service().verify_token(credentials.credentials)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    return user
