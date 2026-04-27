@@ -13,6 +13,9 @@
 # =============================================================================
 from __future__ import annotations
 
+import os
+os.environ.setdefault("APP_MODEL_DIR", "/tmp")
+
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch, call
 
@@ -415,7 +418,12 @@ class TestHydeRewriteMocked:
 
         call_kwargs = mock_llm.chat.call_args.kwargs
         system_prompt = call_kwargs["system"]
-        assert "answer" in system_prompt.lower() or "paragraph" in system_prompt.lower()
+        assert (
+            "answer" in system_prompt.lower()
+            or "paragraph" in system_prompt.lower()
+            or "假设" in system_prompt  # hypothetical (Chinese)
+            or "段落" in system_prompt  # paragraph (Chinese)
+        )
 
 
 # ══════════════════════════════════════════════════════════════════════════════

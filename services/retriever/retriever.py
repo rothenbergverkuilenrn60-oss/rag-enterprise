@@ -368,7 +368,7 @@ async def multi_query_expand(query: str, llm_client, n: int = 3) -> list[str]:
         )
         variants = [q.strip() for q in response.strip().split("\n") if q.strip()]
         return [query] + variants[:n]
-    except (RuntimeError, ValueError) as exc:
+    except (RuntimeError, ValueError, ConnectionError, OSError) as exc:
         logger.warning("Multi-query expand failed", exc_info=exc)
         return [query]
 

@@ -216,8 +216,13 @@ class IngestionPipeline:
         # 记录文档版本（非阻塞，失败不影响主流程）
         try:
             from services.knowledge.version_service import get_version_service
-            checksum = pre.cleaned_text and __import__("hashlib").sha256(
-                pre.cleaned_text.encode()).hexdigest()[:16] or ""
+            _raw = pre.cleaned_text
+            if isinstance(_raw, bytes) and _raw:
+                checksum = __import__("hashlib").sha256(_raw).hexdigest()[:16]
+            elif isinstance(_raw, str) and _raw:
+                checksum = __import__("hashlib").sha256(_raw.encode()).hexdigest()[:16]
+            else:
+                checksum = ""
             await get_version_service().record_version(
                 doc_id=doc_id,
                 checksum=checksum,
