@@ -110,9 +110,9 @@ Plans:
 3. The eval dataset contains at least 200 QA pairs stratified by document type and topic; RAGAS CI gate passes only when `faithfulness > 0.85` and `answer_relevancy > 0.80`
 **Plans:** 3 plans
 Plans:
-- [ ] 05-01-PLAN.md — Test scaffolding + arq/fakeredis dependencies (RED tests for ASYNC-01/02)
-- [ ] 05-02-PLAN.md — Settings fields (arq_keep_result_sec, arq_job_timeout) + get_current_user FastAPI dependency
-- [ ] 05-03-PLAN.md — services/ingest_worker.py + rewritten POST /ingest/async + GET /ingest/status + arq-worker docker service
+- [ ] 06-01-PLAN.md — TEST-01 batch A: tenant, NLU, memory, ab_test, embedder unit tests (5 files)
+- [ ] 06-02-PLAN.md — TEST-01 batch B: audit, event_bus, feedback, knowledge unit tests (4 files)
+- [ ] 06-03-PLAN.md — TEST-02 (CI 80% coverage floor) + TEST-03 (200+ stratified QA pairs, holdout manifest, RAGAS CI gate)
 
 ## Progress Table
 
