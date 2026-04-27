@@ -1,0 +1,4 @@
+# Development + test-only dependencies
+# Not installed in production Docker image or worker container
+
+fakeredis==2.35.1       # In-process Redis fake for ARQ test fixtures (ASYNC-01/02)

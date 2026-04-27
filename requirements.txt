@@ -96,3 +96,8 @@ opentelemetry-exporter-otlp==1.29.0
 # pytesseract==0.3.13
 # Pillow==11.0.0
 # 还需要系统级安装: apt-get install -y tesseract-ocr tesseract-ocr-chi-sim
+
+# ══════════════════════════════════════════════════════════════════════════════
+# STAGE 5 — 异步任务队列（ARQ / Redis）
+# ══════════════════════════════════════════════════════════════════════════════
+arq==0.28.0                  # ARQ 异步任务队列（基于 Redis）
