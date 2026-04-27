@@ -6,7 +6,7 @@
 
 # ── Web 框架 ──────────────────────────────────────────────────────────────────
 fastapi==0.115.6
-uvicorn[standard]==0.32.1
+uvicorn[standard]==0.34.0
 python-multipart==0.0.18
 httpx==0.28.1
 
@@ -101,3 +101,4 @@ opentelemetry-exporter-otlp==1.29.0
 # STAGE 5 — 异步任务队列（ARQ / Redis）
 # ══════════════════════════════════════════════════════════════════════════════
 arq==0.28.0                  # ARQ 异步任务队列（基于 Redis）
+slowapi==0.1.9               # FastAPI rate limiting
