@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: complete
-stopped_at: "Phase 6 verified and security-audited — milestone v1.0 complete"
-last_updated: "2026-04-27T10:00:00Z"
+stopped_at: "Milestone v1.0 shipped — pushed to origin/master (366d35d)"
+last_updated: "2026-04-27T10:30:00Z"
 progress:
   total_phases: 6
   completed_phases: 6
