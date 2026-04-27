@@ -138,6 +138,12 @@ class Settings(BaseSettings):
     #   "none"      → 禁用 OCR，扫描件跳过不处理（返回空文本）
     ocr_engine:          Literal["auto", "paddle", "tesseract", "none"] = "auto"
     extractor_ocr_lang:  str  = "chi_sim+eng"   # Tesseract 语言包
+    # OCR-02: bounded concurrency + timeout for PP-StructureV3 calls.
+    # Default 2 chosen because paddlepaddle CPU build uses all cores for matmul;
+    # >2 concurrent OCR calls cause thrashing on typical 4–8 core hosts even when
+    # WorkerSettings.max_jobs=10. Operators may raise via OCR_CONCURRENCY env var.
+    ocr_concurrency:     int  = 2
+    ocr_timeout_sec:     int  = 120     # Hard timeout per PDF; tenacity retries once on hit.
     extractor_table_extract:  bool = True        # 用 pdfplumber 单独提取表格结构
     extractor_image_extract:  bool = False       # 提取图片（暂未实现，留作扩展）
     extractor_max_workers:    int  = 4           # PDF 并行解析线程数
