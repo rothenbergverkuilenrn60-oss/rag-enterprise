@@ -202,13 +202,10 @@ services:
       dockerfile: Dockerfile
       target: runtime
     image: rag-enterprise:latest
-    # container_name 注释掉：多实例时 Docker 会自动命名（rag-api-1, rag-api-2...）
     <<: [*restart-policy, *default-logging]
+    env_file: .env.docker
     networks:
       - rag-net
-    # 多实例时不直接暴露端口，由 Nginx 代理
-    # ports:
-    #   - "8000:8000"
     volumes:
       - rag-data:/app/data
       - rag-logs:/app/logs
@@ -244,6 +241,7 @@ services:
     image: rag-enterprise:latest
     command: arq services.ingest_worker.WorkerSettings
     <<: [*restart-policy, *default-logging]
+    env_file: .env.docker
     networks:
       - rag-net
     volumes:
