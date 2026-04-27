@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in-progress
-stopped_at: "Completed 06-01-PLAN.md — 25 tests added across 5 service modules"
-last_updated: "2026-04-27T08:15:45Z"
+stopped_at: "Wave 1 complete (06-01, 06-02 done); executing Wave 2 (06-03)"
+last_updated: "2026-04-27T09:10:00Z"
 progress:
   total_phases: 6
   completed_phases: 5
   total_plans: 20
-  completed_plans: 18
-  percent: 90
+  completed_plans: 19
+  percent: 95
 ---
 
 # STATE — EnterpriseRAG Hardening
@@ -28,7 +28,7 @@ Plan: Not started
 |-------|-------|
 | Milestone | v1 Hardening |
 | Current phase | 6 — Test Coverage and Eval |
-| Current plan | 06-01 complete; 06-02 next |
+| Current plan | 06-01, 06-02 complete; 06-03 pending |
 | Phase status | In progress — executing |
 | Overall progress | 5/6 phases complete |
 
@@ -45,7 +45,7 @@ Progress: [#########-] 90%
 | 3. Error Handling Sweep | Complete ✓ |
 | 4. Image Extraction | Complete ✓ |
 | 5. Async Ingest Tracking | Complete ✓ |
-| 6. Test Coverage and Eval | In progress ⚡ (06-01 done) |
+| 6. Test Coverage and Eval | In progress ⚡ (06-01, 06-02 done; 06-03 pending) |
 
 ## Performance Metrics
 
