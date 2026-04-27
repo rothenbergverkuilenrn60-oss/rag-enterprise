@@ -43,7 +43,11 @@ See [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md) for full phase deta
   3. Building the production Docker image produces a self-contained container that performs its first OCR request within 5 seconds of worker startup (no runtime model download).
   4. An OCR call exceeding `settings.ocr_timeout_sec` retries once and, on second failure, surfaces in `IngestionResponse.extraction_errors` rather than crashing the worker.
   5. Environments without PaddleOCR installed continue to use the documented Tesseract fallback with no behavioural regression.
-**Plans:** TBD
+**Plans:** 2 plans
+
+Plans:
+- [ ] 07-01-PLAN.md — OcrEngine module + PP-StructureV3 singleton + Tesseract fallback adapter + settings/deps (OCR-01/02 partial)
+- [ ] 07-02-PLAN.md — Docker model bake + ARQ worker pre-warm + tenacity timeout retry + garbled-CJK heuristic + GB4785 e2e integration test (OCR-01/02 complete)
 
 ### Phase 8: Multimodal Metadata + Query Filter
 
@@ -93,7 +97,7 @@ See [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md) for full phase deta
 | 4. Image Extraction | v1.0 | 4/4 | Complete ✓ | 2026-04-25 |
 | 5. Async Ingest Tracking | v1.0 | 3/3 | Complete ✓ | 2026-04-26 |
 | 6. Test Coverage and Eval | v1.0 | 3/3 | Complete ✓ | 2026-04-27 |
-| 7. OCR Engine Integration | v1.1 | 0/0 | Not started | - |
+| 7. OCR Engine Integration | v1.1 | 0/2 | Not started | - |
 | 8. Multimodal Metadata + Query Filter | v1.1 | 0/0 | Not started | - |
 | 9. Frontend Extraction | v1.1 | 0/0 | Not started | - |
 | 10. Coverage Gate on New Code | v1.1 | 0/0 | Not started | - |
