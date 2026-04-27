@@ -1,0 +1,67 @@
+groups:
+  - name: rag_api
+    interval: 30s
+    rules:
+      # 错误率超过 5% 持续 2 分钟
+      - alert: HighErrorRate
+        expr: |
+          rate(rag_requests_total{status=~"5.."}[5m])
+          / rate(rag_requests_total[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "RAG API 5xx 错误率过高 ({{ $value | humanizePercentage }})"
+          description: "endpoint={{ $labels.endpoint }} 错误率超过5%，持续2分钟"
+
+      # P99 检索延迟超过 3 秒
+      - alert: HighRetrievalLatencyP99
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(rag_retrieval_latency_seconds_bucket{stage="total"}[5m])) by (le)
+          ) > 3.0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "RAG 检索 P99 延迟超过 3s (当前={{ $value | humanizeDuration }})"
+
+      # 活跃请求数过高（可能积压）
+      - alert: TooManyActiveRequests
+        expr: rag_active_requests > 200
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "活跃请求数过高: {{ $value }}"
+          description: "rag_active_requests 超过200，可能存在请求积压"
+
+      # 限流触发频率过高
+      - alert: HighRateLimitRejections
+        expr: rate(rag_rate_limit_hits_total[5m]) > 10
+        for: 2m
+        labels:
+          severity: info
+        annotations:
+          summary: "限流触发频率过高: {{ $value | humanize }}/s"
+
+  - name: rag_infrastructure
+    interval: 60s
+    rules:
+      # Qdrant 不可用（无法抓取指标）
+      - alert: QdrantDown
+        expr: up{job="qdrant"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Qdrant 向量数据库不可达"
+
+      # RAG API 实例不可用
+      - alert: RagApiDown
+        expr: up{job="rag-api"} == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "RAG API 实例不可达 (instance={{ $labels.instance }})"

@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rag-api
+  namespace: rag-enterprise
+  labels:
+    app: rag-api
+    version: stable        # 蓝绿发布：stable | canary
+spec:
+  replicas: 3              # 初始3副本，HPA 自动扩缩
+  selector:
+    matchLabels:
+      app: rag-api
+      version: stable
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge:       1    # 滚动更新时最多多启动1个Pod
+      maxUnavailable: 0    # 不允许任何Pod不可用（零停机更新）
+  template:
+    metadata:
+      labels:
+        app: rag-api
+        version: stable
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port:   "8000"
+        prometheus.io/path:   "/metrics"
+    spec:
+      terminationGracePeriodSeconds: 30   # 优雅关闭等待时间
+      containers:
+        - name: rag-api
+          image: rag-enterprise:latest    # CI 构建后替换为具体 tag
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+              name: http
+          envFrom:
+            - configMapRef:
+                name: rag-config
+            - secretRef:
+                name: rag-secrets
+          resources:
+            requests:
+              cpu:    "500m"
+              memory: "1Gi"
+            limits:
+              cpu:    "2000m"
+              memory: "4Gi"
+          # 就绪探针：Redis + Qdrant 均可达时才接收流量
+          readinessProbe:
+            httpGet:
+              path: /api/v1/readiness
+              port: 8000
+            initialDelaySeconds: 20
+            periodSeconds:       10
+            failureThreshold:    3
+          # 存活探针：服务僵死时重启 Pod
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds:       15
+            failureThreshold:    5
+          # 启动探针：给容器足够的启动时间（模型加载慢）
+          startupProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 8000
+            failureThreshold: 20
+            periodSeconds:    10    # 最多等待 200 秒
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "sleep 5"]  # 等待 LB 摘除节点后再关闭

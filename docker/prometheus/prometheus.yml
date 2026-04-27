@@ -1,0 +1,57 @@
+global:
+  scrape_interval:     15s   # 每 15 秒采集一次
+  evaluation_interval: 15s   # 规则评估间隔
+
+  # 所有时序自动带上的标签
+  external_labels:
+    cluster: 'rag-enterprise'
+    env:     'development'
+
+# ── 告警规则文件 ────────────────────────────────────────────────────────────────
+rule_files:
+  - /etc/prometheus/rules/rag_alerts.yml
+
+# ── 抓取目标 ────────────────────────────────────────────────────────────────────
+scrape_configs:
+  # Prometheus 自身
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # RAG API — FastAPI /metrics (prometheus-client)
+  # docker compose --scale rag-api=3 时，DNS round-robin 自动发现多实例
+  - job_name: 'rag-api'
+    metrics_path: /metrics
+    scrape_interval: 10s
+    static_configs:
+      - targets: ['rag-api:8000']
+        labels:
+          service: 'rag-api'
+    # 多实例场景：用 dockerswarm_sd / dns_sd 替换 static_configs
+    # dns_sd_configs:
+    #   - names: ['tasks.rag-api']
+    #     type: A
+    #     port: 8000
+
+  # Qdrant 向量数据库
+  - job_name: 'qdrant'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['qdrant:6333']
+        labels:
+          service: 'qdrant'
+
+  # Redis Exporter（可选，需要额外部署 oliver006/redis_exporter）
+  # - job_name: 'redis'
+  #   static_configs:
+  #     - targets: ['redis-exporter:9121']
+
+  # Nginx（需要 nginx-prometheus-exporter 或 stub_status）
+  # - job_name: 'nginx'
+  #   static_configs:
+  #     - targets: ['nginx-exporter:9113']
+
+  # Node exporter — 宿主机硬件指标
+  # - job_name: 'node'
+  #   static_configs:
+  #     - targets: ['node-exporter:9100']

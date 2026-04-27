@@ -1,0 +1,51 @@
+# 蓝绿发布 — Green（待上线的新版本）
+# 发布流程：
+#   1. 部署 Green：kubectl apply -f deployment-green.yaml
+#   2. 验证 Green：kubectl exec -n rag-enterprise deploy/rag-api-green -- curl /api/v1/health
+#   3. 切流到 Green：kubectl patch service rag-api-service -n rag-enterprise \
+#                      -p '{"spec":{"selector":{"app":"rag-api","version":"green"}}}'
+#   4. 观察监控5分钟，无异常则删除 Blue：kubectl delete deploy rag-api-blue -n rag-enterprise
+#   5. 若有问题：回切到 Blue（秒级回滚，零停机）
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rag-api-green
+  namespace: rag-enterprise
+  labels:
+    app:     rag-api
+    version: green
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app:     rag-api
+      version: green
+  template:
+    metadata:
+      labels:
+        app:     rag-api
+        version: green
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: rag-api
+          image: rag-enterprise:green   # 新版本镜像 tag（CI 构建后注入）
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: rag-config
+            - secretRef:
+                name: rag-secrets
+          resources:
+            requests: { cpu: "500m", memory: "1Gi" }
+            limits:   { cpu: "2000m", memory: "4Gi" }
+          readinessProbe:
+            httpGet: { path: /api/v1/readiness, port: 8000 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /api/v1/health, port: 8000 }
+            initialDelaySeconds: 30
+            periodSeconds: 15

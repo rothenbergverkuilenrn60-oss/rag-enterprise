@@ -1,0 +1,28 @@
+# =============================================================================
+# docker/eval/Dockerfile.eval
+# RAGAS 评测专用镜像（轻量，不包含生产推理依赖）
+# =============================================================================
+FROM python:3.11-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        curl \
+        git \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# 安装评测依赖
+COPY requirements-eval.txt ./
+RUN pip install --upgrade pip \
+    && pip install --no-cache-dir -r requirements-eval.txt
+
+# 复制评测代码
+COPY eval/ ./eval/
+COPY config/ ./config/
+COPY utils/ ./utils/
+
+ENV PYTHONPATH=/app \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+CMD ["python", "-m", "eval.ragas_runner"]

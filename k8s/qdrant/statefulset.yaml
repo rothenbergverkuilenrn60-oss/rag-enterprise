@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: qdrant
+  namespace: rag-enterprise
+spec:
+  serviceName: qdrant-headless
+  replicas: 1           # 单节点；集群模式需要 Qdrant Cloud 或额外配置
+  selector:
+    matchLabels:
+      app: qdrant
+  template:
+    metadata:
+      labels:
+        app: qdrant
+    spec:
+      containers:
+        - name: qdrant
+          image: qdrant/qdrant:v1.11.5
+          ports:
+            - containerPort: 6333
+              name: http
+            - containerPort: 6334
+              name: grpc
+          env:
+            - name:  QDRANT__SERVICE__HTTP_PORT
+              value: "6333"
+            - name:  QDRANT__LOG_LEVEL
+              value: "INFO"
+            - name:  QDRANT__STORAGE__ON_DISK_PAYLOAD
+              value: "true"
+          resources:
+            requests: { cpu: "500m", memory: "2Gi" }
+            limits:   { cpu: "2000m", memory: "8Gi" }
+          volumeMounts:
+            - name:      qdrant-storage
+              mountPath: /qdrant/storage
+          readinessProbe:
+            httpGet: { path: /healthz, port: 6333 }
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /healthz, port: 6333 }
+            initialDelaySeconds: 30
+            periodSeconds: 20
+  volumeClaimTemplates:
+    - metadata:
+        name: qdrant-storage
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 50Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: qdrant-service
+  namespace: rag-enterprise
+spec:
+  selector:
+    app: qdrant
+  ports:
+    - name: http
+      port: 6333
+      targetPort: 6333
+    - name: grpc
+      port: 6334
+      targetPort: 6334
+  type: ClusterIP

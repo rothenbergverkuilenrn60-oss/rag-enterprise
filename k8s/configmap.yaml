@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rag-config
+  namespace: rag-enterprise
+data:
+  ENVIRONMENT:         "production"
+  DEBUG:               "false"
+  LOG_LEVEL:           "INFO"
+  LLM_PROVIDER:        "anthropic"
+  ANTHROPIC_MODEL:     "claude-sonnet-4-6"
+  EMBEDDING_PROVIDER:  "ollama"
+  EMBEDDING_MODEL:     "bge-m3"
+  VECTOR_STORE:        "qdrant"
+  QDRANT_URL:          "http://qdrant-service:6333"
+  REDIS_URL:           "redis://redis-service:6379/0"
+  CACHE_ENABLED:       "true"
+  CACHE_TTL_SEC:       "3600"
+  TOP_K_DENSE:         "20"
+  TOP_K_SPARSE:        "20"
+  TOP_K_RERANK:        "6"
+  HYDE_ENABLED:        "true"
+  RERANKER_ENABLED:    "true"
+  METRICS_ENABLED:     "true"
+  RATE_LIMIT_REDIS:    "true"
+  UVICORN_WORKERS:     "4"
+  AUDIT_ENABLED:       "true"
+  AUDIT_DB_ENABLED:    "false"
+  PII_DETECTION_ENABLED: "true"
+---
+# Secret 中存放敏感配置（生产环境用 Vault / External Secrets Operator）
+apiVersion: v1
+kind: Secret
+metadata:
+  name: rag-secrets
+  namespace: rag-enterprise
+type: Opaque
+stringData:
+  SECRET_KEY:          "CHANGE-ME-IN-PRODUCTION-USE-256BIT-KEY"
+  ANTHROPIC_API_KEY:   ""
+  OPENAI_API_KEY:      ""
+  QDRANT_API_KEY:      ""
