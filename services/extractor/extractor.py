@@ -197,73 +197,31 @@ def _extract_pdf_digital(file_path: Path) -> dict:
 # STEP 1B: 扫描件 PDF — OCR + 版面分析
 # ══════════════════════════════════════════════════════════════════════════════
 def _extract_pdf_scanned_paddleocr(file_path: Path) -> dict:
+    """Sync shim → delegates to the async OcrEngine abstraction (Phase 7 OCR-01/02).
+
+    Kept for backward compat with `_extract_pdf_enterprise`; new callers should
+    use `services.extractor.ocr_engine.get_ocr_engine` directly.
+
+    Loop-context note (LOCKED in 07-01-PLAN.md): `extractor_fn` (this function
+    for PDFs) is invoked via `loop.run_in_executor(None, extractor_fn, path)` at
+    extractor.py:614-615 — i.e. on a worker thread with no running event loop —
+    so `asyncio.run(...)` is safe here.
     """
-    PaddleOCR处理扫描件:
-    1. PDF → 逐页渲染为图片(150 DPI)
-    2. PaddleOCR 识别(中英混合)
-    3. 按y坐标排序(版面重排)
-    4. 过滤低置信度结果(< 0.6)
-    """
+    from services.extractor.ocr_engine import get_ocr_engine
     try:
-        import fitz
-        from paddleocr import PaddleOCR
-        import numpy as np
-
-        # 初始化 PaddleOCR：use_angle_cls 自动矫正倾斜文字，lang='ch' 中英混合识别，show_log=False 关闭日志
-        ocr = PaddleOCR(use_angle_cls=True, lang="ch", device="cpu",show_log=False)
-        doc = fitz.open(str(file_path))
-        all_pages_text: list = []
-
-        for page_idx in range(doc.page_count):
-            page = doc[page_idx]
-            mat = fitz.Matrix(150/72, 150/72)   # x方向150 DPI, y方向150 DPI
-            pix = page.get_pixmap(matrix=mat, alpha=False)  # 把 PDF 页面渲染为图片像素数组，alpha=False 不要透明通道
-            # pix.sample:一段连续的字节流，包含每个像素的 RGB 值
-            # np.frombuffer:将字节流转换为 numpy 数组,而不复制内存，dtype=uint8 表示每个字节表示一个 8 位无符号整数，图像的每个通道都是 0–255，所以用 uint8。
-            img_array = np.frombuffer(
-                pix.samples, dtype=np.uint8
-            ).reshape(pix.height, pix.width, 3) # 转换为 numpy 数组，形状为 (高度, 宽度, 通道数)
-
-            result = ocr.predict(img_array, cls=True)   # 推理图片中的文本
-            if not result or not result[0]:
-                continue
-
-            blocks = []
-            for line in result[0]:      # result[0]: 页面所有文本行,result[1]: 所有表格
-                if line is None:
-                    continue
-                bbox, (text, conf) = line       # bbox: 文本框坐标,text: 文本内容,conf: 置信度
-                if conf < 0.6 or not text.strip():
-                    continue
-                '''
-                bbox = [
-                    (x0, y0),   # 左上角
-                    (x1, y1),   # 右上角
-                    (x2, y2),   # 右下角
-                    (x3, y3)    # 左下角
-                ]
-                '''
-                y_center = (bbox[0][1] + bbox[2][1]) / 2
-                x_start = bbox[0][0]
-                blocks.append({"text": text.strip(), "y": y_center, "x": x_start})
-
-            # y坐标/20目的是把“同一行的文本块”归为同一组,四舍五入后得到一个“行号”,b["x"]是在同一行内，按 x 坐标排序
-            blocks.sort(key=lambda b: (round(b["y"] / 20), b["x"]))
-            page_text = "\n".join(b["text"] for b in blocks)        # 按行拼接文本块
-            if page_text.strip():
-                all_pages_text.append(f"[第{page_idx+1}页·OCR]\n{page_text}")
-
-        doc.close()
-        return {
-            "body_text": "\n\n".join(all_pages_text),
-            "tables": [],
-            "pages": len(all_pages_text),
-            "title": file_path.stem,
-            "engine": "paddleocr(scanned)",
-        }
-
-    except ImportError:
-        logger.warning("PaddleOCR未安装，回退Tesseract")
+        engine = get_ocr_engine("auto")  # "auto" handles ImportError fallback
+    except Exception as exc:
+        logger.warning(
+            f"[OCR] engine selection failed: {exc!r}; falling back to Tesseract"
+        )
+        return _extract_pdf_scanned_tesseract(file_path)
+    try:
+        return asyncio.run(engine.extract_pdf(file_path))
+    except Exception as exc:
+        logger.warning(
+            f"[OCR] {engine.name} failed for {file_path.name}: {exc!r}; "
+            f"falling back to Tesseract"
+        )
         return _extract_pdf_scanned_tesseract(file_path)
 
 
