@@ -1,0 +1,1608 @@
+{
+  "name": "RAG Eval Dataset",
+  "version": "1.0.0",
+  "created_at": "2026-04-27T00:00:00Z",
+  "description": "",
+  "pairs": [
+    {
+      "question": "What form should I use for reimbursement?",
+      "ground_truth": "Based on docs/finance_reimbursement_guide.pdf, the reimbursement process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "reimbursement",
+      "source_doc": "docs/finance_reimbursement_guide.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What happens when a compliance request crosses department boundaries? (case 2)",
+      "ground_truth": "Resolving a compliance request requires consulting docs/compliance_handbook.pdf along with related policies. The full approval chain is described therein.",
+      "doc_type": "multi_hop",
+      "topic": "compliance",
+      "source_doc": "docs/compliance_handbook.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How do I track the status of my asset management request?",
+      "ground_truth": "Based on docs/it_asset_management.pdf, the asset management process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "asset_management",
+      "source_doc": "docs/it_asset_management.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "Who is responsible for approval workflow when the direct manager is absent?",
+      "ground_truth": "Resolving a approval workflow request requires consulting docs/cross_dept_approval_workflow.pdf along with related policies. The full approval chain is described therein.",
+      "doc_type": "multi_hop",
+      "topic": "approval_workflow",
+      "source_doc": "docs/cross_dept_approval_workflow.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How does the benefits comparison policy compare across different employment types?",
+      "ground_truth": "As documented in docs/benefit_comparison_2024.pdf, the comparison of benefits comparison options highlights key differences in eligibility, coverage, and approval requirements.",
+      "doc_type": "comparison",
+      "topic": "benefits_comparison",
+      "source_doc": "docs/benefit_comparison_2024.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How do the benefits comparison terms differ for domestic vs overseas employees? (case 2)",
+      "ground_truth": "As documented in docs/benefit_comparison_2024.pdf, the comparison of benefits comparison options highlights key differences in eligibility, coverage, and approval requirements.",
+      "doc_type": "comparison",
+      "topic": "benefits_comparison",
+      "source_doc": "docs/benefit_comparison_2024.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "Who approves requests under the leave policy policy? (case 2)",
+      "ground_truth": "According to docs/hr_policy_2024.pdf, the policy on leave policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "leave_policy",
+      "source_doc": "docs/hr_policy_2024.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "Who is eligible for leave policy benefits?",
+      "ground_truth": "According to docs/hr_policy_2024.pdf, the policy on leave policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "leave_policy",
+      "source_doc": "docs/hr_policy_2024.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "Which department handles reimbursement requests?",
+      "ground_truth": "Based on docs/finance_reimbursement_guide.pdf, the reimbursement process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "reimbursement",
+      "source_doc": "docs/finance_reimbursement_guide.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What are the key requirements of the recruitment policy policy?",
+      "ground_truth": "According to docs/hr_policy_recruitment.pdf, the policy on recruitment policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "recruitment_policy",
+      "source_doc": "docs/hr_policy_recruitment.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What are the pros and cons of each domestic vs overseas policy option?",
+      "ground_truth": "As documented in docs/policy_comparison_domestic_vs_overseas.pdf, the comparison of domestic vs overseas policy options highlights key differences in eligibility, coverage, and approval requirements.",
+      "doc_type": "comparison",
+      "topic": "domestic_vs_overseas_policy",
+      "source_doc": "docs/policy_comparison_domestic_vs_overseas.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What are the key attributes of compensation structure?",
+      "ground_truth": "As defined in docs/compensation_structure.pdf, compensation structure refers to the formal classification or concept as specified in company policy.",
+      "doc_type": "definition",
+      "topic": "compensation_structure",
+      "source_doc": "docs/compensation_structure.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "Which benefits comparison option provides better coverage? (case 3)",
+      "ground_truth": "As documented in docs/benefit_comparison_2024.pdf, the comparison of benefits comparison options highlights key differences in eligibility, coverage, and approval requirements.",
+      "doc_type": "comparison",
+      "topic": "benefits_comparison",
+      "source_doc": "docs/benefit_comparison_2024.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What are the steps to apply for reimbursement? (case 3)",
+      "ground_truth": "Based on docs/finance_reimbursement_guide.pdf, the reimbursement process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "reimbursement",
+      "source_doc": "docs/finance_reimbursement_guide.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What does hr terminology mean in the context of HR? (case 2)",
+      "ground_truth": "As defined in docs/hr_glossary.pdf, hr terminology refers to the formal classification or concept as specified in company policy.",
+      "doc_type": "definition",
+      "topic": "hr_terminology",
+      "source_doc": "docs/hr_glossary.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What does compensation structure mean in the context of HR?",
+      "ground_truth": "As defined in docs/compensation_structure.pdf, compensation structure refers to the formal classification or concept as specified in company policy.",
+      "doc_type": "definition",
+      "topic": "compensation_structure",
+      "source_doc": "docs/compensation_structure.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "Who approves requests under the recruitment policy policy?",
+      "ground_truth": "According to docs/hr_policy_recruitment.pdf, the policy on recruitment policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "recruitment_policy",
+      "source_doc": "docs/hr_policy_recruitment.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What is the difference between domestic vs overseas policy option A and option B?",
+      "ground_truth": "As documented in docs/policy_comparison_domestic_vs_overseas.pdf, the comparison of domestic vs overseas policy options highlights key differences in eligibility, coverage, and approval requirements.",
+      "doc_type": "comparison",
+      "topic": "domestic_vs_overseas_policy",
+      "source_doc": "docs/policy_comparison_domestic_vs_overseas.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "Who is eligible for attendance policy benefits? (case 2)",
+      "ground_truth": "According to docs/hr_policy_attendance.pdf, the policy on attendance policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "attendance_policy",
+      "source_doc": "docs/hr_policy_attendance.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "When does the leave policy policy take effect?",
+      "ground_truth": "According to docs/hr_policy_2024.pdf, the policy on leave policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "leave_policy",
+      "source_doc": "docs/hr_policy_2024.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "Explain the term hr terminology as used in our documentation. (case 2)",
+      "ground_truth": "As defined in docs/hr_glossary.pdf, hr terminology refers to the formal classification or concept as specified in company policy.",
+      "doc_type": "definition",
+      "topic": "hr_terminology",
+      "source_doc": "docs/hr_glossary.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How often is the leave policy policy reviewed? (case 2)",
+      "ground_truth": "According to docs/hr_policy_2024.pdf, the policy on leave policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "leave_policy",
+      "source_doc": "docs/hr_policy_2024.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "Who is eligible for recruitment policy benefits?",
+      "ground_truth": "According to docs/hr_policy_recruitment.pdf, the policy on recruitment policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "recruitment_policy",
+      "source_doc": "docs/hr_policy_recruitment.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What is the difference between benefits comparison option A and option B? (case 3)",
+      "ground_truth": "As documented in docs/benefit_comparison_2024.pdf, the comparison of benefits comparison options highlights key differences in eligibility, coverage, and approval requirements.",
+      "doc_type": "comparison",
+      "topic": "benefits_comparison",
+      "source_doc": "docs/benefit_comparison_2024.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How does compliance interact with the leave policy and finance approval? (case 2)",
+      "ground_truth": "Resolving a compliance request requires consulting docs/compliance_handbook.pdf along with related policies. The full approval chain is described therein.",
+      "doc_type": "multi_hop",
+      "topic": "compliance",
+      "source_doc": "docs/compliance_handbook.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What is the definition of hr terminology? (case 3)",
+      "ground_truth": "As defined in docs/hr_glossary.pdf, hr terminology refers to the formal classification or concept as specified in company policy.",
+      "doc_type": "definition",
+      "topic": "hr_terminology",
+      "source_doc": "docs/hr_glossary.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How often is the recruitment policy policy reviewed?",
+      "ground_truth": "According to docs/hr_policy_recruitment.pdf, the policy on recruitment policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "recruitment_policy",
+      "source_doc": "docs/hr_policy_recruitment.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What is the difference between benefits comparison option A and option B?",
+      "ground_truth": "As documented in docs/benefit_comparison_2024.pdf, the comparison of benefits comparison options highlights key differences in eligibility, coverage, and approval requirements.",
+      "doc_type": "comparison",
+      "topic": "benefits_comparison",
+      "source_doc": "docs/benefit_comparison_2024.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "Who approves requests under the leave policy policy?",
+      "ground_truth": "According to docs/hr_policy_2024.pdf, the policy on leave policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "leave_policy",
+      "source_doc": "docs/hr_policy_2024.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How are approval workflow decisions recorded and audited?",
+      "ground_truth": "Resolving a approval workflow request requires consulting docs/cross_dept_approval_workflow.pdf along with related policies. The full approval chain is described therein.",
+      "doc_type": "multi_hop",
+      "topic": "approval_workflow",
+      "source_doc": "docs/cross_dept_approval_workflow.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How many days are allowed under the attendance policy policy? (case 3)",
+      "ground_truth": "According to docs/hr_policy_attendance.pdf, the policy on attendance policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "attendance_policy",
+      "source_doc": "docs/hr_policy_attendance.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What changed in benefits comparison from last year to this year? (case 2)",
+      "ground_truth": "As documented in docs/benefit_comparison_2024.pdf, the comparison of benefits comparison options highlights key differences in eligibility, coverage, and approval requirements.",
+      "doc_type": "comparison",
+      "topic": "benefits_comparison",
+      "source_doc": "docs/benefit_comparison_2024.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What are the key requirements of the leave policy policy? (case 2)",
+      "ground_truth": "According to docs/hr_policy_2024.pdf, the policy on leave policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "leave_policy",
+      "source_doc": "docs/hr_policy_2024.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What is the policy on attendance policy? (case 3)",
+      "ground_truth": "According to docs/hr_policy_attendance.pdf, the policy on attendance policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "attendance_policy",
+      "source_doc": "docs/hr_policy_attendance.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "Explain the term hr terminology as used in our documentation.",
+      "ground_truth": "As defined in docs/hr_glossary.pdf, hr terminology refers to the formal classification or concept as specified in company policy.",
+      "doc_type": "definition",
+      "topic": "hr_terminology",
+      "source_doc": "docs/hr_glossary.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How do I submit a request for reimbursement? (case 2)",
+      "ground_truth": "Based on docs/finance_reimbursement_guide.pdf, the reimbursement process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "reimbursement",
+      "source_doc": "docs/finance_reimbursement_guide.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How do I submit a request for reimbursement?",
+      "ground_truth": "Based on docs/finance_reimbursement_guide.pdf, the reimbursement process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "reimbursement",
+      "source_doc": "docs/finance_reimbursement_guide.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "If an employee needs approval workflow approval, which policies apply and who signs off? (case 2)",
+      "ground_truth": "Resolving a approval workflow request requires consulting docs/cross_dept_approval_workflow.pdf along with related policies. The full approval chain is described therein.",
+      "doc_type": "multi_hop",
+      "topic": "approval_workflow",
+      "source_doc": "docs/cross_dept_approval_workflow.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What are the key requirements of the attendance policy policy? (case 2)",
+      "ground_truth": "According to docs/hr_policy_attendance.pdf, the policy on attendance policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "attendance_policy",
+      "source_doc": "docs/hr_policy_attendance.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How is compensation structure defined in company policy? (case 2)",
+      "ground_truth": "As defined in docs/compensation_structure.pdf, compensation structure refers to the formal classification or concept as specified in company policy.",
+      "doc_type": "definition",
+      "topic": "compensation_structure",
+      "source_doc": "docs/compensation_structure.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What is the definition of compensation structure? (case 2)",
+      "ground_truth": "As defined in docs/compensation_structure.pdf, compensation structure refers to the formal classification or concept as specified in company policy.",
+      "doc_type": "definition",
+      "topic": "compensation_structure",
+      "source_doc": "docs/compensation_structure.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What are the steps to apply for reimbursement?",
+      "ground_truth": "Based on docs/finance_reimbursement_guide.pdf, the reimbursement process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "reimbursement",
+      "source_doc": "docs/finance_reimbursement_guide.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "Who is eligible for leave policy benefits? (case 2)",
+      "ground_truth": "According to docs/hr_policy_2024.pdf, the policy on leave policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "leave_policy",
+      "source_doc": "docs/hr_policy_2024.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What are the pros and cons of each domestic vs overseas policy option? (case 2)",
+      "ground_truth": "As documented in docs/policy_comparison_domestic_vs_overseas.pdf, the comparison of domestic vs overseas policy options highlights key differences in eligibility, coverage, and approval requirements.",
+      "doc_type": "comparison",
+      "topic": "domestic_vs_overseas_policy",
+      "source_doc": "docs/policy_comparison_domestic_vs_overseas.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What criteria define hr terminology classification? (case 2)",
+      "ground_truth": "As defined in docs/hr_glossary.pdf, hr terminology refers to the formal classification or concept as specified in company policy.",
+      "doc_type": "definition",
+      "topic": "hr_terminology",
+      "source_doc": "docs/hr_glossary.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What are the key requirements of the recruitment policy policy? (case 2)",
+      "ground_truth": "According to docs/hr_policy_recruitment.pdf, the policy on recruitment policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "recruitment_policy",
+      "source_doc": "docs/hr_policy_recruitment.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "Which benefits comparison approach is recommended for senior staff? (case 2)",
+      "ground_truth": "As documented in docs/benefit_comparison_2024.pdf, the comparison of benefits comparison options highlights key differences in eligibility, coverage, and approval requirements.",
+      "doc_type": "comparison",
+      "topic": "benefits_comparison",
+      "source_doc": "docs/benefit_comparison_2024.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "Which department handles asset management requests? (case 2)",
+      "ground_truth": "Based on docs/it_asset_management.pdf, the asset management process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "asset_management",
+      "source_doc": "docs/it_asset_management.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What is the deadline for reimbursement submissions? (case 2)",
+      "ground_truth": "Based on docs/finance_reimbursement_guide.pdf, the reimbursement process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "reimbursement",
+      "source_doc": "docs/finance_reimbursement_guide.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How do the benefits comparison terms differ for domestic vs overseas employees?",
+      "ground_truth": "As documented in docs/benefit_comparison_2024.pdf, the comparison of benefits comparison options highlights key differences in eligibility, coverage, and approval requirements.",
+      "doc_type": "comparison",
+      "topic": "benefits_comparison",
+      "source_doc": "docs/benefit_comparison_2024.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How long does the asset management process take? (case 2)",
+      "ground_truth": "Based on docs/it_asset_management.pdf, the asset management process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "asset_management",
+      "source_doc": "docs/it_asset_management.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How do I submit a request for asset management?",
+      "ground_truth": "Based on docs/it_asset_management.pdf, the asset management process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "asset_management",
+      "source_doc": "docs/it_asset_management.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How do I submit a request for asset management? (case 2)",
+      "ground_truth": "Based on docs/it_asset_management.pdf, the asset management process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "asset_management",
+      "source_doc": "docs/it_asset_management.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "Which domestic vs overseas policy approach is recommended for senior staff? (case 2)",
+      "ground_truth": "As documented in docs/policy_comparison_domestic_vs_overseas.pdf, the comparison of domestic vs overseas policy options highlights key differences in eligibility, coverage, and approval requirements.",
+      "doc_type": "comparison",
+      "topic": "domestic_vs_overseas_policy",
+      "source_doc": "docs/policy_comparison_domestic_vs_overseas.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "When does the recruitment policy policy take effect?",
+      "ground_truth": "According to docs/hr_policy_recruitment.pdf, the policy on recruitment policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "recruitment_policy",
+      "source_doc": "docs/hr_policy_recruitment.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What is the policy on leave policy?",
+      "ground_truth": "According to docs/hr_policy_2024.pdf, the policy on leave policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "leave_policy",
+      "source_doc": "docs/hr_policy_2024.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What are the key attributes of hr terminology? (case 2)",
+      "ground_truth": "As defined in docs/hr_glossary.pdf, hr terminology refers to the formal classification or concept as specified in company policy.",
+      "doc_type": "definition",
+      "topic": "hr_terminology",
+      "source_doc": "docs/hr_glossary.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What happens when a approval workflow request crosses department boundaries?",
+      "ground_truth": "Resolving a approval workflow request requires consulting docs/cross_dept_approval_workflow.pdf along with related policies. The full approval chain is described therein.",
+      "doc_type": "multi_hop",
+      "topic": "approval_workflow",
+      "source_doc": "docs/cross_dept_approval_workflow.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What is the policy on leave policy? (case 3)",
+      "ground_truth": "According to docs/hr_policy_2024.pdf, the policy on leave policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "leave_policy",
+      "source_doc": "docs/hr_policy_2024.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How long does the budget process process take?",
+      "ground_truth": "Based on docs/finance_budget_process.pdf, the budget process process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "budget_process",
+      "source_doc": "docs/finance_budget_process.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What are the steps to apply for asset management? (case 2)",
+      "ground_truth": "Based on docs/it_asset_management.pdf, the asset management process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "asset_management",
+      "source_doc": "docs/it_asset_management.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "Who is eligible for attendance policy benefits? (case 3)",
+      "ground_truth": "According to docs/hr_policy_attendance.pdf, the policy on attendance policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "attendance_policy",
+      "source_doc": "docs/hr_policy_attendance.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What is the definition of hr terminology? (case 2)",
+      "ground_truth": "As defined in docs/hr_glossary.pdf, hr terminology refers to the formal classification or concept as specified in company policy.",
+      "doc_type": "definition",
+      "topic": "hr_terminology",
+      "source_doc": "docs/hr_glossary.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What are the key attributes of compensation structure? (case 2)",
+      "ground_truth": "As defined in docs/compensation_structure.pdf, compensation structure refers to the formal classification or concept as specified in company policy.",
+      "doc_type": "definition",
+      "topic": "compensation_structure",
+      "source_doc": "docs/compensation_structure.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How does our domestic vs overseas policy compare to industry standard?",
+      "ground_truth": "As documented in docs/policy_comparison_domestic_vs_overseas.pdf, the comparison of domestic vs overseas policy options highlights key differences in eligibility, coverage, and approval requirements.",
+      "doc_type": "comparison",
+      "topic": "domestic_vs_overseas_policy",
+      "source_doc": "docs/policy_comparison_domestic_vs_overseas.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How do I submit a request for budget process?",
+      "ground_truth": "Based on docs/finance_budget_process.pdf, the budget process process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "budget_process",
+      "source_doc": "docs/finance_budget_process.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How does our benefits comparison compare to industry standard?",
+      "ground_truth": "As documented in docs/benefit_comparison_2024.pdf, the comparison of benefits comparison options highlights key differences in eligibility, coverage, and approval requirements.",
+      "doc_type": "comparison",
+      "topic": "benefits_comparison",
+      "source_doc": "docs/benefit_comparison_2024.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "When does the leave policy policy take effect? (case 3)",
+      "ground_truth": "According to docs/hr_policy_2024.pdf, the policy on leave policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "leave_policy",
+      "source_doc": "docs/hr_policy_2024.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What documents are required for leave policy? (case 2)",
+      "ground_truth": "According to docs/hr_policy_2024.pdf, the policy on leave policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "leave_policy",
+      "source_doc": "docs/hr_policy_2024.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What is the definition of compensation structure? (case 3)",
+      "ground_truth": "As defined in docs/compensation_structure.pdf, compensation structure refers to the formal classification or concept as specified in company policy.",
+      "doc_type": "definition",
+      "topic": "compensation_structure",
+      "source_doc": "docs/compensation_structure.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What is the difference between domestic vs overseas policy option A and option B? (case 3)",
+      "ground_truth": "As documented in docs/policy_comparison_domestic_vs_overseas.pdf, the comparison of domestic vs overseas policy options highlights key differences in eligibility, coverage, and approval requirements.",
+      "doc_type": "comparison",
+      "topic": "domestic_vs_overseas_policy",
+      "source_doc": "docs/policy_comparison_domestic_vs_overseas.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What does compensation structure mean in the context of HR? (case 3)",
+      "ground_truth": "As defined in docs/compensation_structure.pdf, compensation structure refers to the formal classification or concept as specified in company policy.",
+      "doc_type": "definition",
+      "topic": "compensation_structure",
+      "source_doc": "docs/compensation_structure.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What is the deadline for reimbursement submissions?",
+      "ground_truth": "Based on docs/finance_reimbursement_guide.pdf, the reimbursement process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "reimbursement",
+      "source_doc": "docs/finance_reimbursement_guide.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How do I track the status of my budget process request?",
+      "ground_truth": "Based on docs/finance_budget_process.pdf, the budget process process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "budget_process",
+      "source_doc": "docs/finance_budget_process.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What is the definition of compensation structure?",
+      "ground_truth": "As defined in docs/compensation_structure.pdf, compensation structure refers to the formal classification or concept as specified in company policy.",
+      "doc_type": "definition",
+      "topic": "compensation_structure",
+      "source_doc": "docs/compensation_structure.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What documents are required for recruitment policy?",
+      "ground_truth": "According to docs/hr_policy_recruitment.pdf, the policy on recruitment policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "recruitment_policy",
+      "source_doc": "docs/hr_policy_recruitment.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What is the process for asset management approval? (case 2)",
+      "ground_truth": "Based on docs/it_asset_management.pdf, the asset management process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "asset_management",
+      "source_doc": "docs/it_asset_management.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What is the process for budget process approval?",
+      "ground_truth": "Based on docs/finance_budget_process.pdf, the budget process process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "budget_process",
+      "source_doc": "docs/finance_budget_process.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What documents are required for recruitment policy? (case 2)",
+      "ground_truth": "According to docs/hr_policy_recruitment.pdf, the policy on recruitment policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "recruitment_policy",
+      "source_doc": "docs/hr_policy_recruitment.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How does approval workflow interact with the leave policy and finance approval? (case 2)",
+      "ground_truth": "Resolving a approval workflow request requires consulting docs/cross_dept_approval_workflow.pdf along with related policies. The full approval chain is described therein.",
+      "doc_type": "multi_hop",
+      "topic": "approval_workflow",
+      "source_doc": "docs/cross_dept_approval_workflow.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What are the steps to apply for budget process? (case 2)",
+      "ground_truth": "Based on docs/finance_budget_process.pdf, the budget process process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "budget_process",
+      "source_doc": "docs/finance_budget_process.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What is the difference between benefits comparison option A and option B? (case 2)",
+      "ground_truth": "As documented in docs/benefit_comparison_2024.pdf, the comparison of benefits comparison options highlights key differences in eligibility, coverage, and approval requirements.",
+      "doc_type": "comparison",
+      "topic": "benefits_comparison",
+      "source_doc": "docs/benefit_comparison_2024.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How do I track the status of my asset management request? (case 2)",
+      "ground_truth": "Based on docs/it_asset_management.pdf, the asset management process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "asset_management",
+      "source_doc": "docs/it_asset_management.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How do the domestic vs overseas policy terms differ for domestic vs overseas employees?",
+      "ground_truth": "As documented in docs/policy_comparison_domestic_vs_overseas.pdf, the comparison of domestic vs overseas policy options highlights key differences in eligibility, coverage, and approval requirements.",
+      "doc_type": "comparison",
+      "topic": "domestic_vs_overseas_policy",
+      "source_doc": "docs/policy_comparison_domestic_vs_overseas.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What changed in domestic vs overseas policy from last year to this year? (case 2)",
+      "ground_truth": "As documented in docs/policy_comparison_domestic_vs_overseas.pdf, the comparison of domestic vs overseas policy options highlights key differences in eligibility, coverage, and approval requirements.",
+      "doc_type": "comparison",
+      "topic": "domestic_vs_overseas_policy",
+      "source_doc": "docs/policy_comparison_domestic_vs_overseas.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "Who approves requests under the attendance policy policy? (case 2)",
+      "ground_truth": "According to docs/hr_policy_attendance.pdf, the policy on attendance policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "attendance_policy",
+      "source_doc": "docs/hr_policy_attendance.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "Who is eligible for leave policy benefits? (case 3)",
+      "ground_truth": "According to docs/hr_policy_2024.pdf, the policy on leave policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "leave_policy",
+      "source_doc": "docs/hr_policy_2024.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "Which domestic vs overseas policy option provides better coverage? (case 2)",
+      "ground_truth": "As documented in docs/policy_comparison_domestic_vs_overseas.pdf, the comparison of domestic vs overseas policy options highlights key differences in eligibility, coverage, and approval requirements.",
+      "doc_type": "comparison",
+      "topic": "domestic_vs_overseas_policy",
+      "source_doc": "docs/policy_comparison_domestic_vs_overseas.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How does our benefits comparison compare to industry standard? (case 2)",
+      "ground_truth": "As documented in docs/benefit_comparison_2024.pdf, the comparison of benefits comparison options highlights key differences in eligibility, coverage, and approval requirements.",
+      "doc_type": "comparison",
+      "topic": "benefits_comparison",
+      "source_doc": "docs/benefit_comparison_2024.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What criteria define compensation structure classification? (case 2)",
+      "ground_truth": "As defined in docs/compensation_structure.pdf, compensation structure refers to the formal classification or concept as specified in company policy.",
+      "doc_type": "definition",
+      "topic": "compensation_structure",
+      "source_doc": "docs/compensation_structure.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How long does the reimbursement process take?",
+      "ground_truth": "Based on docs/finance_reimbursement_guide.pdf, the reimbursement process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "reimbursement",
+      "source_doc": "docs/finance_reimbursement_guide.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What form should I use for budget process?",
+      "ground_truth": "Based on docs/finance_budget_process.pdf, the budget process process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "budget_process",
+      "source_doc": "docs/finance_budget_process.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "Which domestic vs overseas policy option provides better coverage? (case 3)",
+      "ground_truth": "As documented in docs/policy_comparison_domestic_vs_overseas.pdf, the comparison of domestic vs overseas policy options highlights key differences in eligibility, coverage, and approval requirements.",
+      "doc_type": "comparison",
+      "topic": "domestic_vs_overseas_policy",
+      "source_doc": "docs/policy_comparison_domestic_vs_overseas.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What form should I use for asset management?",
+      "ground_truth": "Based on docs/it_asset_management.pdf, the asset management process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "asset_management",
+      "source_doc": "docs/it_asset_management.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What are the key attributes of hr terminology?",
+      "ground_truth": "As defined in docs/hr_glossary.pdf, hr terminology refers to the formal classification or concept as specified in company policy.",
+      "doc_type": "definition",
+      "topic": "hr_terminology",
+      "source_doc": "docs/hr_glossary.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "Which department handles reimbursement requests? (case 2)",
+      "ground_truth": "Based on docs/finance_reimbursement_guide.pdf, the reimbursement process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "reimbursement",
+      "source_doc": "docs/finance_reimbursement_guide.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How often is the attendance policy policy reviewed?",
+      "ground_truth": "According to docs/hr_policy_attendance.pdf, the policy on attendance policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "attendance_policy",
+      "source_doc": "docs/hr_policy_attendance.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How are compliance decisions recorded and audited?",
+      "ground_truth": "Resolving a compliance request requires consulting docs/compliance_handbook.pdf along with related policies. The full approval chain is described therein.",
+      "doc_type": "multi_hop",
+      "topic": "compliance",
+      "source_doc": "docs/compliance_handbook.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "Which benefits comparison option provides better coverage?",
+      "ground_truth": "As documented in docs/benefit_comparison_2024.pdf, the comparison of benefits comparison options highlights key differences in eligibility, coverage, and approval requirements.",
+      "doc_type": "comparison",
+      "topic": "benefits_comparison",
+      "source_doc": "docs/benefit_comparison_2024.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "When does the recruitment policy policy take effect? (case 2)",
+      "ground_truth": "According to docs/hr_policy_recruitment.pdf, the policy on recruitment policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "recruitment_policy",
+      "source_doc": "docs/hr_policy_recruitment.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "Explain the term compensation structure as used in our documentation. (case 2)",
+      "ground_truth": "As defined in docs/compensation_structure.pdf, compensation structure refers to the formal classification or concept as specified in company policy.",
+      "doc_type": "definition",
+      "topic": "compensation_structure",
+      "source_doc": "docs/compensation_structure.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What are the key requirements of the leave policy policy?",
+      "ground_truth": "According to docs/hr_policy_2024.pdf, the policy on leave policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "leave_policy",
+      "source_doc": "docs/hr_policy_2024.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How many days are allowed under the attendance policy policy? (case 2)",
+      "ground_truth": "According to docs/hr_policy_attendance.pdf, the policy on attendance policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "attendance_policy",
+      "source_doc": "docs/hr_policy_attendance.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "Who is responsible for compliance when the direct manager is absent?",
+      "ground_truth": "Resolving a compliance request requires consulting docs/compliance_handbook.pdf along with related policies. The full approval chain is described therein.",
+      "doc_type": "multi_hop",
+      "topic": "compliance",
+      "source_doc": "docs/compliance_handbook.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What is the deadline for asset management submissions?",
+      "ground_truth": "Based on docs/it_asset_management.pdf, the asset management process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "asset_management",
+      "source_doc": "docs/it_asset_management.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "Which department handles asset management requests?",
+      "ground_truth": "Based on docs/it_asset_management.pdf, the asset management process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "asset_management",
+      "source_doc": "docs/it_asset_management.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How does the domestic vs overseas policy policy compare across different employment types?",
+      "ground_truth": "As documented in docs/policy_comparison_domestic_vs_overseas.pdf, the comparison of domestic vs overseas policy options highlights key differences in eligibility, coverage, and approval requirements.",
+      "doc_type": "comparison",
+      "topic": "domestic_vs_overseas_policy",
+      "source_doc": "docs/policy_comparison_domestic_vs_overseas.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What are the pros and cons of each benefits comparison option? (case 2)",
+      "ground_truth": "As documented in docs/benefit_comparison_2024.pdf, the comparison of benefits comparison options highlights key differences in eligibility, coverage, and approval requirements.",
+      "doc_type": "comparison",
+      "topic": "benefits_comparison",
+      "source_doc": "docs/benefit_comparison_2024.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "Who is responsible for approval workflow when the direct manager is absent? (case 2)",
+      "ground_truth": "Resolving a approval workflow request requires consulting docs/cross_dept_approval_workflow.pdf along with related policies. The full approval chain is described therein.",
+      "doc_type": "multi_hop",
+      "topic": "approval_workflow",
+      "source_doc": "docs/cross_dept_approval_workflow.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What changed in domestic vs overseas policy from last year to this year?",
+      "ground_truth": "As documented in docs/policy_comparison_domestic_vs_overseas.pdf, the comparison of domestic vs overseas policy options highlights key differences in eligibility, coverage, and approval requirements.",
+      "doc_type": "comparison",
+      "topic": "domestic_vs_overseas_policy",
+      "source_doc": "docs/policy_comparison_domestic_vs_overseas.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How is compensation structure defined in company policy? (case 3)",
+      "ground_truth": "As defined in docs/compensation_structure.pdf, compensation structure refers to the formal classification or concept as specified in company policy.",
+      "doc_type": "definition",
+      "topic": "compensation_structure",
+      "source_doc": "docs/compensation_structure.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "Which benefits comparison option provides better coverage? (case 2)",
+      "ground_truth": "As documented in docs/benefit_comparison_2024.pdf, the comparison of benefits comparison options highlights key differences in eligibility, coverage, and approval requirements.",
+      "doc_type": "comparison",
+      "topic": "benefits_comparison",
+      "source_doc": "docs/benefit_comparison_2024.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What documents are required for attendance policy? (case 2)",
+      "ground_truth": "According to docs/hr_policy_attendance.pdf, the policy on attendance policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "attendance_policy",
+      "source_doc": "docs/hr_policy_attendance.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What is the policy on recruitment policy? (case 2)",
+      "ground_truth": "According to docs/hr_policy_recruitment.pdf, the policy on recruitment policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "recruitment_policy",
+      "source_doc": "docs/hr_policy_recruitment.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What criteria define compensation structure classification?",
+      "ground_truth": "As defined in docs/compensation_structure.pdf, compensation structure refers to the formal classification or concept as specified in company policy.",
+      "doc_type": "definition",
+      "topic": "compensation_structure",
+      "source_doc": "docs/compensation_structure.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What is the difference between domestic vs overseas policy option A and option B? (case 2)",
+      "ground_truth": "As documented in docs/policy_comparison_domestic_vs_overseas.pdf, the comparison of domestic vs overseas policy options highlights key differences in eligibility, coverage, and approval requirements.",
+      "doc_type": "comparison",
+      "topic": "domestic_vs_overseas_policy",
+      "source_doc": "docs/policy_comparison_domestic_vs_overseas.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How do the domestic vs overseas policy terms differ for domestic vs overseas employees? (case 3)",
+      "ground_truth": "As documented in docs/policy_comparison_domestic_vs_overseas.pdf, the comparison of domestic vs overseas policy options highlights key differences in eligibility, coverage, and approval requirements.",
+      "doc_type": "comparison",
+      "topic": "domestic_vs_overseas_policy",
+      "source_doc": "docs/policy_comparison_domestic_vs_overseas.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "Which domestic vs overseas policy option provides better coverage?",
+      "ground_truth": "As documented in docs/policy_comparison_domestic_vs_overseas.pdf, the comparison of domestic vs overseas policy options highlights key differences in eligibility, coverage, and approval requirements.",
+      "doc_type": "comparison",
+      "topic": "domestic_vs_overseas_policy",
+      "source_doc": "docs/policy_comparison_domestic_vs_overseas.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How does the benefits comparison policy compare across different employment types? (case 3)",
+      "ground_truth": "As documented in docs/benefit_comparison_2024.pdf, the comparison of benefits comparison options highlights key differences in eligibility, coverage, and approval requirements.",
+      "doc_type": "comparison",
+      "topic": "benefits_comparison",
+      "source_doc": "docs/benefit_comparison_2024.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How many days are allowed under the attendance policy policy?",
+      "ground_truth": "According to docs/hr_policy_attendance.pdf, the policy on attendance policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "attendance_policy",
+      "source_doc": "docs/hr_policy_attendance.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "Which department handles budget process requests?",
+      "ground_truth": "Based on docs/finance_budget_process.pdf, the budget process process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "budget_process",
+      "source_doc": "docs/finance_budget_process.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What are the steps to apply for budget process?",
+      "ground_truth": "Based on docs/finance_budget_process.pdf, the budget process process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "budget_process",
+      "source_doc": "docs/finance_budget_process.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How many days are allowed under the leave policy policy? (case 2)",
+      "ground_truth": "According to docs/hr_policy_2024.pdf, the policy on leave policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "leave_policy",
+      "source_doc": "docs/hr_policy_2024.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What is the deadline for budget process submissions?",
+      "ground_truth": "Based on docs/finance_budget_process.pdf, the budget process process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "budget_process",
+      "source_doc": "docs/finance_budget_process.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What does hr terminology mean in the context of HR? (case 3)",
+      "ground_truth": "As defined in docs/hr_glossary.pdf, hr terminology refers to the formal classification or concept as specified in company policy.",
+      "doc_type": "definition",
+      "topic": "hr_terminology",
+      "source_doc": "docs/hr_glossary.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How does the benefits comparison policy compare across different employment types? (case 2)",
+      "ground_truth": "As documented in docs/benefit_comparison_2024.pdf, the comparison of benefits comparison options highlights key differences in eligibility, coverage, and approval requirements.",
+      "doc_type": "comparison",
+      "topic": "benefits_comparison",
+      "source_doc": "docs/benefit_comparison_2024.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "Which department handles budget process requests? (case 2)",
+      "ground_truth": "Based on docs/finance_budget_process.pdf, the budget process process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "budget_process",
+      "source_doc": "docs/finance_budget_process.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What are the steps to apply for reimbursement? (case 2)",
+      "ground_truth": "Based on docs/finance_reimbursement_guide.pdf, the reimbursement process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "reimbursement",
+      "source_doc": "docs/finance_reimbursement_guide.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "Who approves requests under the recruitment policy policy? (case 2)",
+      "ground_truth": "According to docs/hr_policy_recruitment.pdf, the policy on recruitment policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "recruitment_policy",
+      "source_doc": "docs/hr_policy_recruitment.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What is the deadline for budget process submissions? (case 2)",
+      "ground_truth": "Based on docs/finance_budget_process.pdf, the budget process process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "budget_process",
+      "source_doc": "docs/finance_budget_process.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What are the steps to apply for asset management?",
+      "ground_truth": "Based on docs/it_asset_management.pdf, the asset management process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "asset_management",
+      "source_doc": "docs/it_asset_management.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How many days are allowed under the recruitment policy policy?",
+      "ground_truth": "According to docs/hr_policy_recruitment.pdf, the policy on recruitment policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "recruitment_policy",
+      "source_doc": "docs/hr_policy_recruitment.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What are the steps to apply for budget process? (case 3)",
+      "ground_truth": "Based on docs/finance_budget_process.pdf, the budget process process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "budget_process",
+      "source_doc": "docs/finance_budget_process.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What are the pros and cons of each benefits comparison option?",
+      "ground_truth": "As documented in docs/benefit_comparison_2024.pdf, the comparison of benefits comparison options highlights key differences in eligibility, coverage, and approval requirements.",
+      "doc_type": "comparison",
+      "topic": "benefits_comparison",
+      "source_doc": "docs/benefit_comparison_2024.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How are approval workflow decisions recorded and audited? (case 2)",
+      "ground_truth": "Resolving a approval workflow request requires consulting docs/cross_dept_approval_workflow.pdf along with related policies. The full approval chain is described therein.",
+      "doc_type": "multi_hop",
+      "topic": "approval_workflow",
+      "source_doc": "docs/cross_dept_approval_workflow.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How is hr terminology defined in company policy? (case 2)",
+      "ground_truth": "As defined in docs/hr_glossary.pdf, hr terminology refers to the formal classification or concept as specified in company policy.",
+      "doc_type": "definition",
+      "topic": "hr_terminology",
+      "source_doc": "docs/hr_glossary.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "Who approves requests under the attendance policy policy?",
+      "ground_truth": "According to docs/hr_policy_attendance.pdf, the policy on attendance policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "attendance_policy",
+      "source_doc": "docs/hr_policy_attendance.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "If an employee needs compliance approval, which policies apply and who signs off?",
+      "ground_truth": "Resolving a compliance request requires consulting docs/compliance_handbook.pdf along with related policies. The full approval chain is described therein.",
+      "doc_type": "multi_hop",
+      "topic": "compliance",
+      "source_doc": "docs/compliance_handbook.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How does the domestic vs overseas policy policy compare across different employment types? (case 3)",
+      "ground_truth": "As documented in docs/policy_comparison_domestic_vs_overseas.pdf, the comparison of domestic vs overseas policy options highlights key differences in eligibility, coverage, and approval requirements.",
+      "doc_type": "comparison",
+      "topic": "domestic_vs_overseas_policy",
+      "source_doc": "docs/policy_comparison_domestic_vs_overseas.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What form should I use for reimbursement? (case 2)",
+      "ground_truth": "Based on docs/finance_reimbursement_guide.pdf, the reimbursement process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "reimbursement",
+      "source_doc": "docs/finance_reimbursement_guide.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "Who is eligible for recruitment policy benefits? (case 3)",
+      "ground_truth": "According to docs/hr_policy_recruitment.pdf, the policy on recruitment policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "recruitment_policy",
+      "source_doc": "docs/hr_policy_recruitment.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What does hr terminology mean in the context of HR?",
+      "ground_truth": "As defined in docs/hr_glossary.pdf, hr terminology refers to the formal classification or concept as specified in company policy.",
+      "doc_type": "definition",
+      "topic": "hr_terminology",
+      "source_doc": "docs/hr_glossary.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How many days are allowed under the leave policy policy? (case 3)",
+      "ground_truth": "According to docs/hr_policy_2024.pdf, the policy on leave policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "leave_policy",
+      "source_doc": "docs/hr_policy_2024.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How many days are allowed under the recruitment policy policy? (case 2)",
+      "ground_truth": "According to docs/hr_policy_recruitment.pdf, the policy on recruitment policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "recruitment_policy",
+      "source_doc": "docs/hr_policy_recruitment.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How do I track the status of my budget process request? (case 2)",
+      "ground_truth": "Based on docs/finance_budget_process.pdf, the budget process process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "budget_process",
+      "source_doc": "docs/finance_budget_process.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How do I track the status of my reimbursement request? (case 2)",
+      "ground_truth": "Based on docs/finance_reimbursement_guide.pdf, the reimbursement process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "reimbursement",
+      "source_doc": "docs/finance_reimbursement_guide.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How do the domestic vs overseas policy terms differ for domestic vs overseas employees? (case 2)",
+      "ground_truth": "As documented in docs/policy_comparison_domestic_vs_overseas.pdf, the comparison of domestic vs overseas policy options highlights key differences in eligibility, coverage, and approval requirements.",
+      "doc_type": "comparison",
+      "topic": "domestic_vs_overseas_policy",
+      "source_doc": "docs/policy_comparison_domestic_vs_overseas.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What is the policy on attendance policy?",
+      "ground_truth": "According to docs/hr_policy_attendance.pdf, the policy on attendance policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "attendance_policy",
+      "source_doc": "docs/hr_policy_attendance.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What is the process for asset management approval?",
+      "ground_truth": "Based on docs/it_asset_management.pdf, the asset management process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "asset_management",
+      "source_doc": "docs/it_asset_management.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "When does the attendance policy policy take effect? (case 2)",
+      "ground_truth": "According to docs/hr_policy_attendance.pdf, the policy on attendance policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "attendance_policy",
+      "source_doc": "docs/hr_policy_attendance.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "Which domestic vs overseas policy approach is recommended for senior staff?",
+      "ground_truth": "As documented in docs/policy_comparison_domestic_vs_overseas.pdf, the comparison of domestic vs overseas policy options highlights key differences in eligibility, coverage, and approval requirements.",
+      "doc_type": "comparison",
+      "topic": "domestic_vs_overseas_policy",
+      "source_doc": "docs/policy_comparison_domestic_vs_overseas.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "Which benefits comparison approach is recommended for senior staff?",
+      "ground_truth": "As documented in docs/benefit_comparison_2024.pdf, the comparison of benefits comparison options highlights key differences in eligibility, coverage, and approval requirements.",
+      "doc_type": "comparison",
+      "topic": "benefits_comparison",
+      "source_doc": "docs/benefit_comparison_2024.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "When does the leave policy policy take effect? (case 2)",
+      "ground_truth": "According to docs/hr_policy_2024.pdf, the policy on leave policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "leave_policy",
+      "source_doc": "docs/hr_policy_2024.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How do I track the status of my reimbursement request?",
+      "ground_truth": "Based on docs/finance_reimbursement_guide.pdf, the reimbursement process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "reimbursement",
+      "source_doc": "docs/finance_reimbursement_guide.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How long does the budget process process take? (case 2)",
+      "ground_truth": "Based on docs/finance_budget_process.pdf, the budget process process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "budget_process",
+      "source_doc": "docs/finance_budget_process.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What form should I use for budget process? (case 2)",
+      "ground_truth": "Based on docs/finance_budget_process.pdf, the budget process process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "budget_process",
+      "source_doc": "docs/finance_budget_process.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What are the key requirements of the attendance policy policy?",
+      "ground_truth": "According to docs/hr_policy_attendance.pdf, the policy on attendance policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "attendance_policy",
+      "source_doc": "docs/hr_policy_attendance.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How long does the asset management process take?",
+      "ground_truth": "Based on docs/it_asset_management.pdf, the asset management process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "asset_management",
+      "source_doc": "docs/it_asset_management.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What happens when a compliance request crosses department boundaries?",
+      "ground_truth": "Resolving a compliance request requires consulting docs/compliance_handbook.pdf along with related policies. The full approval chain is described therein.",
+      "doc_type": "multi_hop",
+      "topic": "compliance",
+      "source_doc": "docs/compliance_handbook.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "If an employee needs approval workflow approval, which policies apply and who signs off?",
+      "ground_truth": "Resolving a approval workflow request requires consulting docs/cross_dept_approval_workflow.pdf along with related policies. The full approval chain is described therein.",
+      "doc_type": "multi_hop",
+      "topic": "approval_workflow",
+      "source_doc": "docs/cross_dept_approval_workflow.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How do I submit a request for budget process? (case 2)",
+      "ground_truth": "Based on docs/finance_budget_process.pdf, the budget process process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "budget_process",
+      "source_doc": "docs/finance_budget_process.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How does compliance interact with the leave policy and finance approval?",
+      "ground_truth": "Resolving a compliance request requires consulting docs/compliance_handbook.pdf along with related policies. The full approval chain is described therein.",
+      "doc_type": "multi_hop",
+      "topic": "compliance",
+      "source_doc": "docs/compliance_handbook.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "When does the attendance policy policy take effect? (case 3)",
+      "ground_truth": "According to docs/hr_policy_attendance.pdf, the policy on attendance policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "attendance_policy",
+      "source_doc": "docs/hr_policy_attendance.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "Explain the term compensation structure as used in our documentation.",
+      "ground_truth": "As defined in docs/compensation_structure.pdf, compensation structure refers to the formal classification or concept as specified in company policy.",
+      "doc_type": "definition",
+      "topic": "compensation_structure",
+      "source_doc": "docs/compensation_structure.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What is the process for budget process approval? (case 2)",
+      "ground_truth": "Based on docs/finance_budget_process.pdf, the budget process process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "budget_process",
+      "source_doc": "docs/finance_budget_process.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "If an employee needs compliance approval, which policies apply and who signs off? (case 2)",
+      "ground_truth": "Resolving a compliance request requires consulting docs/compliance_handbook.pdf along with related policies. The full approval chain is described therein.",
+      "doc_type": "multi_hop",
+      "topic": "compliance",
+      "source_doc": "docs/compliance_handbook.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What is the policy on recruitment policy?",
+      "ground_truth": "According to docs/hr_policy_recruitment.pdf, the policy on recruitment policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "recruitment_policy",
+      "source_doc": "docs/hr_policy_recruitment.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How many days are allowed under the leave policy policy?",
+      "ground_truth": "According to docs/hr_policy_2024.pdf, the policy on leave policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "leave_policy",
+      "source_doc": "docs/hr_policy_2024.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How long does the reimbursement process take? (case 2)",
+      "ground_truth": "Based on docs/finance_reimbursement_guide.pdf, the reimbursement process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "reimbursement",
+      "source_doc": "docs/finance_reimbursement_guide.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What is the definition of hr terminology?",
+      "ground_truth": "As defined in docs/hr_glossary.pdf, hr terminology refers to the formal classification or concept as specified in company policy.",
+      "doc_type": "definition",
+      "topic": "hr_terminology",
+      "source_doc": "docs/hr_glossary.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What changed in benefits comparison from last year to this year?",
+      "ground_truth": "As documented in docs/benefit_comparison_2024.pdf, the comparison of benefits comparison options highlights key differences in eligibility, coverage, and approval requirements.",
+      "doc_type": "comparison",
+      "topic": "benefits_comparison",
+      "source_doc": "docs/benefit_comparison_2024.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What is the policy on recruitment policy? (case 3)",
+      "ground_truth": "According to docs/hr_policy_recruitment.pdf, the policy on recruitment policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "recruitment_policy",
+      "source_doc": "docs/hr_policy_recruitment.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What is the deadline for asset management submissions? (case 2)",
+      "ground_truth": "Based on docs/it_asset_management.pdf, the asset management process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "asset_management",
+      "source_doc": "docs/it_asset_management.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How does approval workflow interact with the leave policy and finance approval?",
+      "ground_truth": "Resolving a approval workflow request requires consulting docs/cross_dept_approval_workflow.pdf along with related policies. The full approval chain is described therein.",
+      "doc_type": "multi_hop",
+      "topic": "approval_workflow",
+      "source_doc": "docs/cross_dept_approval_workflow.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How is compensation structure defined in company policy?",
+      "ground_truth": "As defined in docs/compensation_structure.pdf, compensation structure refers to the formal classification or concept as specified in company policy.",
+      "doc_type": "definition",
+      "topic": "compensation_structure",
+      "source_doc": "docs/compensation_structure.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "Who is eligible for recruitment policy benefits? (case 2)",
+      "ground_truth": "According to docs/hr_policy_recruitment.pdf, the policy on recruitment policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "recruitment_policy",
+      "source_doc": "docs/hr_policy_recruitment.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How does our domestic vs overseas policy compare to industry standard? (case 2)",
+      "ground_truth": "As documented in docs/policy_comparison_domestic_vs_overseas.pdf, the comparison of domestic vs overseas policy options highlights key differences in eligibility, coverage, and approval requirements.",
+      "doc_type": "comparison",
+      "topic": "domestic_vs_overseas_policy",
+      "source_doc": "docs/policy_comparison_domestic_vs_overseas.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What happens when a approval workflow request crosses department boundaries? (case 2)",
+      "ground_truth": "Resolving a approval workflow request requires consulting docs/cross_dept_approval_workflow.pdf along with related policies. The full approval chain is described therein.",
+      "doc_type": "multi_hop",
+      "topic": "approval_workflow",
+      "source_doc": "docs/cross_dept_approval_workflow.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What criteria define hr terminology classification?",
+      "ground_truth": "As defined in docs/hr_glossary.pdf, hr terminology refers to the formal classification or concept as specified in company policy.",
+      "doc_type": "definition",
+      "topic": "hr_terminology",
+      "source_doc": "docs/hr_glossary.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How do the benefits comparison terms differ for domestic vs overseas employees? (case 3)",
+      "ground_truth": "As documented in docs/benefit_comparison_2024.pdf, the comparison of benefits comparison options highlights key differences in eligibility, coverage, and approval requirements.",
+      "doc_type": "comparison",
+      "topic": "benefits_comparison",
+      "source_doc": "docs/benefit_comparison_2024.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "When does the recruitment policy policy take effect? (case 3)",
+      "ground_truth": "According to docs/hr_policy_recruitment.pdf, the policy on recruitment policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "recruitment_policy",
+      "source_doc": "docs/hr_policy_recruitment.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How often is the recruitment policy policy reviewed? (case 2)",
+      "ground_truth": "According to docs/hr_policy_recruitment.pdf, the policy on recruitment policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "recruitment_policy",
+      "source_doc": "docs/hr_policy_recruitment.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "When does the attendance policy policy take effect?",
+      "ground_truth": "According to docs/hr_policy_attendance.pdf, the policy on attendance policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "attendance_policy",
+      "source_doc": "docs/hr_policy_attendance.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How often is the leave policy policy reviewed?",
+      "ground_truth": "According to docs/hr_policy_2024.pdf, the policy on leave policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "leave_policy",
+      "source_doc": "docs/hr_policy_2024.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What is the policy on leave policy? (case 2)",
+      "ground_truth": "According to docs/hr_policy_2024.pdf, the policy on leave policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "leave_policy",
+      "source_doc": "docs/hr_policy_2024.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What form should I use for asset management? (case 2)",
+      "ground_truth": "Based on docs/it_asset_management.pdf, the asset management process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "asset_management",
+      "source_doc": "docs/it_asset_management.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How is hr terminology defined in company policy?",
+      "ground_truth": "As defined in docs/hr_glossary.pdf, hr terminology refers to the formal classification or concept as specified in company policy.",
+      "doc_type": "definition",
+      "topic": "hr_terminology",
+      "source_doc": "docs/hr_glossary.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "Who is eligible for attendance policy benefits?",
+      "ground_truth": "According to docs/hr_policy_attendance.pdf, the policy on attendance policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "attendance_policy",
+      "source_doc": "docs/hr_policy_attendance.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How does the domestic vs overseas policy policy compare across different employment types? (case 2)",
+      "ground_truth": "As documented in docs/policy_comparison_domestic_vs_overseas.pdf, the comparison of domestic vs overseas policy options highlights key differences in eligibility, coverage, and approval requirements.",
+      "doc_type": "comparison",
+      "topic": "domestic_vs_overseas_policy",
+      "source_doc": "docs/policy_comparison_domestic_vs_overseas.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What does compensation structure mean in the context of HR? (case 2)",
+      "ground_truth": "As defined in docs/compensation_structure.pdf, compensation structure refers to the formal classification or concept as specified in company policy.",
+      "doc_type": "definition",
+      "topic": "compensation_structure",
+      "source_doc": "docs/compensation_structure.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What documents are required for attendance policy?",
+      "ground_truth": "According to docs/hr_policy_attendance.pdf, the policy on attendance policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "attendance_policy",
+      "source_doc": "docs/hr_policy_attendance.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "Who is responsible for compliance when the direct manager is absent? (case 2)",
+      "ground_truth": "Resolving a compliance request requires consulting docs/compliance_handbook.pdf along with related policies. The full approval chain is described therein.",
+      "doc_type": "multi_hop",
+      "topic": "compliance",
+      "source_doc": "docs/compliance_handbook.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How often is the attendance policy policy reviewed? (case 2)",
+      "ground_truth": "According to docs/hr_policy_attendance.pdf, the policy on attendance policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "attendance_policy",
+      "source_doc": "docs/hr_policy_attendance.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How many days are allowed under the recruitment policy policy? (case 3)",
+      "ground_truth": "According to docs/hr_policy_recruitment.pdf, the policy on recruitment policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "recruitment_policy",
+      "source_doc": "docs/hr_policy_recruitment.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What is the process for reimbursement approval?",
+      "ground_truth": "Based on docs/finance_reimbursement_guide.pdf, the reimbursement process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "reimbursement",
+      "source_doc": "docs/finance_reimbursement_guide.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What is the process for reimbursement approval? (case 2)",
+      "ground_truth": "Based on docs/finance_reimbursement_guide.pdf, the reimbursement process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "reimbursement",
+      "source_doc": "docs/finance_reimbursement_guide.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How are compliance decisions recorded and audited? (case 2)",
+      "ground_truth": "Resolving a compliance request requires consulting docs/compliance_handbook.pdf along with related policies. The full approval chain is described therein.",
+      "doc_type": "multi_hop",
+      "topic": "compliance",
+      "source_doc": "docs/compliance_handbook.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What documents are required for leave policy?",
+      "ground_truth": "According to docs/hr_policy_2024.pdf, the policy on leave policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "leave_policy",
+      "source_doc": "docs/hr_policy_2024.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What is the policy on attendance policy? (case 2)",
+      "ground_truth": "According to docs/hr_policy_attendance.pdf, the policy on attendance policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "attendance_policy",
+      "source_doc": "docs/hr_policy_attendance.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How is hr terminology defined in company policy? (case 3)",
+      "ground_truth": "As defined in docs/hr_glossary.pdf, hr terminology refers to the formal classification or concept as specified in company policy.",
+      "doc_type": "definition",
+      "topic": "hr_terminology",
+      "source_doc": "docs/hr_glossary.pdf",
+      "metadata": {}
+    }
+  ]
+}

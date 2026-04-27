@@ -1,0 +1,67 @@
+{
+  "version": "1.0.0",
+  "created_at": "2026-04-27T00:00:00Z",
+  "description": "Documents reserved as holdout — never ingest these into pgvector (anti-contamination)",
+  "holdout_docs": [
+    {
+      "path": "docs/hr_policy_2024.pdf",
+      "doc_type": "policy_factual",
+      "topic": "leave_policy"
+    },
+    {
+      "path": "docs/hr_policy_attendance.pdf",
+      "doc_type": "policy_factual",
+      "topic": "attendance_policy"
+    },
+    {
+      "path": "docs/hr_policy_recruitment.pdf",
+      "doc_type": "policy_factual",
+      "topic": "recruitment_policy"
+    },
+    {
+      "path": "docs/finance_reimbursement_guide.pdf",
+      "doc_type": "procedural",
+      "topic": "reimbursement"
+    },
+    {
+      "path": "docs/finance_budget_process.pdf",
+      "doc_type": "procedural",
+      "topic": "budget_process"
+    },
+    {
+      "path": "docs/it_asset_management.pdf",
+      "doc_type": "procedural",
+      "topic": "asset_management"
+    },
+    {
+      "path": "docs/benefit_comparison_2024.pdf",
+      "doc_type": "comparison",
+      "topic": "benefits_comparison"
+    },
+    {
+      "path": "docs/policy_comparison_domestic_vs_overseas.pdf",
+      "doc_type": "comparison",
+      "topic": "domestic_vs_overseas_policy"
+    },
+    {
+      "path": "docs/hr_glossary.pdf",
+      "doc_type": "definition",
+      "topic": "hr_terminology"
+    },
+    {
+      "path": "docs/compliance_handbook.pdf",
+      "doc_type": "multi_hop",
+      "topic": "compliance"
+    },
+    {
+      "path": "docs/cross_dept_approval_workflow.pdf",
+      "doc_type": "multi_hop",
+      "topic": "approval_workflow"
+    },
+    {
+      "path": "docs/compensation_structure.pdf",
+      "doc_type": "definition",
+      "topic": "compensation_structure"
+    }
+  ]
+}
