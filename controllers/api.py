@@ -9,15 +9,18 @@ import asyncpg
 import httpx
 import openai
 import redis
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Request
+import re
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
 from fastapi.responses import StreamingResponse
+from arq.jobs import Job, JobStatus
+from services.auth.oidc_auth import get_current_user, AuthenticatedUser
 from loguru import logger
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from config.settings import settings
 from utils.models import (
-    IngestionRequest, IngestionResponse,
+    IngestionRequest, IngestionResponse, AsyncIngestRequest,
     GenerationRequest, GenerationResponse,
     APIResponse, FeedbackRequest,
 )
@@ -100,24 +103,89 @@ async def ingest(request: Request, req: IngestionRequest) -> APIResponse:
         raise HTTPException(status_code=500, detail="文档摄取失败，请稍后重试")
 
 
-@router.post("/ingest/async", response_model=APIResponse, tags=["ingestion"])
+@router.post("/ingest/async", response_model=APIResponse, status_code=202, tags=["ingestion"])
 @_limiter.limit(f"{settings.rate_limit_ingest_rpm}/minute")
-async def ingest_async(request: Request, req: IngestionRequest, bg: BackgroundTasks) -> APIResponse:      # bg: 背景任务队列，用于异步处理耗时任务
-    """异步摄取（大文件）：立即返回 202，后台处理。"""
-    trace_id = str(uuid.uuid4())[:8]
+async def ingest_async(
+    request: Request,
+    req: AsyncIngestRequest,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> APIResponse:
+    """Async ingest: return 202 + task_id immediately, ARQ processes in background.
 
-    async def _bg_ingest() -> None:
-        pipeline = get_ingest_pipeline()
-        result = await pipeline.run(req)
-        status = "success" if result.success else f"failed: {result.error}"
-        logger.info(f"[BG:ingest] trace={trace_id} doc_id={result.doc_id} status={status}")
+    ASYNC-01: response in <200ms regardless of doc size.
+    """
+    try:
+        arq_redis = request.app.state.arq_redis
+        job = await arq_redis.enqueue_job(
+            "ingest_task",
+            req.model_dump(mode="json"),
+        )
+        if job is None:
+            raise HTTPException(status_code=503, detail="Task queue dedup conflict; retry")
+        task_id = job.job_id
+        logger.info(f"[API:ingest_async] task_id={task_id} doc_id={req.doc_id} tenant={current_user.tenant_id}")
+        return APIResponse(
+            success=True,
+            data={"task_id": task_id, "status": "queued"},
+            trace_id=task_id,
+        )
+    except HTTPException:
+        raise
+    except redis.RedisError as exc:
+        logger.error(f"[API:ingest_async] redis error={exc}")
+        raise HTTPException(status_code=503, detail="Task queue temporarily unavailable")
 
-    bg.add_task(_bg_ingest)
-    return APIResponse(
-        success=True,       # 异步任务已提交，返回成功
-        data={"trace_id": trace_id, "status": "queued"},
-        trace_id=trace_id,
-    )
+
+# Alphanumeric task_id + dashes (ARQ UUIDs, test IDs, human-readable IDs all accepted)
+# Rejects injection chars: quotes, spaces, semicolons, slashes (T-05-10)
+_TASK_ID_RE = re.compile(r"[a-zA-Z0-9\-]{4,}")
+
+
+@router.get("/ingest/status/{task_id}", response_model=APIResponse, tags=["ingestion"])
+async def ingest_status(
+    task_id: str,
+    request: Request,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> APIResponse:
+    """Poll async ingest task status.
+
+    ASYNC-02: returns {status, error} or 404 after 24h TTL.
+    Cross-tenant access returns 404 (not 403) to prevent enumeration.
+    """
+    if not _TASK_ID_RE.fullmatch(task_id):
+        raise HTTPException(status_code=400, detail="Invalid task_id format")
+    try:
+        arq_redis = request.app.state.arq_redis
+        job = Job(task_id, arq_redis)
+        info = await job.info()
+        if info is None:
+            raise HTTPException(status_code=404, detail="Task not found or expired")
+        result_dict = info.result if isinstance(info.result, dict) else {}
+        result_tenant = result_dict.get("tenant_id")
+        if result_tenant and result_tenant != current_user.tenant_id:
+            raise HTTPException(status_code=404, detail="Task not found or expired")
+        status_map = {
+            JobStatus.queued:      "pending",
+            JobStatus.deferred:    "pending",
+            JobStatus.in_progress: "pending",
+            JobStatus.complete:    "complete",
+            JobStatus.not_found:   "not_found",
+        }
+        job_status = await job.status()
+        status_str = status_map.get(job_status, "pending")
+        error_detail: str | None = None
+        if not info.success:
+            error_detail = result_dict.get("error")
+            status_str = "failed"
+        return APIResponse(
+            success=True,
+            data={"task_id": task_id, "status": status_str, "error": error_detail},
+        )
+    except HTTPException:
+        raise
+    except redis.RedisError as exc:
+        logger.error(f"[API:ingest_status] task_id={task_id} redis error={exc}")
+        raise HTTPException(status_code=503, detail="Status query temporarily unavailable")
 
 
 # ══════════════════════════════════════════════════════════════════════════════

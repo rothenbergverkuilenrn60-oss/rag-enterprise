@@ -25,6 +25,8 @@ async def fake_arq_redis():
     """In-process FakeAsyncRedis instance shared across tests in a session."""
     server = fakeredis.FakeServer()
     client = fakeredis.FakeAsyncRedis(server=server)
+    # ARQ pools expose enqueue_job; add sentinel so monkeypatch.setattr(raising=True) works
+    client.enqueue_job = AsyncMock()
     yield client
     await client.aclose()
 

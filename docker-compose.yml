@@ -1,0 +1,406 @@
+# =============================================================================
+# docker-compose.yml
+# 企业级 RAG — 完整生产栈
+# 服务：rag-api | qdrant | redis | ollama | ragas-eval
+# 启动：docker compose up -d
+# 评测：docker compose run --rm ragas-eval
+# =============================================================================
+
+version: "3.9"
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 全局网络 & 存储卷
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+networks:
+  rag-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  qdrant-storage:
+    driver: local
+  redis-data:
+    driver: local
+  ollama-models:
+    driver: local
+  rag-logs:
+    driver: local
+  rag-data:
+    driver: local
+  eval-reports:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# x-* YAML 锚点 — 复用配置
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+x-restart: &restart-policy
+  restart: unless-stopped
+
+x-logging: &default-logging
+  logging:
+    driver: "json-file"
+    options:
+      max-size: "50m"
+      max-file: "5"
+
+x-rag-env: &rag-common-env
+  ENVIRONMENT: ${ENVIRONMENT:-production}
+  DEBUG: ${DEBUG:-false}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  # LLM
+  LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+  OLLAMA_BASE_URL: http://ollama:11434
+  OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:14b}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o}
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-4-6}
+  # Embedding
+  EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-ollama}
+  EMBEDDING_MODEL: ${EMBEDDING_MODEL:-bge-m3}
+  # VectorStore
+  VECTOR_STORE: ${VECTOR_STORE:-qdrant}
+  QDRANT_URL: http://qdrant:6333
+  QDRANT_COLLECTION: ${QDRANT_COLLECTION:-rag_enterprise_v3}
+  QDRANT_API_KEY: ${QDRANT_API_KEY:-}
+  # Redis
+  REDIS_URL: redis://redis:6379/0
+  CACHE_ENABLED: ${CACHE_ENABLED:-true}
+  CACHE_TTL_SEC: ${CACHE_TTL_SEC:-3600}
+  # Retrieval
+  TOP_K_DENSE: ${TOP_K_DENSE:-20}
+  TOP_K_SPARSE: ${TOP_K_SPARSE:-20}
+  TOP_K_RERANK: ${TOP_K_RERANK:-6}
+  HYDE_ENABLED: ${HYDE_ENABLED:-true}
+  RERANKER_ENABLED: ${RERANKER_ENABLED:-true}
+  # Auth
+  SECRET_KEY: ${SECRET_KEY:-CHANGE-ME-IN-PRODUCTION-USE-256BIT-KEY}
+  # Observability
+  LANGFUSE_ENABLED: ${LANGFUSE_ENABLED:-false}
+  LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
+  LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
+  # Reranker 微服务（启用后 rag-api 自动切换到 HTTP 调用）
+  RERANKER_SERVICE_URL: ${RERANKER_SERVICE_URL:-http://reranker:8001}
+  RERANKER_SLA_MS: ${RERANKER_SLA_MS:-45}
+
+
+services:
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # 1. Qdrant — 向量数据库
+  # ══════════════════════════════════════════════════════════════════════════
+  qdrant:
+    image: qdrant/qdrant:v1.11.5
+    container_name: rag-qdrant
+    <<: [*restart-policy, *default-logging]
+    networks:
+      rag-net:
+        ipv4_address: 172.20.0.10
+    ports:
+      - "6333:6333"   # REST API
+      - "6334:6334"   # gRPC
+    volumes:
+      - qdrant-storage:/qdrant/storage
+      - ./docker/qdrant/config.yaml:/qdrant/config/production.yaml:ro
+    environment:
+      QDRANT__SERVICE__HTTP_PORT: 6333
+      QDRANT__SERVICE__GRPC_PORT: 6334
+      QDRANT__LOG_LEVEL: INFO
+      QDRANT__STORAGE__ON_DISK_PAYLOAD: "true"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # 2. Redis — 缓存 & 会话
+  # ══════════════════════════════════════════════════════════════════════════
+  redis:
+    image: redis:7.4-alpine
+    container_name: rag-redis
+    <<: [*restart-policy, *default-logging]
+    networks:
+      rag-net:
+        ipv4_address: 172.20.0.11
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+      - ./docker/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    command: redis-server /usr/local/etc/redis/redis.conf
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # 3. Ollama — 本地 LLM & Embedding 推理
+  # ══════════════════════════════════════════════════════════════════════════
+  ollama:
+    image: ollama/ollama:0.5.4
+    container_name: rag-ollama
+    <<: [*restart-policy, *default-logging]
+    networks:
+      rag-net:
+        ipv4_address: 172.20.0.12
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-models:/root/.ollama
+    environment:
+      OLLAMA_KEEP_ALIVE: "24h"
+      OLLAMA_NUM_PARALLEL: "2"
+    # GPU 支持（按需启用，需要 nvidia-container-toolkit）
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # 4. Ollama 模型预加载（init 容器模式）
+  # ══════════════════════════════════════════════════════════════════════════
+  ollama-init:
+    image: ollama/ollama:0.5.4
+    container_name: rag-ollama-init
+    networks:
+      - rag-net
+    depends_on:
+      ollama:
+        condition: service_healthy
+    volumes:
+      - ollama-models:/root/.ollama
+      - ./docker/ollama/pull_models.sh:/pull_models.sh:ro
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["/bin/sh", "/pull_models.sh"]
+    restart: "no"
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # 5. RAG API — 主应用（去掉固定 IP，支持 --scale rag-api=N 多实例）
+  # ══════════════════════════════════════════════════════════════════════════
+  rag-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    image: rag-enterprise:latest
+    # container_name 注释掉：多实例时 Docker 会自动命名（rag-api-1, rag-api-2...）
+    <<: [*restart-policy, *default-logging]
+    networks:
+      - rag-net
+    # 多实例时不直接暴露端口，由 Nginx 代理
+    # ports:
+    #   - "8000:8000"
+    volumes:
+      - rag-data:/app/data
+      - rag-logs:/app/logs
+      - eval-reports:/app/eval_reports
+    environment:
+      <<: *rag-common-env
+      # 覆盖 data/log 路径（容器内使用 /app 而非 /mnt/f）
+      DATA_DIR: /app/data/raw
+      PROCESSED_DIR: /app/data/processed
+      INDEX_DIR: /app/data/index
+      LOG_DIR: /app/logs
+      CACHE_DIR: /app/cache
+    depends_on:
+      qdrant:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # 6. ARQ Worker — 异步文档摄取队列处理
+  # ══════════════════════════════════════════════════════════════════════════
+  arq-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    image: rag-enterprise:latest
+    command: arq services.ingest_worker.WorkerSettings
+    <<: [*restart-policy, *default-logging]
+    networks:
+      - rag-net
+    volumes:
+      - rag-data:/app/data
+      - rag-logs:/app/logs
+    environment:
+      <<: *rag-common-env
+      DATA_DIR: /app/data/raw
+      PROCESSED_DIR: /app/data/processed
+      INDEX_DIR: /app/data/index
+      LOG_DIR: /app/logs
+      CACHE_DIR: /app/cache
+    depends_on:
+      qdrant:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # 7. RAGAS 评测服务（按需运行：docker compose run --rm ragas-eval）
+  # ══════════════════════════════════════════════════════════════════════════
+  ragas-eval:
+    build:
+      context: .
+      dockerfile: docker/eval/Dockerfile.eval
+    image: rag-enterprise-eval:latest
+    container_name: rag-ragas-eval
+    networks:
+      - rag-net
+    volumes:
+      - rag-data:/app/data
+      - eval-reports:/app/eval_reports
+      - ./eval:/app/eval:ro
+    environment:
+      <<: *rag-common-env
+      # RAGAS judge model（建议用 OpenAI GPT-4o 或 Anthropic Claude）
+      RAGAS_JUDGE_PROVIDER: ${RAGAS_JUDGE_PROVIDER:-openai}
+      RAGAS_JUDGE_MODEL: ${RAGAS_JUDGE_MODEL:-gpt-4o}
+      RAGAS_JUDGE_API_KEY: ${OPENAI_API_KEY:-}
+      RAGAS_EVAL_DATASET: ${RAGAS_EVAL_DATASET:-/app/eval/datasets/qa_pairs.json}
+      RAGAS_REPORT_DIR: /app/eval_reports
+      RAGAS_BATCH_SIZE: ${RAGAS_BATCH_SIZE:-5}
+      RAG_API_BASE_URL: http://rag-api:8000/api/v1
+    depends_on:
+      rag-api:
+        condition: service_healthy
+    restart: "no"   # 评测任务为一次性运行
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # 7. Nginx 反向代理（生产前置）
+  # ══════════════════════════════════════════════════════════════════════════
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: rag-nginx
+    <<: [*restart-policy, *default-logging]
+    networks:
+      rag-net:
+        ipv4_address: 172.20.0.30
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/conf.d:/etc/nginx/conf.d:ro
+      # TLS 证书（生产环境挂载 Let's Encrypt / 企业证书）
+      # - /etc/letsencrypt:/etc/letsencrypt:ro
+    depends_on:
+      rag-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # 8. Reranker 微服务（独立 Cross-Encoder 推理服务）
+  # ══════════════════════════════════════════════════════════════════════════
+  reranker:
+    build:
+      context: .
+      dockerfile: services/reranker_service/Dockerfile
+    image: rag-reranker:latest
+    container_name: rag-reranker
+    <<: [*restart-policy, *default-logging]
+    networks:
+      - rag-net
+    environment:
+      RERANKER_MODEL_PATH: ${RERANKER_MODEL_PATH:-cross-encoder/ms-marco-MiniLM-L-6-v2}
+      RERANKER_CN_MODEL_PATH: ${RERANKER_CN_MODEL_PATH:-}
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # 9. Prometheus — 指标采集
+  # ══════════════════════════════════════════════════════════════════════════
+  prometheus:
+    image: prom/prometheus:v2.51.2
+    container_name: rag-prometheus
+    <<: [*restart-policy, *default-logging]
+    networks:
+      - rag-net
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./docker/prometheus/rules:/etc/prometheus/rules:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-lifecycle'         # 允许 POST /-/reload 热更新配置
+      - '--web.enable-admin-api'
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/healthy"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # 9. Grafana — 可视化看板
+  # ══════════════════════════════════════════════════════════════════════════
+  grafana:
+    image: grafana/grafana:11.0.0
+    container_name: rag-grafana
+    <<: [*restart-policy, *default-logging]
+    networks:
+      - rag-net
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+    environment:
+      GF_SECURITY_ADMIN_USER:     ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin123}
+      GF_USERS_ALLOW_SIGN_UP:     "false"
+      GF_SERVER_ROOT_URL:         "%(protocol)s://%(domain)s:%(http_port)s/"
+      GF_INSTALL_PLUGINS:         ""
+      # 匿名访问（开发环境方便查看，生产环境关闭）
+      GF_AUTH_ANONYMOUS_ENABLED:  ${GRAFANA_ANON:-true}
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5

@@ -246,6 +246,21 @@ class IngestionRequest(BaseModel):
     force:     bool                     = False   # True 时跳过去重检查，强制重新摄取
 
 
+class AsyncIngestRequest(BaseModel):
+    """POST /ingest/async request body — sends content directly instead of file_path.
+
+    Async ingest receives raw document content in the request body (ASYNC-01/02).
+    The worker reconstructs this to call the pipeline. Unlike the sync /ingest route
+    (which takes file_path on the server), this model is designed for API clients
+    that send content over the wire.
+    """
+    doc_id: str
+    content: str
+    tenant_id: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    force: bool = False
+
+
 class IngestionResponse(BaseModel):
     """POST /ingest 的响应体。"""
     doc_id:            str

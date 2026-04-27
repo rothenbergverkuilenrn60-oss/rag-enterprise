@@ -12,6 +12,7 @@ from typing import AsyncGenerator
 import asyncpg
 import httpx
 import redis
+from arq.connections import RedisSettings, create_pool
 from jose import JWTError
 
 from fastapi import FastAPI, Request, Response
@@ -103,6 +104,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:             # As
         except RuntimeError as exc:
             logger.warning(f"Auto update schedule failed: {exc}")
 
+    # ARQ pool for async ingest task queue (Phase 5 — ASYNC-01, ASYNC-02).
+    # Singleton pool stored on app.state, accessed by routes via request.app.state.arq_redis.
+    # Per RESEARCH.md pitfall 2: never create per-request pool.
+    app.state.arq_redis = await create_pool(
+        RedisSettings.from_dsn(settings.redis_url)
+    )
+    logger.info("[startup] arq_redis pool created")
+
     yield  # ── 应用运行 ──────────────────────────────────────────────────────
 
     # ── Shutdown ─────────────────────────────────────────────────────────────
@@ -123,6 +132,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:             # As
         obs_flush()
     except Exception:
         pass
+    try:
+        await app.state.arq_redis.close()
+        logger.info("[shutdown] arq_redis pool closed")
+    except (ConnectionError, OSError) as exc:
+        # Do not crash shutdown over a Redis close error
+        logger.warning(f"[shutdown] arq_redis close error={exc}")
     logger.info(f"{settings.app_name} shutting down…")
 
 
