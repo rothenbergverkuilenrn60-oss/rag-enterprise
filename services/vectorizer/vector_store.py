@@ -84,12 +84,20 @@ class PgVectorStore(BaseVectorStore):
             async def _init_conn(conn: _asyncpg.Connection) -> None:
                 await register_vector(conn)
 
+            dsn = self._dsn.replace("postgresql+asyncpg://", "postgresql://")
+            # strip ?ssl=... — asyncpg treats URL ssl param as a runtime GUC
+            # which raises CantChangeRuntimeParamError; pass ssl= kwarg instead
+            from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+            parsed = urlparse(dsn)
+            qs = {k: v for k, v in parse_qs(parsed.query).items() if k.lower() != "ssl"}
+            dsn = urlunparse(parsed._replace(query=urlencode(qs, doseq=True)))
             self._pool = await _asyncpg.create_pool(
-                self._dsn.replace("postgresql+asyncpg://", "postgresql://"),
+                dsn,
                 min_size=2,
                 max_size=10,
                 init=_init_conn,
-                server_settings={"work_mem": "256MB"},  # D-06: work_mem for all HNSW queries
+                ssl=False,
+                server_settings={"work_mem": "256MB"},
             )
         return self._pool
 

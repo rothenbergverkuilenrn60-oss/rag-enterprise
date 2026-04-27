@@ -2,7 +2,6 @@
 # controllers/api.py
 # FastAPI Controller — 全局中间件 + 异常拦截 + 路由
 # =============================================================================
-from __future__ import annotations
 import time
 import uuid
 import asyncpg

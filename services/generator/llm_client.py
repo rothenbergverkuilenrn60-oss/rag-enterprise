@@ -307,6 +307,33 @@ class OpenAILLMClient(BaseLLMClient):
                 pass
         return {}
 
+    async def chat_with_vision(
+        self,
+        system: str,
+        image_b64: str,
+        query: str,
+        media_type: str = "image/png",
+        task_type: str = "generate",
+    ) -> str:
+        resp = await self._client.chat.completions.create(
+            model=self._model,
+            messages=[
+                {"role": "system", "content": system},
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:{media_type};base64,{image_b64}"},
+                        },
+                        {"type": "text", "text": query},
+                    ],
+                },
+            ],
+            max_tokens=settings.llm_max_tokens,
+        )
+        return resp.choices[0].message.content or ""
+
     @property
     def supports_tools(self) -> bool:
         return True
