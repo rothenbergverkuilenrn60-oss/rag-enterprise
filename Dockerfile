@@ -69,9 +69,10 @@ RUN mkdir -p \
         /app/eval_reports \
     && chown -R raguser:raguser /app
 
-# 从 builder 安装预编译 wheels（--no-index 禁止访问 PyPI，完全离线安装）
+# 安装依赖：优先用 builder 预编译的 wheels，缺失时从 PyPI 补全
 COPY --from=builder /wheels /wheels
-RUN pip install --no-index --find-links=/wheels /wheels/*.whl \
+COPY requirements.txt requirements-eval.txt ./
+RUN pip install --no-cache-dir --find-links=/wheels -r requirements.txt -r requirements-eval.txt \
     && rm -rf /wheels
 
 # 复制应用代码（最后一层，保证代码变更不重建依赖层）
