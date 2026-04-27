@@ -66,6 +66,8 @@ def _infer_doc_type(path: Path) -> DocType:
         ".xlsx": DocType.XLSX, ".xls": DocType.XLSX, ".csv": DocType.CSV,
         ".html": DocType.HTML, ".htm": DocType.HTML, ".json": DocType.JSON,
         ".txt": DocType.TXT, ".md": DocType.MD,
+        ".jpg": DocType.IMAGE, ".jpeg": DocType.IMAGE,
+        ".png": DocType.IMAGE, ".webp": DocType.IMAGE,
     }
     return m.get(path.suffix.lower(), DocType.UNKNOWN)
 
@@ -111,7 +113,7 @@ class IngestionPipeline:
                                      error="Duplicate document skipped")
 
         extracted = await self._extractor.extract(raw_doc, llm_client=self._ingest_llm)
-        if extracted.extraction_errors and not extracted.body_text:
+        if extracted.extraction_errors and not extracted.body_text and not extracted.images:
             err_msg = "; ".join(extracted.extraction_errors)
             await self._audit.log_ingest(
                 user_id, tenant_id, doc_id, path.name,
@@ -158,16 +160,17 @@ class IngestionPipeline:
                     f"types={pii_result.pii_types}"
                 )
 
-        quality = self._knowledge.validate_document(
-            extracted.body_text, doc_id, req.file_path)
-        if not quality.passed:
-            err_msg = f"Quality: {'; '.join(quality.errors)}"
-            await self._audit.log_ingest(
-                user_id, tenant_id, doc_id, path.name,
-                result=AuditResult.FAILED, error=err_msg,
-            )
-            return IngestionResponse(doc_id=doc_id, total_chunks=0, success=False,
-                                     error=err_msg)
+        if extracted.body_text:
+            quality = self._knowledge.validate_document(
+                extracted.body_text, doc_id, req.file_path)
+            if not quality.passed:
+                err_msg = f"Quality: {'; '.join(quality.errors)}"
+                await self._audit.log_ingest(
+                    user_id, tenant_id, doc_id, path.name,
+                    result=AuditResult.FAILED, error=err_msg,
+                )
+                return IngestionResponse(doc_id=doc_id, total_chunks=0, success=False,
+                                         error=err_msg)
 
         chunks = await self._doc_processor.process(
             extracted, doc_id, llm_client=self._ingest_llm)
@@ -229,7 +232,8 @@ class IngestionPipeline:
 
         logger.info(f"[Ingest] DONE doc_id={doc_id} chunks={vr.total_chunks} {elapsed_ms}ms")
         return IngestionResponse(doc_id=doc_id, total_chunks=vr.total_chunks,
-                                 success=True, elapsed_ms=elapsed_ms)
+                                 success=True, elapsed_ms=elapsed_ms,
+                                 extraction_errors=extracted.extraction_errors)
 
 
 class QueryPipeline:
