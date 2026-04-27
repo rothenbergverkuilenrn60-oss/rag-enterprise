@@ -1,0 +1,10 @@
+# 开发/CI 依赖（不包含在生产镜像中）
+ruff==0.8.6
+mypy==1.14.0
+bandit==1.8.0
+types-requests>=2.32.0
+pytest==9.0.3
+pytest-asyncio>=1.3.0
+pytest-timeout==2.3.1
+pytest-cov==6.0.0
+fakeredis==2.35.1       # In-process Redis fake for ARQ test fixtures (ASYNC-01/02)
