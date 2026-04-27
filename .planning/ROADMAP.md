@@ -82,9 +82,9 @@ Plans:
 4. `ExtractedContent.images` is populated by Stage 2 and flows through Stage 4 chunking without pipeline errors on PDFs with no images
 **Plans:** 3 plans
 Plans:
-- [ ] 04-01-PLAN.md — Data contracts: ExtractedImage model, images field on ExtractedContent, chunk_type + image_b64 on ChunkMetadata, DocType.IMAGE, extraction_errors on IngestionResponse
-- [ ] 04-02-PLAN.md — Image extraction: image_extractor.py (PDF + standalone); extractor.py integration; _detect_doc_type image routing
-- [ ] 04-03-PLAN.md — Image chunking + pipeline wiring: _chunk_images() with LLM captioning; D-03/D-04 failure handling; pipeline.py routing + extraction_errors forwarding
+- [x] 04-01-PLAN.md — Data contracts: ExtractedImage model, images field on ExtractedContent, chunk_type + image_b64 on ChunkMetadata, DocType.IMAGE, extraction_errors on IngestionResponse
+- [x] 04-02-PLAN.md — Image extraction: image_extractor.py (PDF + standalone); extractor.py integration; _detect_doc_type image routing
+- [x] 04-03-PLAN.md — Image chunking + pipeline wiring: _chunk_images() with LLM captioning; D-03/D-04 failure handling; pipeline.py routing + extraction_errors forwarding
 
 ### Phase 5: Async Ingest Tracking
 **Goal:** Clients receive a task_id immediately on async ingest and can poll for job status including error detail, backed by ARQ and Redis.
@@ -94,7 +94,11 @@ Plans:
 1. `POST /ingest/async` returns a JSON body containing a `task_id` within 200ms regardless of document size
 2. `GET /ingest/status/{task_id}` returns `{"status": "pending"|"complete"|"failed", ...}` and on failure includes an error detail field
 3. A task_id polled 25 hours after submission returns 404 (TTL expiry enforced at 24h)
-**Plans:** TBD
+**Plans:** 3 plans
+Plans:
+- [ ] 05-01-PLAN.md — Test scaffolding + arq/fakeredis dependencies (RED tests for ASYNC-01/02)
+- [ ] 05-02-PLAN.md — Settings fields (arq_keep_result_sec, arq_job_timeout) + get_current_user FastAPI dependency
+- [ ] 05-03-PLAN.md — services/ingest_worker.py + rewritten POST /ingest/async + GET /ingest/status + arq-worker docker service
 
 ### Phase 6: Test Coverage and Eval
 **Goal:** All 11 previously untested service modules have unit tests; CI enforces an 80% coverage floor; the eval dataset has 200+ stratified QA pairs with RAGAS CI gates.
@@ -104,7 +108,11 @@ Plans:
 1. Running `pytest` with coverage reporting shows tests for all 11 service modules (auth, memory, feedback, audit, tenant, events, NLU, knowledge, ab_test, rules, vectorizer)
 2. CI pipeline fails the build when overall unit test coverage drops below 80%
 3. The eval dataset contains at least 200 QA pairs stratified by document type and topic; RAGAS CI gate passes only when `faithfulness > 0.85` and `answer_relevancy > 0.80`
-**Plans:** TBD
+**Plans:** 3 plans
+Plans:
+- [ ] 05-01-PLAN.md — Test scaffolding + arq/fakeredis dependencies (RED tests for ASYNC-01/02)
+- [ ] 05-02-PLAN.md — Settings fields (arq_keep_result_sec, arq_job_timeout) + get_current_user FastAPI dependency
+- [ ] 05-03-PLAN.md — services/ingest_worker.py + rewritten POST /ingest/async + GET /ingest/status + arq-worker docker service
 
 ## Progress Table
 

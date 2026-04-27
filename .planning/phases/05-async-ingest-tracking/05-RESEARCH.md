@@ -449,7 +449,7 @@ async def test_ingest_task_success(monkeypatch):
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Auth on existing routes:** Current `POST /ingest` and `POST /ingest/async` have no JWT `Depends()`. Phase 5 adds auth to the new async endpoint. Should the existing sync `/ingest` also get auth added in this phase? Recommendation: no — stay surgical, add auth only to new routes per phase scope.
 
