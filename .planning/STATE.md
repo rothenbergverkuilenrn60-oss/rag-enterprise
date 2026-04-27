@@ -1,93 +1,92 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: milestone
-status: complete
-stopped_at: "Milestone v1.0 shipped — pushed to origin/master (366d35d)"
-last_updated: "2026-04-27T10:30:00Z"
+milestone: v1.1
+milestone_name: Retrieval Depth & Frontend
+status: in_progress
+stopped_at: "v1.1 roadmap created; awaiting Phase 7 planning"
+last_updated: "2026-04-27T18:00:00Z"
 progress:
-  total_phases: 6
-  completed_phases: 6
-  total_plans: 20
-  completed_plans: 20
-  percent: 100
+  total_phases: 4
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
-# STATE — EnterpriseRAG Hardening
+# STATE — EnterpriseRAG v1.1 Retrieval Depth & Frontend
 
 ## Project Reference
 
 **Core value:** Every query returns a grounded, auditable answer — no hallucinations, no silent failures, no security gaps.
-**Current focus:** Phase --phase — 04
+**Current focus:** Phase 7 — OCR Engine Integration (PP-StructureV3 + async/concurrency/baked models)
 
 ## Current Position
 
-Phase: 5
+Phase: 7
 Plan: Not started
+Phase status: Not started
+
 | Field | Value |
 |-------|-------|
-| Milestone | v1 Hardening |
-| Current phase | 6 — Test Coverage and Eval |
-| Current plan | All plans complete (06-01, 06-02, 06-03) |
-| Phase status | Execution complete — pending verification |
-| Overall progress | 6/6 phases executed |
+| Milestone | v1.1 Retrieval Depth & Frontend |
+| Current phase | 7 — OCR Engine Integration |
+| Current plan | Not started |
+| Phase status | Not started |
+| Overall progress | 0/4 phases (v1.1) |
 
 ```
-Progress: [##########] 100%
+Progress: [          ] 0%
 ```
 
 ## Phase Overview
 
 | Phase | Status |
 |-------|--------|
-| 1. pgvector Foundation | Complete ✓ |
-| 2. Security Hardening + Operational Fixes | Complete ✓ |
-| 3. Error Handling Sweep | Complete ✓ |
-| 4. Image Extraction | Complete ✓ |
-| 5. Async Ingest Tracking | Complete ✓ |
-| 6. Test Coverage and Eval | Complete ✓ |
+| 7. OCR Engine Integration | Not started |
+| 8. Multimodal Metadata + Query Filter | Not started |
+| 9. Frontend Extraction | Not started |
+| 10. Coverage Gate on New Code | Not started |
 
 ## Performance Metrics
 
 | Metric | Value |
 |--------|-------|
-| Phases completed | 6/6 (execution complete) |
-| Requirements complete | 20/22 (PG-01–05, SEC-01–04, OPS-01–02, ERR-01–02, IMG-01–04, TEST-01, TEST-02, TEST-03) |
-| Plans executed | 18 |
+| Phases completed (v1.1) | 0/4 |
+| Requirements complete (v1.1) | 0/7 |
+| Plans executed (v1.1) | 0 |
 
 ## Accumulated Context
 
-### Key Decisions Logged
+### Key Decisions Logged (v1.1)
 
 | Decision | Rationale |
 |----------|-----------|
-| pgvector over Qdrant | Consolidates on PostgreSQL; eliminates external Qdrant dependency |
-| HNSW index | IVFFlat degrades on incremental inserts; HNSW handles continuous ingest |
-| Single table + PostgreSQL RLS | DB-level tenant enforcement; misconfiguration cannot leak data |
-| Caption-then-embed for images | Keeps vector space uniform; CLIP available as zero-cost fallback |
-| ARQ for async task queue | Retry + crash persistence; same Redis already in stack; zero new infra |
-| PII blocking before chunking (Stage 3) | PII split across chunk boundaries becomes undetectable |
-| JWT startup entropy check + denylist | Missing/weak secret = crash at boot, not silent runtime failure |
-| PyMuPDF AGPL | Proceed; licensing handled separately by team |
-| D-06 exemption (3x except Exception: pass in main.py) | Shutdown-flush blocks; silencing errors at teardown is intentional |
+| PP-StructureV3 over raw PP-OCRv5 | Layout + table + reading-order recovery in one pipeline; right granularity for GB national-standard PDFs |
+| Bake OCR models into Docker image | Cold-start download is 10–60s and flaky behind enterprise proxies; image size delta (~600MB–1.2GB) is acceptable |
+| Singleton + asyncio.to_thread + bounded semaphore | PP-StructureV3 has no documented thread safety; this is the safe contract under FastAPI/ARQ |
+| Section heading text in embedded content; numeric IDs in metadata only | High-cardinality numerics (page_number) dilute embeddings; heading words help recall (verified anti-pattern via LlamaIndex guidance) |
+| pgvector `hnsw.iterative_scan = relaxed_order` + raised `ef_search` when filter active | Default post-filter recall collapses on selective filters; iterative scan keeps walking the HNSW graph until k matches found |
+| Regex-first query filter extractor (no LLM in v1.1) | 100% deterministic, zero per-query cost; LLM fallback deferred to v1.2 |
+| Static HTML via FastAPI StaticFiles (no bundler) | v1.1 ceiling is "edit like a normal frontend file" — no React/Vue/build step |
+| Diff-cover gate on touched files only | Legacy 46% floor stays as informational; v1.1 does not block on legacy code |
 
-### Pitfalls to Avoid
+### Pitfalls to Avoid (v1.1)
 
-- IVFFlat index — recall degrades with incremental inserts; use HNSW; set `work_mem='256MB'`
-- Tenant data leakage — enforce RLS at vector store level, not only at API layer
-- asyncio silent drops — always attach `add_done_callback` to every `create_task()`
-- slowapi middleware-only — `@limiter.limit()` decorator required per-route; middleware is LIFO
-- Singleton leakage in tests — call `cache_clear()` in teardown after `dependency_overrides.clear()`
-- HNSW vector UPDATE — always DELETE + INSERT; schedule periodic `REINDEX`
-- Eval contamination — never generate QA pairs from documents in the retrieval index; 20% holdout first
+- PaddleOCR is **not thread-safe** — never call `predict()` from multiple threads on the same instance
+- Forgetting `hnsw.iterative_scan` is the silent killer — `page_number=63` filter on default `ef_search=40` returns near-zero results
+- Do not prepend "Page 63 — section 3.10:" into embedded text — verified to dilute recall
+- CMYK is an *image-extraction* problem, not an OCR problem — full-page rasterization in PP-StructureV3 renders to RGB regardless of source colorspace
+- Model warmup latency 10–60s on cold start — pre-warm in ARQ worker `on_startup`
+- Section IDs in GB docs use multiple formats (`3.10`, `附录A.1`, `表5`) — start with `\d+\.\d+`, extend from real query logs; do not over-engineer upfront
+- `ef_search=200` raises latency 3–5x — acceptable for v1.1 single-tenant low-QPS, revisit when scaling
 
-### Open Questions
+### Open Questions (v1.1)
 
-1. PyMuPDF commercial license — needed for enterprise on-premise before shipping image extraction?
-2. ARQ worker process (separate Docker service) vs. `asyncio.create_task + Redis` — ops overhead decision
-3. LLM captioning cost at ingest scale — per-document budget, or CLIP as default? *(D-03/D-04 mitigate: skip on failure, cap at 50/doc)*
-4. Eval holdout set — 20% of current documents available, or entirely synthetic bootstrap needed?
-5. asyncpg pool compatibility with RLS — `app.current_tenant` must be set per-connection; verify against current pool config
+1. OCR worker placement — same ARQ pool with separate `ocr_queue` vs separate container? (research leans separate container)
+2. PP-StructureV3 vs MinerU/Marker/Surya — flag for follow-up if PaddleOCR latency proves unacceptable on real GB PDFs
+3. Section ID extraction — trust PP-StructureV3 `block_order` heading detection or run regex `^第?\d+(\.\d+)*\s+...` over markdown output? (recommend regex over markdown, fall back to V3 blocks)
+4. paddlepaddle exact patch pin (3.0.0 vs 3.0.1) — needs `pip install --dry-run` on actual build host before locking Dockerfile
+5. `hnsw.ef_search=200` is a guess — needs eval set with known page/section ground truth
 
 ### Blockers
 
@@ -95,12 +94,12 @@ None.
 
 ### Todos
 
-- Plan Phase 5: `/gsd-plan-phase 5`
+- Plan Phase 7: `/gsd-plan-phase 7`
 
 ## Session Continuity
 
-**Last updated:** 2026-04-27 — Phase 6 Plan 01 complete (25 unit tests added, TEST-01 partially satisfied)
-**Stopped at:** Completed 06-01-PLAN.md — 25 tests added across 5 service modules
-**Next action:** Execute Phase 6 Plan 02 (`/gsd-execute-phase 6`)
+**Last updated:** 2026-04-27 — v1.1 roadmap drafted (4 phases, 7 requirements mapped, coverage validated)
+**Stopped at:** ROADMAP.md and STATE.md written for v1.1; REQUIREMENTS.md traceability populated
+**Next action:** `/gsd-plan-phase 7` to plan OCR Engine Integration
 
-**Planned Phase:** 6 (Test Coverage and Eval) — 3 plans — 2026-04-27T08:09:59.013Z
+**Planned Phase:** 7 (OCR Engine Integration) — plans TBD — 2026-04-27T18:00:00Z
