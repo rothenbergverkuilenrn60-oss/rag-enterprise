@@ -1,0 +1,78 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+var/
+sdist/
+wheels/
+pip-wheel-metadata/
+.installed.cfg
+lib/
+lib64/
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Secrets & local config
+.env
+.env.local
+.env.*.local
+
+# Testing & coverage
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.pytest_cache/
+.tox/
+nosetests.xml
+pytest_cache/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Claude Code internals
+.claude/
+
+# Logs
+logs/
+*.log
+
+# Local data (mount separately)
+data/raw/
+data/processed/
+data/index/
+cache/
+
+# Eval reports
+eval_reports/
+
+# Model files (large binaries)
+*.bin
+*.safetensors
+*.gguf
+*.onnx
+models/
+
+# Docker
+*.dockerignore.local
+
+# Misc
+.python-version
