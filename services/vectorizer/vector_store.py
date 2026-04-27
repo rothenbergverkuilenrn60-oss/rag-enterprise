@@ -234,12 +234,13 @@ class PgVectorStore(BaseVectorStore):
                     query_vector,
                     top_k,
                 )
+        import json as _json
         return [
             VectorSearchResult(
                 chunk_id=r["chunk_id"],
                 doc_id=r["doc_id"],
                 content=r["content"],
-                metadata=r["metadata"] or {},
+                metadata=(_json.loads(r["metadata"]) if isinstance(r["metadata"], str) else r["metadata"]) or {},
                 score=float(r["score"]),
             )
             for r in rows
