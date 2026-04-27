@@ -3,8 +3,9 @@
 # 单元测试 — STAGE 5 检索（RRF 融合 + 忠实度评估）
 # =============================================================================
 import pytest
-from services.retriever.retriever import rrf_fusion
+from services.retriever.retriever import rrf_fusion, _to_retrieved_chunk
 from services.generator.generator import estimate_faithfulness
+from services.vectorizer.vector_store import VectorSearchResult
 from utils.models import RetrievedChunk, ChunkMetadata, DocType
 
 
@@ -101,3 +102,36 @@ class TestFaithfulness:
         chunk = _make_chunk("测试内容用于验证分数范围的正确性。")
         score = await estimate_faithfulness("测试回答内容", [chunk])
         assert 0.0 <= score <= 1.0
+
+
+def _make_vector_search_result(metadata: dict) -> VectorSearchResult:
+    return VectorSearchResult(
+        chunk_id="chunk_img_001",
+        doc_id="doc_001",
+        content="caption text",
+        metadata=metadata,
+        score=0.95,
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# _to_retrieved_chunk — image field round-trip (IMG-03)
+# ══════════════════════════════════════════════════════════════════════════════
+class TestToRetrievedChunkImageFields:
+
+    def test_image_chunk_fields_round_trip(self) -> None:
+        r = _make_vector_search_result({
+            "chunk_type": "image",
+            "image_b64": "abc123base64==",
+            "doc_type": "pdf",
+            "language": "en",
+        })
+        chunk = _to_retrieved_chunk(r)
+        assert chunk.metadata.chunk_type == "image"
+        assert chunk.metadata.image_b64 == "abc123base64=="
+
+    def test_text_chunk_defaults_unchanged(self) -> None:
+        r = _make_vector_search_result({"doc_type": "pdf", "language": "en"})
+        chunk = _to_retrieved_chunk(r)
+        assert chunk.metadata.chunk_type == "text"
+        assert chunk.metadata.image_b64 == ""
