@@ -281,3 +281,19 @@ async def test_openai_system_prepended_to_messages(openai_client: Any) -> None:
     assert sent_msgs[0]["role"] == "system"
     assert sent_msgs[0]["content"] == "SYSTEM_TEXT"
     assert sent_msgs[1]["role"] == "user"
+
+
+# ───── Ollama (regression: still raises) ─────────────────────────────────────
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_ollama_call_agentic_turn_still_raises() -> None:
+    """OllamaLLMClient inherits BaseLLMClient's default-raise per D-02.
+
+    Regression check — Plan 11-01 behavior must be preserved across the
+    Anthropic + OpenAI overrides landing in Plan 11-03 (D-02 lock).
+    """
+    from services.generator.llm_client import OllamaLLMClient
+    client = OllamaLLMClient()
+    with pytest.raises(NotImplementedError, match="agent_mode not supported by OllamaLLMClient"):
+        await client.call_agentic_turn(messages=[], tools=[], system="s")
