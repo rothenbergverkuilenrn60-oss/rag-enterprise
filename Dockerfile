@@ -11,6 +11,7 @@
 FROM python:3.11-slim AS builder
 
 # 系统级构建依赖
+# libgl1 + libglib2.0-0 needed by opencv-python (paddleocr → opencv → libGL.so.1)
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
         gcc \
@@ -20,6 +21,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libssl-dev \
         libffi-dev \
         libpq-dev \
+        libgl1 \
+        libglib2.0-0 \
         poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
@@ -58,9 +61,12 @@ LABEL version="3.0.0"
 LABEL description="Enterprise RAG — FastAPI + Qdrant + BGE-M3 + RAGAS Evaluation"
 
 # 运行时系统依赖（精简）
+# libgl1 + libglib2.0-0 needed by opencv-python (paddleocr runtime → opencv → libGL.so.1)
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libgomp1 \
         libpq5 \
+        libgl1 \
+        libglib2.0-0 \
         curl \
         poppler-utils \
         tesseract-ocr \
