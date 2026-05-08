@@ -101,7 +101,10 @@ Plans:
   2. `make coverage-diff` run locally against `git diff origin/master...HEAD` produces the same pass/fail verdict as CI.
   3. The CI run attaches an HTML diff-coverage report as a downloadable GitHub Actions artifact.
   4. The legacy 46% global floor remains a separate informational CI step and continues to pass for unchanged files.
-**Plans:** TBD
+**Plans:** 1 plan
+
+Plans:
+- [ ] 10-01-PLAN.md — diff-cover dependency pin + CI step against v1.0 + Makefile coverage-diff target + README docs (TEST-03 complete in single wave)
 
 ## Progress
 
