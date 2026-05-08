@@ -18,7 +18,8 @@ from jose import JWTError
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import JSONResponse, Response as FastAPIResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse, Response as FastAPIResponse
 from loguru import logger
 
 from config.settings import settings
@@ -381,71 +382,13 @@ async def auth_middleware(request: Request, call_next) -> Response:
 # ══════════════════════════════════════════════════════════════════════════════
 app.include_router(router)
 
-
-_UI_HTML = """<!DOCTYPE html>
-<html lang="zh">
-<head>
-<meta charset="UTF-8">
-<title>RAG 查询</title>
-<style>
-body{font-family:-apple-system,sans-serif;max-width:900px;margin:2rem auto;padding:0 1rem;color:#222;}
-h1{font-size:1.3rem;}
-textarea{width:100%;padding:.5rem;font-size:1rem;font-family:inherit;box-sizing:border-box;}
-.row{display:flex;gap:1rem;align-items:center;margin:.5rem 0;}
-button{padding:.5rem 1.2rem;background:#0a66c2;color:#fff;border:0;border-radius:4px;cursor:pointer;}
-button:disabled{background:#999;}
-.answer{background:#f4f6f8;padding:1rem;margin:1rem 0;border-left:4px solid #0a66c2;white-space:pre-wrap;}
-.source{border:1px solid #ddd;padding:.8rem;margin:.5rem 0;border-radius:4px;}
-.source img{max-width:100%;margin-top:.5rem;border:1px solid #ccc;display:block;}
-.meta{color:#666;font-size:.82rem;margin-bottom:.4rem;}
-.loading{color:#888;font-style:italic;}
-.err{color:#c00;}
-</style>
-</head>
-<body>
-<h1>RAG 查询界面</h1>
-<textarea id="q" rows="3" placeholder="输入问题，例如：灯具的发光面是什么？"></textarea>
-<div class="row">
-  <label>top_k: <input type="number" id="topk" value="5" min="1" max="20" style="width:4rem;"></label>
-  <button id="btn" onclick="ask()">提问</button>
-</div>
-<div id="out"></div>
-<script>
-async function ask(){
-  const q=document.getElementById('q').value.trim();
-  if(!q)return;
-  const top_k=parseInt(document.getElementById('topk').value)||5;
-  const out=document.getElementById('out');
-  const btn=document.getElementById('btn');
-  btn.disabled=true;out.innerHTML='<p class="loading">查询中...</p>';
-  try{
-    const r=await fetch('/api/v1/query',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query:q,top_k,include_images:true})});
-    const j=await r.json();
-    if(!j.success){out.innerHTML='<p class="err">错误：'+(j.error||'未知')+'</p>';return;}
-    let h='<h2>答案</h2><div class="answer">'+esc(j.data.answer)+'</div>';
-    h+='<h2>来源（'+(j.data.sources||[]).length+'）</h2>';
-    (j.data.sources||[]).forEach((s,i)=>{
-      const m=s.metadata||{};
-      const score=s.final_score||s.rerank_score||s.rrf_score||s.dense_score||0;
-      h+='<div class="source"><div class="meta">来源'+(i+1)+' · 页='+(m.page_number??'?')+' · 类型='+(m.chunk_type||'?')+' · score='+score.toFixed(3)+'</div>';
-      h+='<div>'+esc(s.content)+'</div>';
-      if(m.image_b64)h+='<img src="data:image/png;base64,'+m.image_b64+'">';
-      h+='</div>';
-    });
-    out.innerHTML=h;
-  }catch(e){out.innerHTML='<p class="err">请求失败：'+e+'</p>';}
-  finally{btn.disabled=false;}
-}
-function esc(s){return(s||'').replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-document.getElementById('q').addEventListener('keydown',e=>{if(e.ctrlKey&&e.key==='Enter')ask();});
-</script>
-</body>
-</html>"""
-
-
-@app.get("/ui", response_class=HTMLResponse, include_in_schema=False)
-async def ui_page() -> HTMLResponse:
-    return HTMLResponse(content=_UI_HTML)
+# ─── 静态前端 (UI-01 / Phase 9) ───────────────────────────────────────────
+# Inline UI 字符串已抽到 `static/ui.html`，由 FastAPI StaticFiles 直接 serve。
+# 行为契约（per .planning/phases/09-frontend-extraction/09-CONTEXT.md D-03）：
+#   GET /ui  → 307 redirect to /ui/   (FastAPI StaticFiles default — accepted)
+#   GET /ui/ → 200 + static/ui.html   (html=True 让 / 直接返回 index.html 等价物)
+# `app.mount()` 不进 OpenAPI schema — `include_in_schema=False` 等价默认行为。
+app.mount("/ui", StaticFiles(directory="static", html=True), name="ui")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
