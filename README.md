@@ -15,6 +15,24 @@ A production-grade Retrieval-Augmented Generation platform built on FastAPI. Ser
 - **Observability** — Prometheus metrics, structured logging, optional Langfuse tracing, audit log with flush buffer
 - **Streaming** — SSE responses for real-time token delivery
 
+### Parallel agentic tool calls
+
+When `agent_mode=True` is set on a `/query` request, EnterpriseRAG drives a
+provider-neutral tool-use loop on top of either Anthropic Claude or OpenAI
+function-calling. If the LLM emits multiple tool calls in a single assistant
+turn (e.g. answering a multi-dimension question that splits into independent
+sub-queries), the pipeline executes them concurrently via `asyncio.gather` —
+turn-internal latency is bounded by the slowest tool, not the sum.
+
+- Provider neutrality lives in `BaseLLMClient.call_agentic_turn` (`services/generator/llm_client.py`).
+- Parallel execution lives in `AgentQueryPipeline.run` (`services/pipeline.py`).
+- Per-turn audit trail: structured-logger line `[Agent] iter=N parallel_factor=M tools=[...]` records the parallelism factor every turn that issues tool calls.
+- Live demo: `pytest tests/integration/test_agent_pipeline_parallel.py` (requires `OPENAI_API_KEY`).
+
+Providers without native tool-use (e.g. Ollama in v1.2) gracefully fall back
+to the fixed `QueryPipeline`; the pipeline catches `NotImplementedError` from
+the adapter and emits a structured-log warning.
+
 ## Architecture
 
 ```
