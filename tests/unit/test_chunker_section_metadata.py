@@ -7,6 +7,7 @@ These tests fail today; 08-03-PLAN.md (chunker) makes them green.
 from __future__ import annotations
 
 import os
+
 os.environ.setdefault("APP_MODEL_DIR", "/tmp")
 os.environ.setdefault("SECRET_KEY", "test-secret-key-for-unit-tests-only-32c")
 
@@ -78,7 +79,7 @@ class TestSectionWalkerEndToEnd:
             structure_aware_split,
             structure_nodes_to_chunks,
         )
-        from utils.models import ExtractedContent, DocType
+        from utils.models import DocType, ExtractedContent
         body = (
             "[第63页·OCR]\n"
             "3.10 定义的透光面\n"
@@ -129,6 +130,7 @@ class TestImageChunkSectionMetadata:
     def _build_fixture():
         """Shared GB fixture: one image on page 63 sitting under section 3.10."""
         import asyncio
+
         from services.doc_processor.chunker import (
             DocProcessorService,
             _build_gb_section_map,

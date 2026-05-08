@@ -18,7 +18,6 @@ os.environ.setdefault("APP_MODEL_DIR", "/tmp")
 os.environ.setdefault("SECRET_KEY", "a-very-secure-key-for-testing-that-is-long-32c")
 
 # Must import before patch() resolves "controllers.api.*" attribute lookups
-import controllers.api  # noqa: E402
 
 _INGEST_URL = "/api/v1/ingest"
 _INGEST_BODY = {"file_path": "/tmp/test.txt", "metadata": {"tenant_id": "t1", "user_id": "u1"}}

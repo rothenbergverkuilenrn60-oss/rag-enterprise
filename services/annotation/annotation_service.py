@@ -25,8 +25,7 @@ from pathlib import Path
 import redis.asyncio
 from loguru import logger
 
-from utils.models import AnnotationTask, AnnotationResult, AnnotationStats
-
+from utils.models import AnnotationResult, AnnotationStats, AnnotationTask
 
 _QUEUE_KEY   = "annotation:queue"        # Redis Sorted Set：任务队列（score=priority）
 _TASK_PREFIX = "annotation:task:"        # Redis Hash：任务详情

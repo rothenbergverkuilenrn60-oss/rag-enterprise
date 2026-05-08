@@ -14,9 +14,10 @@ import os
 os.environ.setdefault("APP_MODEL_DIR", "/tmp")
 os.environ.setdefault("SECRET_KEY", "a-very-secure-key-for-testing-that-is-long-32c")
 
-import pytest
-import httpx
 from unittest.mock import AsyncMock, MagicMock
+
+import httpx
+import pytest
 
 
 def _make_mock_client(embedding: list[float]) -> AsyncMock:
@@ -86,8 +87,8 @@ async def test_ollama_embedder_raises_on_http_error(monkeypatch):
 @pytest.mark.asyncio
 async def test_ollama_embedder_passes_model_name(monkeypatch):
     """The JSON payload sent to httpx.post must contain the configured model name."""
-    from services.vectorizer.embedder import OllamaEmbedder
     from config.settings import settings
+    from services.vectorizer.embedder import OllamaEmbedder
 
     embedder = OllamaEmbedder()
     mock_client = _make_mock_client([0.5, 0.6])

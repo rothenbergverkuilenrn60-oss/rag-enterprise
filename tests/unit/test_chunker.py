@@ -5,25 +5,26 @@
 # =============================================================================
 from __future__ import annotations
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from services.doc_processor.chunker import (
+    DocProcessorService,
     RecursiveTextSplitter,
+    contextual_enrichment,
     count_tokens,
     inject_metadata_header,
-    structure_aware_split,
-    structure_nodes_to_chunks,
     parent_child_split,
     sentence_window_split,
-    semantic_split,
-    contextual_enrichment,
-    DocProcessorService,
+    structure_aware_split,
+    structure_nodes_to_chunks,
 )
 from utils.models import (
-    ChunkMetadata, DocType, ExtractedContent, StructureNode, DocumentChunk,
+    ChunkMetadata,
+    DocType,
+    DocumentChunk,
+    ExtractedContent,
 )
 
 

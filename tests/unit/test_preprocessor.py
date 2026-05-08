@@ -2,14 +2,13 @@
 # tests/unit/test_preprocessor.py
 # 单元测试 — STAGE 1 预处理
 # =============================================================================
-import pytest
 from services.preprocessor.cleaner import (
+    _seen_checksums,
     compute_checksum,
     detect_language,
-    quality_check,
     is_duplicate,
+    quality_check,
     register_checksum,
-    _seen_checksums,
 )
 
 

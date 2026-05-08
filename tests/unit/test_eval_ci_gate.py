@@ -15,8 +15,12 @@ _SCRIPTS_DIR = str(Path(__file__).parent.parent.parent / "scripts")
 if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import (  # noqa: E402  # must follow sys.path bootstrap above
+    AsyncMock,
+    MagicMock,
+)
+
+import pytest  # noqa: E402  # must follow sys.path bootstrap above
 
 
 @pytest.mark.asyncio

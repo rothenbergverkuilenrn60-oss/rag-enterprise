@@ -9,8 +9,8 @@ import time
 import uuid
 from enum import Enum
 from typing import Any
-from pydantic import BaseModel, Field, field_validator
 
+from pydantic import BaseModel, Field, field_validator
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 枚举类型

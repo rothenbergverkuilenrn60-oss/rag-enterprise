@@ -9,13 +9,12 @@ import os
 os.environ.setdefault("APP_MODEL_DIR", "/tmp")
 os.environ.setdefault("SECRET_KEY", "a-very-secure-key-for-testing-that-is-long-32c")
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 
 class TestTenantService:
     def test_register_and_get(self):
-        from services.tenant.tenant_service import TenantService, TenantConfig
+        from services.tenant.tenant_service import TenantConfig, TenantService
 
         svc = TenantService()
         cfg = TenantConfig(tenant_id="t1", name="Tenant One")
@@ -31,7 +30,7 @@ class TestTenantService:
         assert result.tenant_id == "unknown"
 
     def test_check_permission_open_tenant(self):
-        from services.tenant.tenant_service import TenantService, TenantConfig
+        from services.tenant.tenant_service import TenantConfig, TenantService
 
         svc = TenantService()
         svc.register(TenantConfig(tenant_id="open", name="Open", allowed_users=[]))
@@ -39,7 +38,7 @@ class TestTenantService:
         assert svc.check_permission("open", "another_user") is True
 
     def test_check_permission_restricted_tenant(self):
-        from services.tenant.tenant_service import TenantService, TenantConfig
+        from services.tenant.tenant_service import TenantConfig, TenantService
 
         svc = TenantService()
         svc.register(TenantConfig(tenant_id="t", name="Restricted", allowed_users=["alice"]))

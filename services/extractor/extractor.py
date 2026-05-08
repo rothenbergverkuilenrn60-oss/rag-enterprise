@@ -8,22 +8,22 @@
 #              扫描件:  PaddleOCR/Tesseract + 阅读顺序重排
 # =============================================================================
 from __future__ import annotations
+
 import asyncio
 import json
-import re
 from collections import Counter
-from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal
+
 from loguru import logger
-from tenacity import retry, stop_after_attempt, wait_random_exponential
-from torch import device
 
 from config.settings import settings
-from utils.models import RawDocument, ExtractedContent, DocType
-from utils.logger import log_latency
+from services.extractor.image_extractor import (
+    extract_images_from_pdf,
+    get_image_extractor,
+)
 from services.preprocessor.cleaner import clean_text
-from services.extractor.image_extractor import extract_images_from_pdf, get_image_extractor
+from utils.logger import log_latency
+from utils.models import DocType, ExtractedContent, RawDocument
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -228,10 +228,11 @@ def _extract_pdf_scanned_paddleocr(file_path: Path) -> dict:
 def _extract_pdf_scanned_tesseract(file_path: Path) -> dict:
     """Tesseract OCR 回退方案（轻量，无需GPU）。"""
     try:
+        import io
+
         import fitz
         import pytesseract
         from PIL import Image
-        import io
 
         doc = fitz.open(str(file_path))
         all_pages_text: list = []
@@ -301,8 +302,9 @@ async def _extract_pdf_vision_async(file_path: Path, llm_client) -> dict:
 
     注意：每页渲染为 PNG 后通过 Base64 传给 Claude Vision API。
     """
-    import fitz
     import base64
+
+    import fitz
 
     doc = fitz.open(str(file_path))
     all_pages_text: list[str] = []
@@ -466,7 +468,7 @@ def _extract_csv(file_path: Path) -> dict:
 
 def _extract_html(file_path: Path) -> dict:
     from bs4 import BeautifulSoup
-    
+
     # errors="ignore" 用于忽略编码错误，避免解析失败,"html.parser" 是 BeautifulSoup 默认的解析器
     soup = BeautifulSoup(file_path.read_text(encoding="utf-8", errors="ignore"), "html.parser")
     title_tag = soup.find("title")

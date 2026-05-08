@@ -9,19 +9,20 @@
 #   3. LLM-as-Judge 忠实度：Anthropic provider 用 Haiku+Tool Use 替换 keyword overlap
 # =============================================================================
 from __future__ import annotations
+
 import re
 import time
 import uuid
 from typing import AsyncGenerator
+
 from loguru import logger
 
 from config.settings import settings
-from utils.models import RetrievedChunk, GenerationRequest, GenerationResponse
+from services.generator.llm_client import get_llm_client
 from utils.logger import log_latency
 from utils.metrics import llm_latency_seconds
+from utils.models import GenerationRequest, GenerationResponse, RetrievedChunk
 from utils.observability import start_span
-from services.generator.llm_client import get_llm_client
-
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Token 计数（精准版）
@@ -291,7 +292,7 @@ class GeneratorService:
         _llm_t0 = time.perf_counter()
         with start_span("rag.llm_call", {"provider": settings.llm_provider, "thinking": use_thinking}):
             if use_thinking:
-                logger.info(f"[Generate] multi_hop intent → Extended Thinking")
+                logger.info("[Generate] multi_hop intent → Extended Thinking")
                 answer = await self._llm.chat_thinking(
                     system=system_prompt,
                     user=user_prompt,

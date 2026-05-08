@@ -160,8 +160,8 @@ def _init_bert_ner() -> None:
         logger.info("[NER] BERT NER disabled (ner_model_path not set), using rule-based only")
         return
     try:
-        from transformers import pipeline as hf_pipeline
         import torch
+        from transformers import pipeline as hf_pipeline
         device = 0 if torch.cuda.is_available() else -1
         _ner_pipeline = hf_pipeline(
             "ner",
@@ -363,7 +363,7 @@ async def _llm_rewrite(query: str, llm_client, n: int = 3) -> list[str]:
                 temperature=0.4,
                 task_type="rewrite",
             )
-            variants = [l.strip() for l in resp.strip().split("\n") if l.strip()]
+            variants = [line.strip() for line in resp.strip().split("\n") if line.strip()]
             return variants[:n]
     except openai.APIError as exc:
         logger.error("NLU service failure", stage="rewrite", exc_info=exc)

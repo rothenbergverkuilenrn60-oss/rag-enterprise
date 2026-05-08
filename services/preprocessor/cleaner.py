@@ -4,16 +4,17 @@
 # 职责：原始文本清洗 → 去重 → 语言检测 → 质量过滤
 # =============================================================================
 from __future__ import annotations
+
 import hashlib
 import re
 import unicodedata
 from pathlib import Path
+
 from loguru import logger
-from tenacity import retry, stop_after_attempt, wait_random_exponential
 
 from config.settings import settings
-from utils.models import RawDocument, PreprocessResult, DocType
 from utils.logger import log_latency
+from utils.models import DocType, PreprocessResult, RawDocument
 
 # ── 已见文档 checksum 集合（生产环境替换为 Redis SET） ─────────────────────
 # 模块级别的集合，存储已处理文档的 SHA256 指纹。set 查找是 O(1)。注：进程重启后失效，生产应换 Redis SET
@@ -42,7 +43,7 @@ def _normalize_whitespace(text: str) -> str:
 def _normalize_unicode(text: str) -> str:
     """NFC 归一化，解决编码不一致问题。"""
     # # NFC 规范化：把「é」这种由多个字符组合的形式统一为单一字符，解决编码不一致
-    return unicodedata.normalize("NFC", text)  
+    return unicodedata.normalize("NFC", text)
 
 
 def _remove_control_characters(text: str) -> str:

@@ -3,15 +3,17 @@
 # STAGE 4 — 向量化存储入口（Embed + BM25 Index + Upsert）
 # =============================================================================
 from __future__ import annotations
+
 import time
-from loguru import logger
+
 import asyncpg
+from loguru import logger
 
 from config.settings import settings
-from utils.models import DocumentChunk, VectorizeResult
-from utils.logger import log_latency
 from services.vectorizer.embedder import get_embedder
 from services.vectorizer.vector_store import get_vector_store
+from utils.logger import log_latency
+from utils.models import DocumentChunk, VectorizeResult
 
 
 # ── BM25 内存索引（生产可替换 Elasticsearch）─────────────────────────────────

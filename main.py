@@ -5,35 +5,38 @@
 # 启动命令：conda run -n torch_env uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 # =============================================================================
 from __future__ import annotations
+
 import time
 import uuid
-from contextlib import asynccontextmanager      # 异步上下文管理器，用于生命周期管理
+from contextlib import asynccontextmanager  # 异步上下文管理器，用于生命周期管理
 from typing import AsyncGenerator
+
 import asyncpg
 import httpx
 import redis
 from arq.connections import RedisSettings, create_pool
-from jose import JWTError
-
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.responses import Response as FastAPIResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import JSONResponse, Response as FastAPIResponse
+from jose import JWTError
 from loguru import logger
-
-from config.settings import settings
-from utils.logger import setup_logger
-from utils.tasks import log_task_error
-from utils.metrics import (
-    get_metrics_response,
-    http_requests_total,
-    active_requests_gauge,
-    rate_limit_hits_total,
-)
-from controllers.api import router, limiter as _route_limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
+
+from config.settings import settings
+from controllers.api import limiter as _route_limiter
+from controllers.api import router
+from utils.logger import setup_logger
+from utils.metrics import (
+    active_requests_gauge,
+    get_metrics_response,
+    http_requests_total,
+    rate_limit_hits_total,
+)
+from utils.tasks import log_task_error
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -51,7 +54,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:             # As
     except (ImportError, OSError, RuntimeError) as exc:
         logger.warning(f"Observability setup failed (non-fatal): {exc}")
     logger.info("=" * 60)
-    logger.info(f"  {settings.app_name} v{settings.app_version} starting")  
+    logger.info(f"  {settings.app_name} v{settings.app_version} starting")
     logger.info(f"  env={settings.environment}")                            # 环境变量
     logger.info(f"  llm={settings.llm_provider}/{settings.active_model}")      # 模型提供者和模型名称
     logger.info(f"  embed={settings.embedding_provider}/{settings.embedding_model}")      # 嵌入模型提供者和模型名称
@@ -80,7 +83,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:             # As
     # ── 注册事件 Handler（反馈驱动的重索引）────────────────────────────────
     try:
         from services.events.event_bus import EventType
-        from services.feedback.feedback_service import get_feedback_service
         async def _on_reindex(event):
             logger.info(f"[Event] Reindex requested: {event.payload}")
         bus.subscribe(EventType.REINDEX_REQUESTED, _on_reindex)
@@ -90,10 +92,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:             # As
     # ── 启动时自动扫描知识库（如配置开启）──────────────────────────────────
     if getattr(settings, "auto_update_on_startup", False):
         try:
+            import asyncio
+            from pathlib import Path
+
             from services.knowledge.knowledge_service import get_knowledge_service
             from services.pipeline import get_ingest_pipeline
-            from pathlib import Path
-            import asyncio
             _auto_scan_task = asyncio.create_task(
                 get_knowledge_service().scan_and_update(
                     Path(settings.data_dir), get_ingest_pipeline()
@@ -239,8 +242,9 @@ async def _redis_rate_check(client_ip: str, now: float) -> bool:
       4. EXPIRE 设置键 TTL 自动清理
     """
     try:
-        from utils.cache import get_redis
         import random
+
+        from utils.cache import get_redis
         r = await get_redis()
         key = f"rl:{client_ip}"
         window_start = now - _RATE_WINDOW

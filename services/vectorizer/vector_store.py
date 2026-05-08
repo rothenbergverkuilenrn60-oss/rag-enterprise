@@ -5,14 +5,15 @@
 # QdrantVectorStore removed per D-05.
 # =============================================================================
 from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+
 from loguru import logger
 from tenacity import retry, stop_after_attempt, wait_random_exponential
 
 from config.settings import settings
 from utils.models import DocumentChunk
-from utils.logger import log_latency
 
 
 @dataclass
@@ -140,7 +141,7 @@ class PgVectorStore(BaseVectorStore):
             dsn = self._dsn.replace("postgresql+asyncpg://", "postgresql://")
             # strip ?ssl=... — asyncpg treats URL ssl param as a runtime GUC
             # which raises CantChangeRuntimeParamError; pass ssl= kwarg instead
-            from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+            from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
             parsed = urlparse(dsn)
             qs = {k: v for k, v in parse_qs(parsed.query).items() if k.lower() != "ssl"}
             dsn = urlunparse(parsed._replace(query=urlencode(qs, doseq=True)))

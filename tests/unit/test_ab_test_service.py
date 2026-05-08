@@ -9,10 +9,10 @@ import os
 os.environ.setdefault("APP_MODEL_DIR", "/tmp")
 os.environ.setdefault("SECRET_KEY", "a-very-secure-key-for-testing-that-is-long-32c")
 
+
+import fakeredis
 import pytest
 import pytest_asyncio
-import fakeredis
-from unittest.mock import AsyncMock, MagicMock
 
 
 @pytest_asyncio.fixture
@@ -94,7 +94,7 @@ async def test_get_variant_caches_in_redis(fake_redis, monkeypatch):
     svc = ABTestService()
     monkeypatch.setattr(svc, "_redis", fake_redis)
 
-    exp_id = await _setup_running_experiment(svc, "exp-cache-test")
+    await _setup_running_experiment(svc, "exp-cache-test")
 
     # Trigger a variant assignment to ensure the experiment is active
     await svc.assign_variant("user-check", "")

@@ -5,7 +5,6 @@
 from __future__ import annotations
 
 import os
-import pytest
 
 # Ensure settings can load without real model dir
 os.environ.setdefault("APP_MODEL_DIR", "/tmp")

@@ -4,9 +4,11 @@
 # 路径基准: /mnt/f/  (WSL2 镜像模式 + F盘物理隔离)
 # =============================================================================
 from __future__ import annotations
+
 import os
 from pathlib import Path
 from typing import Literal
+
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -401,9 +403,9 @@ class Settings(BaseSettings):
         secret = self.secret_key
         if len(secret) < 32:
             raise ValueError(
-                f"secret_key must be at least 32 characters. "
-                f"Run: python -c \"import secrets; print(secrets.token_hex(32))\" "
-                f"and set SECRET_KEY env var. Server will not start."
+                "secret_key must be at least 32 characters. "
+                "Run: python -c \"import secrets; print(secrets.token_hex(32))\" "
+                "and set SECRET_KEY env var. Server will not start."
             )
         # Repeated-character check: all same char = weak regardless of denylist
         if len(set(secret)) == 1:

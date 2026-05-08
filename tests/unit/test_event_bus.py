@@ -1,9 +1,12 @@
 from __future__ import annotations
+
 import os
+
 os.environ.setdefault("APP_MODEL_DIR", "/tmp")
 os.environ.setdefault("SECRET_KEY", "a-very-secure-key-for-testing-that-is-long-32c")
 
 import asyncio
+
 import pytest
 
 
@@ -23,7 +26,7 @@ def reset_event_bus_singleton(monkeypatch):
 @pytest.mark.asyncio
 async def test_event_bus_subscribe_and_dispatch():
     """Subscribe a handler, start, publish, assert handler receives event."""
-    from services.events.event_bus import InMemoryEventBus, Event, EventType
+    from services.events.event_bus import Event, EventType, InMemoryEventBus
 
     bus = InMemoryEventBus()
     received = []
@@ -48,7 +51,7 @@ async def test_event_bus_subscribe_and_dispatch():
 @pytest.mark.asyncio
 async def test_event_bus_multiple_handlers():
     """Two handlers subscribed to the same event_type both receive the event."""
-    from services.events.event_bus import InMemoryEventBus, Event, EventType
+    from services.events.event_bus import Event, EventType, InMemoryEventBus
 
     bus = InMemoryEventBus()
     received_a = []
@@ -78,7 +81,7 @@ async def test_event_bus_multiple_handlers():
 @pytest.mark.asyncio
 async def test_event_bus_unsubscribed_event_type_skipped():
     """Handler subscribed to DOC_INGESTED does not receive a different event type."""
-    from services.events.event_bus import InMemoryEventBus, Event, EventType
+    from services.events.event_bus import Event, EventType, InMemoryEventBus
 
     bus = InMemoryEventBus()
     received = []
@@ -102,7 +105,7 @@ async def test_event_bus_unsubscribed_event_type_skipped():
 @pytest.mark.asyncio
 async def test_event_bus_stop_drains_loop():
     """After stop(), subsequent publish does not dispatch to handler."""
-    from services.events.event_bus import InMemoryEventBus, Event, EventType
+    from services.events.event_bus import Event, EventType, InMemoryEventBus
 
     bus = InMemoryEventBus()
     received = []

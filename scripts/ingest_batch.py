@@ -8,6 +8,7 @@
 #       --recursive
 # =============================================================================
 from __future__ import annotations
+
 import argparse
 import asyncio
 import sys
@@ -18,10 +19,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from loguru import logger
-from config.settings import settings
+
+from services.pipeline import get_ingest_pipeline
 from utils.logger import setup_logger
 from utils.models import IngestionRequest
-from services.pipeline import get_ingest_pipeline
 
 SUPPORTED_EXTENSIONS = {
     ".pdf", ".docx", ".doc", ".xlsx", ".xls",

@@ -22,7 +22,6 @@ from loguru import logger
 
 from utils.models import DocumentVersion, VersionListResponse
 
-
 _VERSION_KEY_PREFIX = "doc:versions:"
 _MAX_VERSIONS = 50        # 每个文档最多保留50个版本
 

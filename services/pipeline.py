@@ -22,41 +22,53 @@ from typing import AsyncGenerator
 from loguru import logger
 
 from config.settings import settings
-from utils.models import (
-    RawDocument, DocType, IngestionRequest, IngestionResponse,
-    GenerationRequest, GenerationResponse, RetrievedChunk,
+from services.audit.audit_service import AuditResult, get_audit_service
+from services.doc_processor.chunker import get_doc_processor
+from services.events.event_bus import get_event_bus
+from services.extractor.extractor import get_extractor
+from services.generator.generator import get_generator
+from services.generator.llm_client import get_llm_client
+from services.knowledge.knowledge_service import get_knowledge_service
+from services.knowledge.summary_indexer import get_summary_indexer
+from services.memory.memory_service import (
+    ConversationTurn,
+    get_memory_service,
 )
-from utils.cache import cache_get, cache_set
-from utils.logger import log_latency
+from services.nlu.filter_extractor import extract_filters
+
+# Core services
+from services.nlu.nlu_service import QueryIntent, get_nlu_service
 
 # Stage services
 from services.preprocessor.cleaner import get_preprocessor
-from services.extractor.extractor import get_extractor
-from services.doc_processor.chunker import get_doc_processor
-from services.vectorizer.indexer import get_vectorizer
-from services.retriever.retriever import get_retriever
-from services.generator.generator import get_generator
-from services.generator.llm_client import get_llm_client
-
-# Core services
-from services.nlu.nlu_service import get_nlu_service, QueryIntent, NLUResult
-from services.nlu.filter_extractor import extract_filters
-from services.memory.memory_service import (
-    get_memory_service, ConversationTurn, MemoryContext,
-)
-from services.rules.rules_engine import get_rules_engine, RuleAction
-from services.events.event_bus import get_event_bus
-from services.tenant.tenant_service import get_tenant_service
-from services.knowledge.knowledge_service import get_knowledge_service
 
 # Enterprise feature services
 from services.preprocessor.pii_detector import get_pii_detector
-from services.audit.audit_service import get_audit_service, AuditResult
-from services.knowledge.summary_indexer import get_summary_indexer
+from services.retriever.retriever import get_retriever
+from services.rules.rules_engine import RuleAction, get_rules_engine
+from services.tenant.tenant_service import get_tenant_service
+from services.vectorizer.indexer import get_vectorizer
+from utils.cache import cache_get, cache_set
+from utils.logger import log_latency
 from utils.metrics import (
-    query_total, query_latency_seconds, faithfulness_histogram,
-    retrieval_chunks_histogram, ingest_total, ingest_chunks_histogram,
-    pii_detected_total, cache_hit_total, rule_trigger_total,
+    cache_hit_total,
+    faithfulness_histogram,
+    ingest_chunks_histogram,
+    ingest_total,
+    pii_detected_total,
+    query_latency_seconds,
+    query_total,
+    retrieval_chunks_histogram,
+    rule_trigger_total,
+)
+from utils.models import (
+    DocType,
+    GenerationRequest,
+    GenerationResponse,
+    IngestionRequest,
+    IngestionResponse,
+    RawDocument,
+    RetrievedChunk,
 )
 from utils.observability import start_span
 

@@ -16,18 +16,20 @@ import asyncio
 import base64
 import hashlib
 import re
-from loguru import logger
 
 import anthropic
 import httpx
 import openai
+from loguru import logger
 
 from config.settings import settings
-from utils.models import (
-    ExtractedContent, DocumentChunk, ChunkMetadata,
-    DocType, ChunkStrategy, StructureNode,
-)
 from utils.logger import log_latency
+from utils.models import (
+    ChunkMetadata,
+    DocumentChunk,
+    ExtractedContent,
+    StructureNode,
+)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -108,8 +110,8 @@ class RecursiveTextSplitter:
 # ══════════════════════════════════════════════════════════════════════════════
 def semantic_split(text: str, threshold: float = 0.5) -> list[str]:
     try:
-        from sentence_transformers import SentenceTransformer
         import numpy as np
+        from sentence_transformers import SentenceTransformer
         sentences = re.split(r"(?<=[。！？.!?])\s*", text)
         sentences = [s.strip() for s in sentences if len(s.strip()) > 10]
         if len(sentences) <= 1:
@@ -346,7 +348,7 @@ def structure_aware_split(text: str) -> list[StructureNode]:
 
         elif line_type == "list_item":
             # 列表项：flush 当前段落，列表项单独成一个小节点
-            if current_lines and any(l.strip() for l in current_lines):
+            if current_lines and any(line.strip() for line in current_lines):
                 flush(current_node_type, current_article or current_chapter, current_chapter)
                 current_lines = []
             current_node_type = "list_item"

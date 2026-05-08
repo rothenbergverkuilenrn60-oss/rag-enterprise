@@ -11,6 +11,7 @@ postgresql://rag:rag@localhost:5432/ragdb.
 from __future__ import annotations
 
 import os
+
 os.environ.setdefault("APP_MODEL_DIR", "/tmp")
 os.environ.setdefault("SECRET_KEY", "test-secret-key-for-unit-tests-only-32c")
 
@@ -37,7 +38,7 @@ DIM_TEST = 384
 @pytest.mark.asyncio
 async def test_filtered_recall_page(pg_store):
     """SC#2: filter {'page_number': 63} returns matching chunk in top-3."""
-    from utils.models import DocumentChunk, ChunkMetadata
+    from utils.models import ChunkMetadata, DocumentChunk
     store = pg_store
     store._dim = DIM_TEST
     store._table = "phase8_filtered_recall_test"
@@ -88,7 +89,7 @@ async def test_filtered_recall_page(pg_store):
 @pytest.mark.asyncio
 async def test_unfiltered_recall_unchanged(pg_store):
     """SC#2: unfiltered query continues to work; recall not lower than filtered case."""
-    from utils.models import DocumentChunk, ChunkMetadata
+    from utils.models import ChunkMetadata, DocumentChunk
     store = pg_store
     store._dim = DIM_TEST
     store._table = "phase8_unfiltered_recall_test"
@@ -119,7 +120,7 @@ async def test_unfiltered_recall_unchanged(pg_store):
 @pytest.mark.asyncio
 async def test_legacy_chunks_searchable(pg_store):
     """SC#5 / T-08-03: chunks without section_id/section_title load and search without error."""
-    from utils.models import DocumentChunk, ChunkMetadata
+    from utils.models import ChunkMetadata, DocumentChunk
     store = pg_store
     store._dim = DIM_TEST
     store._table = "phase8_legacy_search_test"
@@ -164,7 +165,7 @@ async def test_pipeline_e2e_filter_propagation(pg_store):
     this test verifies the contract held by both ends.
     """
     from services.nlu.filter_extractor import extract_filters
-    from utils.models import DocumentChunk, ChunkMetadata
+    from utils.models import ChunkMetadata, DocumentChunk
 
     store = pg_store
     store._dim = DIM_TEST

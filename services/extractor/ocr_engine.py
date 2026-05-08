@@ -31,7 +31,6 @@ from tenacity import (
 
 from config.settings import settings
 
-
 # ── Garbled-CJK heuristic ────────────────────────────────────────────────────
 # Triggered when the document was expected Chinese (lang='ch') but the OCR output
 # is mostly non-CJK noise. Per CONTEXT.md / RESEARCH.md: warn-not-raise.

@@ -23,7 +23,6 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-
 # Frozen patterns — D-03 in CONTEXT.md. DO NOT extend with English patterns
 # (deferred to v1.2). DO NOT relax to optional 节/页 — separation must be explicit.
 _PAGE_RE    = re.compile(r"第\s*(\d+)\s*页")

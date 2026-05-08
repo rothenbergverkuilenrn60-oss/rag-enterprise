@@ -25,6 +25,7 @@ async def get_redis():
     global _redis_client
     if _redis_client is None:
         from redis.asyncio import from_url
+
         from config.settings import settings
         _redis_client = await from_url(
             settings.redis_url,

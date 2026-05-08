@@ -14,18 +14,24 @@
 #   - 错误分类：RateLimitError / OverloadedError 精确处理
 # =============================================================================
 from __future__ import annotations
+
 import json
+import logging
 from abc import ABC, abstractmethod
 from typing import Any, AsyncGenerator
+
 import httpx
-from tenacity import (
-    retry, stop_after_attempt, wait_random_exponential,
-    retry_if_exception_type, before_sleep_log,
-)
-import logging
 from loguru import logger
+from tenacity import (
+    before_sleep_log,
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_random_exponential,
+)
 
 from config.settings import settings
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Token 用量上报（Prometheus + Langfuse）
@@ -66,7 +72,7 @@ def _get_anthropic_retry_errors() -> tuple[type, ...]:
     global _anthropic_rate_limit_cls, _anthropic_overload_cls
     if _anthropic_rate_limit_cls is None:
         try:
-            from anthropic import RateLimitError, OverloadedError
+            from anthropic import OverloadedError, RateLimitError
             _anthropic_rate_limit_cls = RateLimitError
             _anthropic_overload_cls   = OverloadedError
         except ImportError:
@@ -606,7 +612,12 @@ class AnthropicLLMClient(BaseLLMClient):
         import asyncio
         import re
         try:
-            from anthropic import RateLimitError, OverloadedError, APIStatusError, BadRequestError
+            from anthropic import (
+                APIStatusError,
+                BadRequestError,
+                OverloadedError,
+                RateLimitError,
+            )
             if isinstance(exc, RateLimitError):
                 # 读取 Retry-After header，精确等待而非盲目指数退避
                 retry_after = 60

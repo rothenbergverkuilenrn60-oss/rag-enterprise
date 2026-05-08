@@ -83,6 +83,7 @@ _default_model_path = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 
 def _init_models() -> None:
     import os
+
     import torch
     device = "cuda" if torch.cuda.is_available() else "cpu"
     default_path = os.environ.get("RERANKER_MODEL_PATH", _default_model_path)
@@ -180,7 +181,7 @@ async def health() -> dict:
 @app.get("/metrics", include_in_schema=False)
 async def metrics() -> FastAPIResponse:
     try:
-        from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+        from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
         return FastAPIResponse(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
     except ImportError:
         return FastAPIResponse(content=b"# prometheus_client not installed\n",

@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import os
+
 os.environ.setdefault("APP_MODEL_DIR", "/tmp")
 os.environ.setdefault("SECRET_KEY", "test-secret-key-for-unit-tests-only-32c")
 
 import asyncio
-import pytest
+
 import asyncpg
+import pytest
 
 PG_DSN = "postgresql://rag:rag@localhost:5432/ragdb"
 

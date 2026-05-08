@@ -1,10 +1,13 @@
 from __future__ import annotations
+
 import os
+
 os.environ.setdefault("APP_MODEL_DIR", "/tmp")
 os.environ.setdefault("SECRET_KEY", "a-very-secure-key-for-testing-that-is-long-32c")
 
+from unittest.mock import AsyncMock
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock
 
 
 # ---------------------------------------------------------------------------
@@ -37,7 +40,7 @@ async def test_submit_feedback_publishes_event(monkeypatch):
     """submit() calls emit_feedback on the event bus."""
     mock_bus, _ = _patch_bus_and_memory(monkeypatch)
 
-    from services.feedback.feedback_service import FeedbackService, FeedbackRecord
+    from services.feedback.feedback_service import FeedbackRecord, FeedbackService
     svc = FeedbackService()
     record = FeedbackRecord(
         session_id="sess1",
@@ -57,7 +60,7 @@ async def test_submit_includes_user_id_in_event(monkeypatch):
     """submit() passes user_id and session_id to emit_feedback."""
     mock_bus, _ = _patch_bus_and_memory(monkeypatch)
 
-    from services.feedback.feedback_service import FeedbackService, FeedbackRecord
+    from services.feedback.feedback_service import FeedbackRecord, FeedbackService
     svc = FeedbackService()
     record = FeedbackRecord(
         session_id="sess2",
@@ -80,7 +83,7 @@ async def test_submit_negative_feedback_increments_count(monkeypatch):
     """Negative feedback increments the internal negative count for doc_ids."""
     _patch_bus_and_memory(monkeypatch)
 
-    from services.feedback.feedback_service import FeedbackService, FeedbackRecord
+    from services.feedback.feedback_service import FeedbackRecord, FeedbackService
     svc = FeedbackService()
     record = FeedbackRecord(
         session_id="sess3",
@@ -99,7 +102,7 @@ async def test_submit_positive_feedback_does_not_increment_negative_count(monkey
     """Positive feedback does not increment negative_counts."""
     _patch_bus_and_memory(monkeypatch)
 
-    from services.feedback.feedback_service import FeedbackService, FeedbackRecord
+    from services.feedback.feedback_service import FeedbackRecord, FeedbackService
     svc = FeedbackService()
     record = FeedbackRecord(
         session_id="sess4",

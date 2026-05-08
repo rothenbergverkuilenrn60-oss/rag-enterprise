@@ -5,8 +5,6 @@
 from __future__ import annotations
 
 import io
-import struct
-import zlib
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -14,7 +12,6 @@ import pytest
 from PIL import Image as PILImage
 
 from utils.models import ExtractedImage
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -55,10 +52,10 @@ class TestExtractImagesFromPdf:
 
     def test_returns_list_type(self, tmp_path):
         """Return type must always be list[ExtractedImage]."""
-        from services.extractor.image_extractor import extract_images_from_pdf
-
         # Create a minimal PDF with no images using fitz
         import fitz
+
+        from services.extractor.image_extractor import extract_images_from_pdf
         doc = fitz.open()
         doc.new_page()
         pdf_path = tmp_path / "no_images.pdf"
@@ -70,9 +67,9 @@ class TestExtractImagesFromPdf:
 
     def test_empty_pdf_returns_empty_list(self, tmp_path):
         """A PDF with no images should return [] with no exception."""
-        from services.extractor.image_extractor import extract_images_from_pdf
-
         import fitz
+
+        from services.extractor.image_extractor import extract_images_from_pdf
         doc = fitz.open()
         page = doc.new_page()
         page.insert_text((50, 50), "Hello world, no images here.")
@@ -198,8 +195,8 @@ class TestExtractImagesFromPdf:
 
     def test_fitz_open_failure_returns_empty_list(self, tmp_path):
         """If fitz.open raises, return [] gracefully."""
+
         from services.extractor.image_extractor import extract_images_from_pdf
-        import fitz
 
         with patch("fitz.open", side_effect=RuntimeError("corrupt PDF")):
             result = extract_images_from_pdf(tmp_path / "bad.pdf", "doc-corrupt")
@@ -230,7 +227,10 @@ class TestImageExtractorService:
     """Tests for ImageExtractorService.extract_standalone()."""
 
     def test_import_succeeds(self):
-        from services.extractor.image_extractor import ImageExtractorService, get_image_extractor
+        from services.extractor.image_extractor import (
+            ImageExtractorService,
+            get_image_extractor,
+        )
         svc = get_image_extractor()
         assert isinstance(svc, ImageExtractorService)
 

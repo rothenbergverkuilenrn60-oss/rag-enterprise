@@ -13,7 +13,7 @@ from PIL import Image
 # T-04-02-02: Guard against decompression bombs (50 MP limit)
 Image.MAX_IMAGE_PIXELS = 50_000_000
 
-from utils.models import ExtractedImage
+from utils.models import ExtractedImage  # noqa: E402, I001  # must follow MAX_IMAGE_PIXELS guard
 
 _MAX_IMAGES_PER_DOC = 50
 _MIN_DIMENSION_PX = 100

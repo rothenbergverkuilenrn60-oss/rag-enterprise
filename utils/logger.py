@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import functools
 import time
-from pathlib import Path
 from typing import Any, Callable
 
 from loguru import logger

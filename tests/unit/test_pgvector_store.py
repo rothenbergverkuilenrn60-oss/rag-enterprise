@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import inspect
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from utils.models import DocumentChunk, ChunkMetadata, DocType
 
+import pytest
+
+from utils.models import ChunkMetadata, DocType, DocumentChunk
 
 # ── PG-05: ABC interface ──────────────────────────────────────────────────────
 

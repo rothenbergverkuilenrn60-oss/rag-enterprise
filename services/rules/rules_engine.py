@@ -9,7 +9,7 @@ import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable, Awaitable
+from typing import Any
 
 from loguru import logger
 
@@ -108,7 +108,7 @@ class PromptInjectionRule(Rule):
             )
 
         if self._ENCODING_BYPASS.search(query):
-            logger.warning(f"[Security] Encoding bypass attempt detected")
+            logger.warning("[Security] Encoding bypass attempt detected")
             return RuleResult(
                 action=RuleAction.BLOCK,
                 message="输入包含异常编码内容，已被安全策略拦截。",
@@ -116,7 +116,7 @@ class PromptInjectionRule(Rule):
             )
 
         if self._URL_INJECTION.search(query):
-            logger.warning(f"[Security] URL injection attempt detected")
+            logger.warning("[Security] URL injection attempt detected")
             return RuleResult(
                 action=RuleAction.BLOCK,
                 message="输入包含外部资源引用，已被安全策略拦截。",

@@ -18,8 +18,8 @@
 # =============================================================================
 from __future__ import annotations
 
-import time
 from typing import Any
+
 from loguru import logger
 
 # ── 全局状态（延迟初始化，避免启动失败阻塞主服务）───────────────────────────
@@ -116,10 +116,12 @@ def _setup_otel() -> None:
             return
 
         from opentelemetry import trace
+        from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
+            OTLPSpanExporter,
+        )
+        from opentelemetry.sdk.resources import Resource
         from opentelemetry.sdk.trace import TracerProvider
         from opentelemetry.sdk.trace.export import BatchSpanProcessor
-        from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-        from opentelemetry.sdk.resources import Resource
 
         resource = Resource(attributes={"service.name": settings.app_name})
         provider = TracerProvider(resource=resource)
@@ -163,7 +165,7 @@ def record_llm_usage(
 
     # ── Prometheus token 计数 + 成本指标 ─────────────────────────────────────
     try:
-        from utils.metrics import llm_tokens_total, llm_cost_usd_total
+        from utils.metrics import llm_cost_usd_total, llm_tokens_total
         llm_tokens_total.labels(provider=provider, model=model_key, token_type="input").inc(input_tokens)
         llm_tokens_total.labels(provider=provider, model=model_key, token_type="output").inc(output_tokens)
         llm_cost_usd_total.labels(provider=provider, model=model_key).inc(cost_usd)

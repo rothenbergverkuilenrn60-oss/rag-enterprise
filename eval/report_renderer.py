@@ -155,7 +155,7 @@ _MACROS = """\
 
 def render_html_report(report: EvalReport) -> str:
     """使用 Jinja2 将 EvalReport 渲染为 HTML 字符串。"""
-    from jinja2 import Environment, BaseLoader
+    from jinja2 import BaseLoader, Environment
 
     duration_secs = (report.finished_at - report.started_at).total_seconds()
     duration_str = f"{int(duration_secs // 60)}m {int(duration_secs % 60)}s"

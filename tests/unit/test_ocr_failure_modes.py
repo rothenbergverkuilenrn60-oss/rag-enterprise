@@ -14,10 +14,9 @@ All paddleocr access is mocked; this file does NOT require paddleocr to be insta
 """
 from __future__ import annotations
 
-import asyncio
 import time
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 

@@ -10,8 +10,12 @@ from typing import Any
 
 try:
     from prometheus_client import (
-        Counter, Histogram, Gauge,
-        generate_latest, CONTENT_TYPE_LATEST, REGISTRY,
+        CONTENT_TYPE_LATEST,
+        REGISTRY,
+        Counter,
+        Gauge,
+        Histogram,
+        generate_latest,
     )
     _PROMETHEUS_AVAILABLE = True
 except ImportError:

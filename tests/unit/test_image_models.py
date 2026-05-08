@@ -10,7 +10,6 @@ Tests for:
   - IngestionResponse.extraction_errors field
   - DocType.IMAGE enum member
 """
-import pytest
 
 
 # ---------------------------------------------------------------------------
@@ -101,7 +100,7 @@ def test_extracted_content_multiple_images_count() -> None:
 
 def test_extracted_content_existing_fields_intact() -> None:
     """Ensure no regression on existing ExtractedContent fields."""
-    from utils.models import ExtractedContent, DocType
+    from utils.models import DocType, ExtractedContent
     ec = ExtractedContent(
         raw_id="r2",
         doc_type=DocType.PDF,
@@ -179,6 +178,7 @@ def test_ingestion_response_existing_fields_intact() -> None:
 def test_extracted_image_defined_before_extracted_content() -> None:
     """Verify no forward-reference issue: ExtractedContent.images uses ExtractedImage directly."""
     import inspect
+
     import utils.models as m
     source = inspect.getsource(m)
     idx_img = source.index("class ExtractedImage")
