@@ -19,3 +19,45 @@
 **Known deferred items:** TEST-02 (80% coverage floor → 46% actual; deferred to v1.1)
 
 **Archive:** [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md) · [milestones/v1.0-REQUIREMENTS.md](milestones/v1.0-REQUIREMENTS.md)
+
+---
+
+## v1.1 Retrieval Depth & Frontend — 2026-05-08
+
+**Shipped:** 2026-05-08
+**Phases:** 7–10 | **Plans:** 9 | **Commits:** (stacked — PR #1)
+**Timeline:** 2026-05-08 → 2026-05-08 (1 day)
+
+**Delivered:** Closed the image-only-PDF retrieval gap with PP-StructureV3 layout-aware OCR, added section-aware metadata and JSONB filter retrieval, extracted the inline UI to a static HTML file served via FastAPI StaticFiles, and added a diff-coverage gate holding new code at ≥ 80% without blocking on legacy.
+
+**Key accomplishments:**
+1. PP-StructureV3 layout-aware OCR for scanned PDFs — section headings, tables, and reading order recovered in one pipeline (OCR-01, OCR-02)
+2. Section heading text embedded in chunk content; `section_id`/`section_title` in JSONB metadata with B-tree expression indexes (META-01)
+3. pgvector HNSW `iterative_scan = strict_order` + raised `ef_search` for JSONB filter queries — recall preserved under selective filters (META-02)
+4. Regex-first Chinese query filter extractor for `第N页`/`第N.M节` patterns (QUERY-01)
+5. `static/ui.html` extracted from inline `_UI_HTML`; served via FastAPI `StaticFiles`; `index.html → ui.html` symlink (UI-01)
+6. `diff-cover ≥ 80%` gate on v1.1-touched files; legacy 46% floor preserved as informational (TEST-03)
+
+**Known deferred items:** None at close.
+
+**Archive:** [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md) · [milestones/v1.1-REQUIREMENTS.md](milestones/v1.1-REQUIREMENTS.md)
+
+---
+
+## v1.2 Agentic Layer + Swarm — 2026-05-08
+
+**Shipped:** 2026-05-08
+**Phases:** 11 | **Plans:** 4 | **Commits:** (stacked — PR #2)
+**Timeline:** 2026-05-08 → 2026-05-08 (1 day)
+
+**Delivered:** Made `agent_mode=True` a real product feature for both OpenAI and Anthropic providers — removed the Anthropic-only gate in `pipeline.py`, abstracted `call_agentic_turn` behind a provider-neutral interface, and added `asyncio.gather` parallel tool-call burst so multi-dimension queries execute N tools concurrently.
+
+**Key accomplishments:**
+1. `ToolCall` + `AgenticTurn` Pydantic V2 frozen models in `utils/models.py` — provider-neutral wire shape for all agentic turn data (Plan 11-01)
+2. 7 hand-curated wire-format JSON fixtures (4 Anthropic + 3 OpenAI) in `tests/unit/fixtures/agentic_turn/` — realistic API response mocking (Plan 11-02)
+3. `AnthropicLLMClient.call_agentic_turn` + `OpenAILLMClient.call_agentic_turn` — wire differences absorbed inside each adapter; 13-test parametrized suite (Plan 11-03)
+4. `AgentQueryPipeline.run` refactored onto `call_agentic_turn`; Anthropic-only fallback at `pipeline.py:599-604` removed; `asyncio.gather` parallel burst with audit log (Plan 11-04)
+
+**Known deferred items:** None at close (AGENT-03 swarm deferred by design to v1.3).
+
+**Archive:** [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md) · [milestones/v1.2-REQUIREMENTS.md](milestones/v1.2-REQUIREMENTS.md)
