@@ -31,6 +31,7 @@ from tenacity import (
 )
 
 from config.settings import settings
+from utils.models import AgenticTurn
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -154,6 +155,32 @@ class BaseLLMClient(ABC):
         默认实现：回退到普通 chat()。
         """
         return await self.chat(system=system, user=user, temperature=0.1, task_type="thinking")
+
+    async def call_agentic_turn(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        system: str,
+        max_tokens: int = 1024,
+        parallel_tool_calls: bool = True,
+    ) -> AgenticTurn:
+        """Provider-neutral single-turn agentic call (AGENT-01).
+
+        Returns one ``AgenticTurn`` containing text content + zero-or-more
+        ``ToolCall`` entries + a ``stop_reason``. Adapters override to absorb
+        provider-specific wire formats (Anthropic ``tool_use`` blocks, OpenAI
+        ``tool_calls`` array). The pipeline (``AgentQueryPipeline.run``) drives
+        the multi-turn loop on top of this single-turn primitive.
+
+        Default implementation raises ``NotImplementedError``. Providers that
+        do not support tool-use (e.g. ``OllamaLLMClient`` — pending agentic
+        backend in v1.3) inherit this default. The pipeline catches the
+        ``NotImplementedError`` and falls back to ``QueryPipeline`` with a
+        structured-log warning (D-03).
+        """
+        raise NotImplementedError(
+            f"agent_mode not supported by {self.__class__.__name__}"
+        )
 
     @property
     def supports_tools(self) -> bool:
