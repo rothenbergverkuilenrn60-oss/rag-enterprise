@@ -94,7 +94,7 @@ opentelemetry-exporter-otlp==1.29.0
 # may opt out by removing these two lines — extractor.py auto-falls-back to
 # Tesseract when paddleocr is not importable.
 paddlepaddle==3.0.0
-paddleocr[doc-parser]==3.1.*
+paddleocr==3.1.*
 
 # 方案B：Tesseract（轻量回退；系统包通过 Dockerfile 安装：tesseract-ocr-chi-sim）
 # pytesseract==0.3.13
