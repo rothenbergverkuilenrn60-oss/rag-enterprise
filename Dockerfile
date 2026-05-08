@@ -99,6 +99,8 @@ COPY --from=builder --chown=raguser:raguser /root/.paddlex /home/raguser/.paddle
 ENV PADDLE_PDX_CACHE_HOME=/home/raguser/.paddlex
 
 # 复制应用代码（最后一层，保证代码变更不重建依赖层）
+# ─── UI-01 / Phase 9 ─── static/ui.html 由此 COPY 覆盖（无 .dockerignore 过滤），
+# 运行时通过 main.py 的 `app.mount("/ui", StaticFiles(directory="static", ...))` 提供。
 COPY --chown=raguser:raguser . /app/
 
 # 环境变量默认值（生产环境通过 docker-compose / K8s Secrets 覆盖）
