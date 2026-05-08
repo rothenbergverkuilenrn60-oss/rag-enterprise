@@ -283,28 +283,59 @@ class PgVectorStore(BaseVectorStore):
         tenant_id: str = "",
         filters: dict | None = None,
     ) -> list[VectorSearchResult]:
-        """Search for nearest neighbors.
+        """Search for nearest neighbors with optional JSONB metadata filtering.
 
-        Opens an explicit transaction and sets app.current_tenant via set_config
-        before the SELECT so RLS is enforced at the row level (D-02).
+        D-02 (Phase 1): set_config('app.current_tenant', …, true) opens RLS scope.
+        META-02 (Phase 8): when filters are non-empty (after page_number=0 strip),
+        also set hnsw.iterative_scan='relaxed_order' + hnsw.ef_search transaction-
+        locally so HNSW expansion finds k matches against sparse JSONB filters
+        (REQ A-4 #3). SET LOCAL keeps the override scoped to this transaction —
+        does not leak to subsequent pooled-connection requests (Pitfall #5).
         """
+        # T-08-09: page_number=0 is the "unknown" sentinel set by the image
+        # extractor for standalone images. Stripping it before WHERE-build
+        # prevents queries with filters={page_number: 0} from broadcast-matching
+        # every legacy image chunk and polluting recall.
+        effective_filters: dict[str, int | str] = {}
+        for k, v in (filters or {}).items():
+            if k == "page_number" and v == 0:
+                continue
+            effective_filters[k] = v
+
+        where_clause, filter_params = _build_filter_where(effective_filters, start_param=3)
+        # _build_filter_where may also produce ("", []) if all values had unknown types.
+        has_filter = bool(where_clause)
+
         pool = await self._get_pool()
         async with pool.acquire() as conn:
             async with conn.transaction():
-                # D-02: set RLS context transaction-locally before read
+                # D-02: tenant scope FIRST — must precede the GUC + SELECT.
                 await conn.execute(
                     "SELECT set_config('app.current_tenant', $1, true)", tenant_id
                 )
+                if has_filter:
+                    # META-02 / Pitfall #3 + #5: SET LOCAL scopes to this transaction only.
+                    # iterative_scan walks the HNSW graph until top-k filter-matches found.
+                    ef_search = int(getattr(settings, "pgvector_ef_search_filtered", 200))
+                    await conn.execute(
+                        "SET LOCAL hnsw.iterative_scan = 'relaxed_order'"
+                    )
+                    # ef_search is a trusted int from settings — int() cast is the only
+                    # safe f-string surface here (T-08-01: no user value reaches SQL text).
+                    await conn.execute(f"SET LOCAL hnsw.ef_search = {ef_search}")
+
                 rows = await conn.fetch(
                     f"""
                     SELECT chunk_id, doc_id, content, metadata,
                            1 - (embedding <=> $1::vector) AS score
                     FROM {self._table}
+                    {where_clause}
                     ORDER BY embedding <=> $1::vector
                     LIMIT $2
                     """,
                     query_vector,
                     top_k,
+                    *filter_params,
                 )
         import json as _json
         return [
