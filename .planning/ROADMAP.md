@@ -60,7 +60,19 @@ Plans:
   3. A user query "第63页灯具的发光面" reaches `vector_store.search()` with `filters={"page_number": 63}` and the literal "第63页" stripped from the embedded query text.
   4. Image-caption chunks produced by Phase 4's pipeline carry the host page's `page_number` and `section_id` and are retrievable by page-scoped queries.
   5. Existing legacy chunks ingested before v1.1 (without section context) load and search without errors.
-**Plans:** TBD
+**Plans:** 5 plans
+
+Plans:
+**Wave 1**
+- [ ] 08-01-PLAN.md — Wave 0 schema + settings + pgvector ≥ 0.8.0 gate + RED test scaffolds (META-01, META-02, QUERY-01)
+- [ ] 08-02-PLAN.md — services/nlu/filter_extractor.py + unit tests (QUERY-01)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 08-03-PLAN.md — Chunker GB section walker + D-02 content_with_header + D-04 image-caption injection (META-01)
+- [ ] 08-04-PLAN.md — PgVectorStore B-tree expression indexes + filtered HNSW search + SET LOCAL hnsw GUCs (META-02)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 08-05-PLAN.md — Pipeline wiring (extract_filters → tf merge → effective_query) + e2e propagation integration test (QUERY-01, META-02)
 
 ### Phase 9: Frontend Extraction
 

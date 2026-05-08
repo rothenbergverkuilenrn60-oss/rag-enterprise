@@ -640,22 +640,25 @@ else:
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **pgvector server version on deployment target**
    - What we know: `requirements.txt` pins `pgvector>=0.3.0` (Python package, not server extension). `iterative_scan` needs server ≥ 0.8.0.
    - What's unclear: The actual PostgreSQL + pgvector server version in the Docker container.
    - Recommendation: Add Wave 0 task: `SELECT extversion FROM pg_extension WHERE extname='vector'` — assert ≥ 0.8.0. If < 0.8.0, add `apt-get install postgresql-16-pgvector` to Dockerfile.
+   - **RESOLVED:** 08-01 T2 — `scripts/check_pgvector_version.sh` runs `SELECT extversion FROM pg_extension WHERE extname='vector'` and asserts ≥ 0.8.0 with exit codes 0/1/2/3 (Wave 0 deployment gate).
 
 2. **Empty semantic query after full filter strip**
    - What we know: `"3.10节"` with `_SECTION_RE.sub('', ...)` leaves empty string.
    - What's unclear: Should a filter-only query (no semantic content) fallback to unfiltered or use `*` (return all page 3.10 chunks ranked by embedding against zero-vector)?
    - Recommendation: Guard in `extract_filters`: if `stripped.strip() == ''`, set `semantic_query = query` (use original for embedding but still apply filter). This is a safe default.
+   - **RESOLVED:** 08-02 `extract_filters` — `if not stripped: stripped = query` guard preserves the original query for embedding; covered by `test_empty_after_strip_keeps_original` in 08-01 T3 scaffold.
 
 3. **`_resolve_primary_strategy` and GB-standard auto-detect**
    - What we know: The auto-resolver misclassifies GB docs as "recursive". The section walker pre-pass is external to `structure_aware_split`, so the strategy can be "recursive" for body splitting but still apply section metadata via the pre-pass.
    - What's unclear: Whether the chunker's primary strategy affects the `content` text quality enough to matter, or whether the pre-pass section assignment is sufficient regardless of split strategy.
    - Recommendation: Force strategy to `"structure"` when OCR markers are detected in `body_text` (inside `_resolve_primary_strategy`). This also ensures consistent chunk boundaries near heading lines.
+   - **RESOLVED:** 08-03 T1 — extends `_resolve_primary_strategy` to detect `[第N页·OCR]` markers and force `"structure"` strategy when present (covered by `TestSectionWalker` in 08-01 T3 scaffold).
 
 ---
 
@@ -827,10 +830,7 @@ The recall baseline test follows the existing pattern in `test_pgvector_recall.p
 | Pitfalls (classify_line gap, GUC scope, type coercion) | HIGH | Verified by running actual patterns against test input |
 | Test design | HIGH | Existing test infrastructure (conftest, pg_pool, recall pattern) fully understood |
 
-### Open Questions
-
-- pgvector server extension version on deployment target (must be ≥ 0.8.0 for iterative_scan)
-- Whether empty semantic query after full filter strip should use original query or a zero-vector placeholder
+### Open Questions (RESOLVED — see top-level § "Open Questions (RESOLVED)" for inline annotations)
 
 ### Ready for Planning
 
