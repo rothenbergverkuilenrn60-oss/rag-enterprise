@@ -42,7 +42,7 @@ RUN pip install --upgrade pip wheel \
 # enterprise proxies).
 RUN pip install --no-cache-dir --find-links=/wheels \
         paddlepaddle==3.0.0 \
-        "paddleocr[doc-parser]==3.1.*" \
+        "paddleocr==3.1.*" \
     && python -c "from paddleocr import PPStructureV3; PPStructureV3(use_doc_orientation_classify=False, use_doc_unwarping=False, lang='ch')" \
     && du -sh /root/.paddlex \
     && ls /root/.paddlex/official_models
