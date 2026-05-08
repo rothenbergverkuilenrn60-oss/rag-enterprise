@@ -84,8 +84,12 @@ Plans:
   2. Visiting `http://localhost:8000/ui/` renders the UI, calls `/api/v1/query` with `include_images: true`, and renders answer + sources + images identically to the v1.0 inline version.
   3. The production Docker image includes `static/` via `COPY` and serves the page without any bind-mount or extra volume.
   4. The page renders without horizontal scroll on a 1280×800 viewport; source images cap at the container width.
-**Plans:** TBD
+**Plans:** 1 plan
 **UI hint**: yes
+
+Plans:
+**Wave 1**
+- [ ] 09-01-PLAN.md — Extract `_UI_HTML` to `static/ui.html`, mount StaticFiles in main.py, verify Dockerfile COPY, integration test + human visual verify (UI-01)
 
 ### Phase 10: Coverage Gate on New Code
 
@@ -111,7 +115,7 @@ Plans:
 | 6. Test Coverage and Eval | v1.0 | 3/3 | Complete ✓ | 2026-04-27 |
 | 7. OCR Engine Integration | v1.1 | 0/2 | Not started | - |
 | 8. Multimodal Metadata + Query Filter | v1.1 | 0/0 | Not started | - |
-| 9. Frontend Extraction | v1.1 | 0/0 | Not started | - |
+| 9. Frontend Extraction | v1.1 | 0/1 | Not started | - |
 | 10. Coverage Gate on New Code | v1.1 | 0/0 | Not started | - |
 
 ## Coverage Validation
