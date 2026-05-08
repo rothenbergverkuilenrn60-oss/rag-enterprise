@@ -61,15 +61,12 @@ x-rag-env: &rag-common-env
   OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o}
   ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
   ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-4-6}
-  # Embedding
+  # Embedding (paths come from env_file to avoid host path substitution)
   EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-huggingface}
   EMBEDDING_MODEL: ${EMBEDDING_MODEL:-bge-m3}
-  EMBEDDING_MODEL_PATH: ${EMBEDDING_MODEL_PATH:-/app/models/embedding_models/bge-m3}
   EMBEDDING_DIM: ${EMBEDDING_DIM:-1024}
-  # VectorStore
+  # VectorStore (PG_DSN comes from env_file to avoid host localhost substitution)
   VECTOR_STORE: ${VECTOR_STORE:-pgvector}
-  PG_DSN: ${PG_DSN:-postgresql+asyncpg://rag:rag@postgres:5432/ragdb}
-  APP_MODEL_DIR: ${APP_MODEL_DIR:-/app/models}
   # Redis
   REDIS_URL: redis://redis:6379/0
   CACHE_ENABLED: ${CACHE_ENABLED:-true}
@@ -202,13 +199,12 @@ services:
       dockerfile: Dockerfile
       target: runtime
     image: rag-enterprise:latest
-    # container_name 注释掉：多实例时 Docker 会自动命名（rag-api-1, rag-api-2...）
     <<: [*restart-policy, *default-logging]
+    env_file: .env.docker
     networks:
       - rag-net
-    # 多实例时不直接暴露端口，由 Nginx 代理
-    # ports:
-    #   - "8000:8000"
+    ports:
+      - "8000:8000"
     volumes:
       - rag-data:/app/data
       - rag-logs:/app/logs
@@ -244,6 +240,7 @@ services:
     image: rag-enterprise:latest
     command: arq services.ingest_worker.WorkerSettings
     <<: [*restart-policy, *default-logging]
+    env_file: .env.docker
     networks:
       - rag-net
     volumes:

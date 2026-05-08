@@ -3,6 +3,8 @@
 ## Milestones
 
 - ✅ **v1.0 Hardening** — Phases 1–6 (shipped 2026-04-27) — [archive](milestones/v1.0-ROADMAP.md)
+- ✅ **v1.1 Retrieval Depth & Frontend** — Phases 7–10 (shipped 2026-05-08) — [archive](milestones/v1.1-ROADMAP.md)
+- 🚧 **v1.2** — Pending requirements (run `/gsd-new-milestone v1.2`)
 
 ## Phases
 
@@ -20,6 +22,18 @@ See [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md) for full phase deta
 
 </details>
 
+<details>
+<summary>✅ v1.1 Retrieval Depth & Frontend (Phases 7–10) — SHIPPED 2026-05-08</summary>
+
+- [x] Phase 7: OCR Engine Integration (2/2 plans) — completed 2026-05-08
+- [x] Phase 8: Multimodal Metadata + Query Filter (5/5 plans) — completed 2026-05-08
+- [x] Phase 9: Frontend Extraction (1/1 plan) — completed 2026-05-08
+- [x] Phase 10: Coverage Gate on New Code (1/1 plan) — completed 2026-05-08
+
+See [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md) for full phase details.
+
+</details>
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -30,3 +44,7 @@ See [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md) for full phase deta
 | 4. Image Extraction | v1.0 | 4/4 | Complete ✓ | 2026-04-25 |
 | 5. Async Ingest Tracking | v1.0 | 3/3 | Complete ✓ | 2026-04-26 |
 | 6. Test Coverage and Eval | v1.0 | 3/3 | Complete ✓ | 2026-04-27 |
+| 7. OCR Engine Integration | v1.1 | 2/2 | Complete ✓ | 2026-05-08 |
+| 8. Multimodal Metadata + Query Filter | v1.1 | 5/5 | Complete ✓ | 2026-05-08 |
+| 9. Frontend Extraction | v1.1 | 1/1 | Complete ✓ | 2026-05-08 |
+| 10. Coverage Gate on New Code | v1.1 | 1/1 | Complete ✓ | 2026-05-08 |

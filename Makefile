@@ -4,7 +4,7 @@
 # 使用：make <target>
 # =============================================================================
 
-.PHONY: help build up down logs shell ingest eval clean
+.PHONY: help build up down logs shell ingest eval clean coverage-diff
 
 COMPOSE = docker compose
 SERVICE = rag-api
@@ -84,6 +84,24 @@ test-eval:  ## 仅运行评测集成测试
 
 test-unit:  ## 仅运行单元测试
 	conda run -n torch_env pytest tests/unit/ -v
+
+coverage-diff:  ## Run diff-cover locally against origin/master...HEAD (TEST-03)
+	@echo ">> Fetching origin/master to ensure baseline is current..."
+	git fetch origin master
+	@echo ">> Running unit tests with coverage XML output..."
+	conda run -n torch_env pytest tests/unit/ \
+		--asyncio-mode=auto \
+		--timeout=30 \
+		--cov=services \
+		--cov=utils \
+		--cov-report=xml:coverage.xml \
+		-q
+	@echo ">> Running diff-cover against origin/master..."
+	conda run -n torch_env diff-cover coverage.xml \
+		--compare-branch=origin/master \
+		--fail-under=80 \
+		--html-report diff-cover.html
+	@echo ">> diff-cover.html written. Open in browser to inspect uncovered lines."
 
 # ── 清理 ──────────────────────────────────────────────────────────────────────
 clean:  ## 清理构建缓存和悬空镜像

@@ -6,7 +6,7 @@
 
 # ── Web 框架 ──────────────────────────────────────────────────────────────────
 fastapi==0.115.6
-uvicorn[standard]==0.32.1
+uvicorn[standard]==0.34.0
 python-multipart==0.0.18
 httpx==0.28.1
 
@@ -86,13 +86,17 @@ opentelemetry-sdk==1.29.0
 opentelemetry-exporter-otlp==1.29.0
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 扫描件 OCR（二选一，按需安装）
+# 扫描件 OCR
 # ══════════════════════════════════════════════════════════════════════════════
-# 方案A：PaddleOCR（推荐，中文准确率更高）
-# paddlepaddle==2.6.2        # CPU版；GPU版: paddlepaddle-gpu==2.6.2.post120
-# paddleocr==2.8.1
+# OCR engine — Phase 7 OCR-01/02 (PP-StructureV3 layout-aware OCR)
+# Pinned per .planning/phases/07-ocr-engine-integration/RESEARCH.md §1.3.
+# Models are baked into the Docker image (Plan 02); local dev environments
+# may opt out by removing these two lines — extractor.py auto-falls-back to
+# Tesseract when paddleocr is not importable.
+# paddlepaddle==3.0.0  # Docker-only (baked via Dockerfile); transitive paddlex[ie] conflicts with openai==1.59.6 pin
+# paddleocr==3.1.*     # Docker-only (Phase 7 OCR-01 production engine); CI uses Tesseract fallback per services/extractor/extractor.py
 
-# 方案B：Tesseract（轻量，适合无GPU环境）
+# 方案B：Tesseract（轻量回退；系统包通过 Dockerfile 安装：tesseract-ocr-chi-sim）
 # pytesseract==0.3.13
 # Pillow==11.0.0
 # 还需要系统级安装: apt-get install -y tesseract-ocr tesseract-ocr-chi-sim
@@ -101,3 +105,4 @@ opentelemetry-exporter-otlp==1.29.0
 # STAGE 5 — 异步任务队列（ARQ / Redis）
 # ══════════════════════════════════════════════════════════════════════════════
 arq==0.28.0                  # ARQ 异步任务队列（基于 Redis）
+slowapi==0.1.9               # FastAPI rate limiting

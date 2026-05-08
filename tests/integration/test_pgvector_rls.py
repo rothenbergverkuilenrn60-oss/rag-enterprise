@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import sys
-import pytest
+
 import asyncpg
+import pytest
 
 # Import availability flag from conftest
 from tests.conftest import PG_AVAILABLE
@@ -23,8 +24,8 @@ async def test_cross_tenant_isolation(pg_pool: asyncpg.Pool):
     2. Set app.current_tenant='tenant-b' on the connection
     3. Query the table directly — expect 0 rows returned (RLS blocks)
     """
-    from services.vectorizer.vector_store import PgVectorStore
     import services.vectorizer.vector_store as vs_module
+    from services.vectorizer.vector_store import PgVectorStore
     vs_module._store_instance = None
     store = PgVectorStore()
     await store.create_collection()
@@ -66,8 +67,8 @@ async def test_cross_tenant_isolation(pg_pool: asyncpg.Pool):
 
 async def test_same_tenant_can_read_own_data(pg_pool: asyncpg.Pool):
     """Documents ingested for tenant-a ARE visible when querying as tenant-a."""
-    from services.vectorizer.vector_store import PgVectorStore
     import services.vectorizer.vector_store as vs_module
+    from services.vectorizer.vector_store import PgVectorStore
     vs_module._store_instance = None
     store = PgVectorStore()
 

@@ -1,11 +1,14 @@
 from __future__ import annotations
+
 import os
+
 os.environ.setdefault("APP_MODEL_DIR", "/tmp")
 os.environ.setdefault("SECRET_KEY", "a-very-secure-key-for-testing-that-is-long-32c")
 
 import asyncio
+from unittest.mock import AsyncMock, patch
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
 
 # ---------------------------------------------------------------------------
@@ -69,8 +72,9 @@ async def test_audit_log_disabled_overall_is_noop(monkeypatch):
 @pytest.mark.asyncio
 async def test_audit_buffer_grows_until_flush(monkeypatch):
     """With audit_db_enabled=True but buffer below threshold, buffer grows."""
-    import services.audit.audit_service as audit_mod
     import time as _time
+
+    import services.audit.audit_service as audit_mod
     monkeypatch.setattr(audit_mod.settings, "audit_enabled", True)
     monkeypatch.setattr(audit_mod.settings, "audit_db_enabled", True)
 
@@ -112,8 +116,9 @@ async def test_audit_flush_to_db_called_when_time_threshold_exceeded(monkeypatch
 @pytest.mark.asyncio
 async def test_audit_flush_to_db_called_when_buffer_full(monkeypatch):
     """When buffer reaches _BUFFER_SIZE, _flush_to_db is called."""
-    import services.audit.audit_service as audit_mod
     import time as _time
+
+    import services.audit.audit_service as audit_mod
     monkeypatch.setattr(audit_mod.settings, "audit_enabled", True)
     monkeypatch.setattr(audit_mod.settings, "audit_db_enabled", True)
 

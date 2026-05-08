@@ -4,14 +4,18 @@
 # 支持：Ollama BGE-M3 / OpenAI text-embedding-3 / HuggingFace 本地
 # =============================================================================
 from __future__ import annotations
+
 import asyncio
 from abc import ABC, abstractmethod
+
+import httpx
 from loguru import logger
 from tenacity import (
-    retry, stop_after_attempt, wait_random_exponential,
+    retry,
     retry_if_exception_type,
+    stop_after_attempt,
+    wait_random_exponential,
 )
-import httpx
 
 from config.settings import settings
 from utils.logger import log_latency
@@ -93,8 +97,8 @@ class OpenAIEmbedder(BaseEmbedder):
 # ══════════════════════════════════════════════════════════════════════════════
 class HuggingFaceEmbedder(BaseEmbedder):
     def __init__(self) -> None:
-        from sentence_transformers import SentenceTransformer
         import torch
+        from sentence_transformers import SentenceTransformer
         device = "cuda" if torch.cuda.is_available() else "cpu"
         model_path = str(settings.embedding_model_path)
         self._model = SentenceTransformer(model_path, device=device)

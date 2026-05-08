@@ -9,8 +9,9 @@ import os
 os.environ.setdefault("APP_MODEL_DIR", "/tmp")
 os.environ.setdefault("SECRET_KEY", "a-very-secure-key-for-testing-that-is-long-32c")
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 
 @pytest.fixture(autouse=True)
@@ -24,13 +25,13 @@ def reset_nlu_singleton(monkeypatch):
 
 class TestNLURuleBased:
     def test_rule_based_intent_chitchat(self):
-        from services.nlu.nlu_service import _rule_based_intent, QueryIntent
+        from services.nlu.nlu_service import QueryIntent, _rule_based_intent
 
         result = _rule_based_intent("你好")
         assert result == QueryIntent.CHITCHAT
 
     def test_rule_based_intent_procedural(self):
-        from services.nlu.nlu_service import _rule_based_intent, QueryIntent
+        from services.nlu.nlu_service import QueryIntent, _rule_based_intent
 
         result = _rule_based_intent("怎么申请年假")
         assert result == QueryIntent.PROCEDURAL
@@ -84,7 +85,7 @@ class TestNLURuleBased:
         assert result.intent == QueryIntent.FACTUAL
 
     def test_rule_based_intent_comparison(self):
-        from services.nlu.nlu_service import _rule_based_intent, QueryIntent
+        from services.nlu.nlu_service import QueryIntent, _rule_based_intent
 
         result = _rule_based_intent("年假和病假有什么区别")
         assert result == QueryIntent.COMPARISON

@@ -13,7 +13,7 @@ import json
 import random
 from pathlib import Path
 
-from eval.models import QAPair, EvalDataset
+from eval.models import EvalDataset, QAPair
 
 # ---------------------------------------------------------------------------
 # Stratification targets (from TEST-03 RESEARCH.md)

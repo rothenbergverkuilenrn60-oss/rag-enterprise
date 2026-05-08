@@ -7,14 +7,11 @@ from __future__ import annotations
 import asyncio
 import json
 import time
-import uuid
-from dataclasses import dataclass, field, asdict
-from typing import Any
+from dataclasses import asdict, dataclass, field
 
 import asyncpg
 import redis.asyncio
 from loguru import logger
-from tenacity import retry, stop_after_attempt, wait_random_exponential
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -78,6 +75,7 @@ class ShortTermMemory:
     async def _get_client(self):
         if self._client is None:
             from redis.asyncio import from_url
+
             from config.settings import settings
             self._client = await from_url(
                 settings.redis_url,
@@ -135,6 +133,7 @@ class LongTermMemory:
     async def _get_pool(self):
         if self._pool is None:
             import asyncpg
+
             from config.settings import settings
             dsn = settings.pg_dsn.replace("postgresql+asyncpg://", "postgresql://")
             self._pool = await asyncpg.create_pool(dsn, min_size=2, max_size=10)

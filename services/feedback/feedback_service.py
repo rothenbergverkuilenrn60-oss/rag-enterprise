@@ -78,7 +78,7 @@ class FeedbackService:
 
     async def _check_reindex_trigger(self, record: FeedbackRecord) -> None:
         """当某文档负面反馈超阈值时，触发知识库更新事件。"""
-        from services.events.event_bus import get_event_bus, Event, EventType
+        from services.events.event_bus import Event, EventType, get_event_bus
         bus = get_event_bus()
         for doc_id in record.doc_ids:
             count = self._negative_counts.get(doc_id, 0)

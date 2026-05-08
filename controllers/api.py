@@ -2,30 +2,37 @@
 # controllers/api.py
 # FastAPI Controller — 全局中间件 + 异常拦截 + 路由
 # =============================================================================
-from __future__ import annotations
-import time
+import re
 import uuid
+
 import asyncpg
 import httpx
 import openai
 import redis
-import re
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
-from fastapi.responses import StreamingResponse
 from arq.jobs import Job, JobStatus
-from services.auth.oidc_auth import get_current_user, AuthenticatedUser
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from loguru import logger
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from config.settings import settings
-from utils.models import (
-    IngestionRequest, IngestionResponse, AsyncIngestRequest,
-    GenerationRequest, GenerationResponse,
-    APIResponse, FeedbackRequest,
+from services.auth.oidc_auth import AuthenticatedUser, get_current_user
+from services.pipeline import (
+    get_agent_pipeline,
+    get_ingest_pipeline,
+    get_query_pipeline,
 )
-from services.pipeline import get_ingest_pipeline, get_query_pipeline, get_agent_pipeline
 from utils.cache import cache_invalidate
+from utils.models import (
+    APIResponse,
+    AsyncIngestRequest,
+    FeedbackRequest,
+    GenerationRequest,
+    GenerationResponse,
+    IngestionRequest,
+    IngestionResponse,
+)
 
 # Per-route rate limiter (per D-07: decorators enforce tiered policy independently of global middleware)
 _limiter = Limiter(key_func=get_remote_address, default_limits=[])
@@ -200,9 +207,15 @@ async def query(request: Request, req: GenerationRequest) -> APIResponse:
         # agent_mode=True → Agentic 工具循环；否则走标准 Pipeline
         pipeline = get_agent_pipeline() if req.agent_mode else get_query_pipeline()
         result: GenerationResponse = await pipeline.run(req)
+        data = result.model_dump(mode="json")
+        if not req.include_images:
+            for src in data.get("sources", []):
+                meta = src.get("metadata")
+                if isinstance(meta, dict) and meta.get("image_b64"):
+                    meta["image_b64"] = ""
         return APIResponse(
             success=True,
-            data=result.model_dump(mode="json"),
+            data=data,
             trace_id=result.trace_id or trace_id,
         )
     except (asyncpg.PostgresError, httpx.HTTPError, openai.APIError, ValueError) as exc:
@@ -261,7 +274,10 @@ async def stats() -> APIResponse:
 async def submit_feedback(req: FeedbackRequest) -> APIResponse:
     """用户对回答提交正负反馈，触发闭环学习流程。"""
     try:
-        from services.feedback.feedback_service import get_feedback_service, FeedbackRecord
+        from services.feedback.feedback_service import (
+            FeedbackRecord,
+            get_feedback_service,
+        )
         record = FeedbackRecord(
             session_id=req.session_id,
             query="", answer="",
@@ -291,9 +307,10 @@ async def knowledge_scan(bg: BackgroundTasks) -> APIResponse:
     """触发知识库增量扫描更新（后台异步执行）。"""
     trace_id = str(uuid.uuid4())[:8]
     async def _bg_scan():
+        from pathlib import Path
+
         from services.knowledge.knowledge_service import get_knowledge_service
         from services.pipeline import get_ingest_pipeline
-        from pathlib import Path
         svc = get_knowledge_service()
         pipeline = get_ingest_pipeline()
         await svc.scan_and_update(Path(settings.data_dir), pipeline)
@@ -423,7 +440,11 @@ async def create_ab_experiment(request: Request) -> APIResponse:
         ]
     }
     """
-    from services.ab_test.ab_test_service import get_ab_test_service, Experiment, Variant
+    from services.ab_test.ab_test_service import (
+        Experiment,
+        Variant,
+        get_ab_test_service,
+    )
     body = await request.json()
     variants = [Variant(**v) for v in body.pop("variants", [])]
     exp = Experiment(variants=variants, **body)
@@ -458,8 +479,9 @@ async def list_ab_experiments() -> APIResponse:
 @router.get("/ab/experiments/{experiment_id}/stats", tags=["ab_test"])
 async def get_ab_experiment_stats(experiment_id: str) -> APIResponse:
     """获取实验各变体统计（均值、P95延迟、faithfulness、反馈率）。"""
-    from services.ab_test.ab_test_service import get_ab_test_service
     from dataclasses import asdict
+
+    from services.ab_test.ab_test_service import get_ab_test_service
     stats = await get_ab_test_service().get_stats(experiment_id)
     return APIResponse(success=True, data={"stats": [asdict(s) for s in stats]})
 

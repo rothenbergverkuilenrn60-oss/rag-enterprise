@@ -16,8 +16,9 @@ from __future__ import annotations
 
 import math
 import random
-import pytest
+
 import asyncpg
+import pytest
 
 from tests.conftest import PG_AVAILABLE
 
@@ -62,7 +63,7 @@ async def test_recall_at_10(pg_pool: asyncpg.Pool):
     """
     import services.vectorizer.vector_store as vs_module
     from services.vectorizer.vector_store import PgVectorStore
-    from utils.models import DocumentChunk, ChunkMetadata, DocType
+    from utils.models import ChunkMetadata, DocType, DocumentChunk
 
     vs_module._store_instance = None
     store = PgVectorStore()

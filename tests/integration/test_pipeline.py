@@ -3,10 +3,9 @@
 # 集成测试 — 全链路 Pipeline（需要 Ollama + Qdrant 服务运行）
 # 运行：conda run -n torch_env pytest tests/integration/ -v --timeout=120
 # =============================================================================
-import pytest
-import asyncio
-import tempfile
 from pathlib import Path
+
+import pytest
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -14,7 +13,6 @@ from pathlib import Path
 # ══════════════════════════════════════════════════════════════════════════════
 def _write_temp_txt(content: str) -> str:
     """写临时 .txt 文件到 /mnt/f/ 路径（测试专用）。"""
-    import os
     tmp_dir = Path("/mnt/f/rag_enterprise/data/test_tmp")
     tmp_dir.mkdir(parents=True, exist_ok=True)
     tmp_path = tmp_dir / "integration_test.txt"
@@ -36,10 +34,10 @@ async def test_preprocess_extract_chunk_pipeline() -> None:
     ) * 10
     file_path = _write_temp_txt(content)
 
-    from utils.models import RawDocument, DocType
-    from services.preprocessor.cleaner import get_preprocessor
-    from services.extractor.extractor import get_extractor
     from services.doc_processor.chunker import get_doc_processor
+    from services.extractor.extractor import get_extractor
+    from services.preprocessor.cleaner import get_preprocessor
+    from utils.models import DocType, RawDocument
 
     raw_doc = RawDocument(raw_id="test_001", file_path=file_path, doc_type=DocType.TXT)
 
@@ -68,7 +66,8 @@ async def test_preprocess_extract_chunk_pipeline() -> None:
 @pytest.mark.asyncio
 async def test_health_endpoint() -> None:
     """验证 /health 端点可访问。"""
-    from httpx import AsyncClient, ASGITransport
+    from httpx import ASGITransport, AsyncClient
+
     from main import app
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -82,7 +81,8 @@ async def test_health_endpoint() -> None:
 @pytest.mark.asyncio
 async def test_ingest_endpoint_missing_file() -> None:
     """验证摄取不存在文件时返回 422。"""
-    from httpx import AsyncClient, ASGITransport
+    from httpx import ASGITransport, AsyncClient
+
     from main import app
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -96,7 +96,8 @@ async def test_ingest_endpoint_missing_file() -> None:
 @pytest.mark.asyncio
 async def test_query_endpoint_empty_query() -> None:
     """验证空查询返回 422。"""
-    from httpx import AsyncClient, ASGITransport
+    from httpx import ASGITransport, AsyncClient
+
     from main import app
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:

@@ -48,7 +48,7 @@ class TestRuleABC:
 
     def test_rules_engine_run_returns_pass_for_safe_input(self):
         """RulesEngine.run() returns PASS for a normal safe query."""
-        from services.rules.rules_engine import RulesEngine, RuleAction
+        from services.rules.rules_engine import RuleAction, RulesEngine
 
         engine = RulesEngine()
         result = engine.run("pre_query", {"query": "What is the leave policy?"})

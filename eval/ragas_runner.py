@@ -13,7 +13,6 @@ import statistics
 import traceback
 import uuid
 from datetime import datetime
-from pathlib import Path
 from typing import Any
 
 import httpx
@@ -620,8 +619,9 @@ class AnthropicBatchFaithfulnessJudge:
 # 入口
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 async def main() -> None:
-    from loguru import logger as _logger
     import sys
+
+    from loguru import logger as _logger
     _logger.remove()
     _logger.add(sys.stderr, level="INFO", format="{time:HH:mm:ss} | {level:<8} | {message}")
 

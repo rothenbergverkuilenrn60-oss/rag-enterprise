@@ -9,12 +9,12 @@ to ARQ's internal msgpack serialization format.
 from __future__ import annotations
 
 import time
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import fakeredis
 import pytest
 import pytest_asyncio
-import fakeredis
-from unittest.mock import MagicMock, AsyncMock, patch
 from fastapi.testclient import TestClient
-
 
 # ---------------------------------------------------------------------------
 # Shared fixtures

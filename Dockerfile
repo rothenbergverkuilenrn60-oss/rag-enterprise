@@ -11,6 +11,7 @@
 FROM python:3.11-slim AS builder
 
 # 系统级构建依赖
+# libgl1 + libglib2.0-0 needed by opencv-python (paddleocr → opencv → libGL.so.1)
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
         gcc \
@@ -20,6 +21,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libssl-dev \
         libffi-dev \
         libpq-dev \
+        libgl1 \
+        libglib2.0-0 \
         poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
@@ -33,6 +36,20 @@ RUN pip install --upgrade pip wheel \
     && pip wheel --no-cache-dir --wheel-dir /wheels -r requirements.txt \
     && pip wheel --no-cache-dir --wheel-dir /wheels -r requirements-eval.txt
 
+# ─── PaddleOCR model prefetch — Phase 7 OCR-01/02 ────────────────────────────
+# Install paddlepaddle + paddleocr from the wheels we just built, then
+# instantiate PPStructureV3 once to download model weights (~600MB-1.2GB).
+# Models materialise into /root/.paddlex/official_models which the runtime
+# stage copies across — so production containers never need network access
+# to do OCR (research notes cold-start downloads are 10–60s and flaky behind
+# enterprise proxies).
+RUN pip install --no-cache-dir --find-links=/wheels \
+        paddlepaddle==3.0.0 \
+        "paddleocr==3.1.*" \
+    && python -c "from paddleocr import PPStructureV3; PPStructureV3(use_doc_orientation_classify=False, use_doc_unwarping=False)" \
+    && du -sh /root/.paddlex \
+    && ls /root/.paddlex/official_models
+
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # STAGE 2: Runtime — 最小化运行时镜像
@@ -44,9 +61,12 @@ LABEL version="3.0.0"
 LABEL description="Enterprise RAG — FastAPI + Qdrant + BGE-M3 + RAGAS Evaluation"
 
 # 运行时系统依赖（精简）
+# libgl1 + libglib2.0-0 needed by opencv-python (paddleocr runtime → opencv → libGL.so.1)
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libgomp1 \
         libpq5 \
+        libgl1 \
+        libglib2.0-0 \
         curl \
         poppler-utils \
         tesseract-ocr \
@@ -75,7 +95,18 @@ COPY requirements.txt requirements-eval.txt ./
 RUN pip install --no-cache-dir --find-links=/wheels -r requirements.txt -r requirements-eval.txt \
     && rm -rf /wheels
 
+# ─── PaddleOCR baked models — Phase 7 OCR-02 acceptance #3 ───────────────────
+# Copy the model cache from the builder stage so the runtime image never needs
+# network access to do OCR. Path is owned by raguser (uid 1001) so the
+# non-root runtime user can read it. PADDLE_PDX_CACHE_HOME is the documented
+# PaddleX cache override — setting it explicitly makes the location independent
+# of $HOME resolution under USER raguser.
+COPY --from=builder --chown=raguser:raguser /root/.paddlex /home/raguser/.paddlex
+ENV PADDLE_PDX_CACHE_HOME=/home/raguser/.paddlex
+
 # 复制应用代码（最后一层，保证代码变更不重建依赖层）
+# ─── UI-01 / Phase 9 ─── static/ui.html 由此 COPY 覆盖（无 .dockerignore 过滤），
+# 运行时通过 main.py 的 `app.mount("/ui", StaticFiles(directory="static", ...))` 提供。
 COPY --chown=raguser:raguser . /app/
 
 # 环境变量默认值（生产环境通过 docker-compose / K8s Secrets 覆盖）

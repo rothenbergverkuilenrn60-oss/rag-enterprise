@@ -9,8 +9,8 @@ import time
 import uuid
 from enum import Enum
 from typing import Any
-from pydantic import BaseModel, Field, field_validator
 
+from pydantic import BaseModel, Field, field_validator
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 枚举类型
@@ -130,6 +130,8 @@ class ChunkMetadata(BaseModel):
     author:          str           = ""
     section:         str           = ""           # 顶层章节标题
     sub_section:     str           = ""           # 子章节/条款标题
+    section_id:      str           = ""           # GB标准章节号，例如 "3.10" (META-01)
+    section_title:   str           = ""           # 章节标题文本，例如 "定义的透光面" (META-01)
     page_number:     int | None    = None
     chunk_index:     int           = 0
     total_chunks:    int           = 0
@@ -211,6 +213,7 @@ class GenerationRequest(BaseModel):
     temperature:  float                         = Field(default=0.1, ge=0.0, le=2.0)
     stream:       bool                          = False
     agent_mode:   bool                          = False   # True 时使用 Agentic 工具循环
+    include_images: bool                        = False   # True 时响应保留 image_b64（默认剥离以减小响应体）
     # 多租户 & 用户身份
     tenant_id:    str                           = ""
     user_id:      str                           = ""

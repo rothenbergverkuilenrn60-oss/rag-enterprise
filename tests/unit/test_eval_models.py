@@ -8,10 +8,10 @@ os.environ.setdefault("SECRET_KEY", "a-very-secure-key-for-testing-that-is-long-
 os.environ.setdefault("RAGAS_REPORT_DIR", "/tmp/eval_reports")
 os.environ.setdefault("RAGAS_EVAL_DATASET", "/tmp/qa_pairs_placeholder.json")
 
-import pytest
 import pydantic
+import pytest
 
-from eval.models import QAPair, EvalDataset
+from eval.models import EvalDataset, QAPair
 
 
 def test_qapair_accepts_doc_type_literal() -> None:

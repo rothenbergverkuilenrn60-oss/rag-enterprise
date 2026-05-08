@@ -6,8 +6,9 @@ services/ingest_worker.py — that's intentional TDD scaffolding.
 """
 from __future__ import annotations
 
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
-from unittest.mock import MagicMock, AsyncMock
 
 
 # ---------------------------------------------------------------------------
@@ -118,7 +119,7 @@ async def test_keep_result_ttl_is_24h() -> None:
 @pytest.mark.asyncio
 async def test_worker_settings_includes_ingest_task() -> None:
     """WorkerSettings.functions must include ingest_task so ARQ can dispatch it."""
-    from services.ingest_worker import ingest_task, WorkerSettings
+    from services.ingest_worker import WorkerSettings, ingest_task
     assert ingest_task in WorkerSettings.functions, (
         "ingest_task must be in WorkerSettings.functions"
     )

@@ -22,40 +22,53 @@ from typing import AsyncGenerator
 from loguru import logger
 
 from config.settings import settings
-from utils.models import (
-    RawDocument, DocType, IngestionRequest, IngestionResponse,
-    GenerationRequest, GenerationResponse, RetrievedChunk,
+from services.audit.audit_service import AuditResult, get_audit_service
+from services.doc_processor.chunker import get_doc_processor
+from services.events.event_bus import get_event_bus
+from services.extractor.extractor import get_extractor
+from services.generator.generator import get_generator
+from services.generator.llm_client import get_llm_client
+from services.knowledge.knowledge_service import get_knowledge_service
+from services.knowledge.summary_indexer import get_summary_indexer
+from services.memory.memory_service import (
+    ConversationTurn,
+    get_memory_service,
 )
-from utils.cache import cache_get, cache_set
-from utils.logger import log_latency
+from services.nlu.filter_extractor import extract_filters
+
+# Core services
+from services.nlu.nlu_service import QueryIntent, get_nlu_service
 
 # Stage services
 from services.preprocessor.cleaner import get_preprocessor
-from services.extractor.extractor import get_extractor
-from services.doc_processor.chunker import get_doc_processor
-from services.vectorizer.indexer import get_vectorizer
-from services.retriever.retriever import get_retriever
-from services.generator.generator import get_generator
-from services.generator.llm_client import get_llm_client
-
-# Core services
-from services.nlu.nlu_service import get_nlu_service, QueryIntent, NLUResult
-from services.memory.memory_service import (
-    get_memory_service, ConversationTurn, MemoryContext,
-)
-from services.rules.rules_engine import get_rules_engine, RuleAction
-from services.events.event_bus import get_event_bus
-from services.tenant.tenant_service import get_tenant_service
-from services.knowledge.knowledge_service import get_knowledge_service
 
 # Enterprise feature services
 from services.preprocessor.pii_detector import get_pii_detector
-from services.audit.audit_service import get_audit_service, AuditResult
-from services.knowledge.summary_indexer import get_summary_indexer
+from services.retriever.retriever import get_retriever
+from services.rules.rules_engine import RuleAction, get_rules_engine
+from services.tenant.tenant_service import get_tenant_service
+from services.vectorizer.indexer import get_vectorizer
+from utils.cache import cache_get, cache_set
+from utils.logger import log_latency
 from utils.metrics import (
-    query_total, query_latency_seconds, faithfulness_histogram,
-    retrieval_chunks_histogram, ingest_total, ingest_chunks_histogram,
-    pii_detected_total, cache_hit_total, rule_trigger_total,
+    cache_hit_total,
+    faithfulness_histogram,
+    ingest_chunks_histogram,
+    ingest_total,
+    pii_detected_total,
+    query_latency_seconds,
+    query_total,
+    retrieval_chunks_histogram,
+    rule_trigger_total,
+)
+from utils.models import (
+    DocType,
+    GenerationRequest,
+    GenerationResponse,
+    IngestionRequest,
+    IngestionResponse,
+    RawDocument,
+    RetrievedChunk,
 )
 from utils.observability import start_span
 
@@ -288,8 +301,15 @@ class QueryPipeline:
         chat_history = [{"role": t.role, "content": t.content[:_MAX_TURN_CHARS]}
                         for t in mem_ctx.short_term[-6:]]
 
+        # QUERY-01 (REQ A-5 #3, #4): regex-first filter extraction + strip semantic query.
+        # `effective_query` feeds NLU + cache_key + embedding text; `extraction.filters`
+        # merges into tf below with highest precedence (tenant < req.filters < extracted).
+        # `req.query` (raw) is preserved for `original_query=` audit and memory turn save.
+        extraction = extract_filters(req.query)
+        effective_query = extraction.semantic_query
+
         nlu = await self._nlu.analyze(
-            req.query, self._llm, chat_history, tenant_id, user_id)
+            effective_query, self._llm, chat_history, tenant_id, user_id)
 
         if nlu.intent == QueryIntent.CHITCHAT:
             reply = await self._llm.chat(
@@ -304,17 +324,28 @@ class QueryPipeline:
         if nlu.needs_clarification:
             return self._simple(req, nlu.clarification_hint, trace_id)
 
-        cache_key = {"q": req.query, "top_k": req.top_k,
-                     "filters": req.filters, "tenant": tenant_id}
+        # Cache key uses stripped query + merged filter set so that
+        # "第63页X" (extraction → page=63) and "X" + explicit filters={page=63}
+        # can collide cleanly when the effective search is identical, but stay
+        # disjoint from the unfiltered "X" search (T-08-11 cache-poisoning guard).
+        cache_key = {
+            "q": effective_query,
+            "top_k": req.top_k,
+            "filters": {**(req.filters or {}), **extraction.filters},
+            "tenant": tenant_id,
+        }
         cached = await cache_get("query", cache_key)
         if cached:
             cache_hit_total.labels(result="hit").inc()
             return GenerationResponse(**cached)
         cache_hit_total.labels(result="miss").inc()
 
+        # Merge order: tenant < client (req.filters) < extracted (highest priority).
         tf = self._tenant_svc.get_tenant_filter(tenant_id)
         if req.filters:
             tf = {**(tf or {}), **req.filters}
+        if extraction.filters:
+            tf = {**(tf or {}), **extraction.filters}
 
         # ── 动态 top_k：根据意图自动调整检索宽度 ────────────────────────────
         effective_top_k = self._nlu.recommend_top_k(nlu.intent, req.top_k)
@@ -431,10 +462,19 @@ class QueryPipeline:
         mem_ctx      = await self._memory.load_context(req.session_id, user_id, tenant_id, req.query)
         _MAX_TURN_CHARS = 2000
         chat_history = [{"role": t.role, "content": t.content[:_MAX_TURN_CHARS]} for t in mem_ctx.short_term[-6:]]
+
+        # QUERY-01 mirror of _run_query: extract filters → tf merge (extracted wins)
+        # → NLU runs against the stripped semantic query so rewritten_queries don't
+        # carry "第63页"-style literals into the embedder.
+        extraction = extract_filters(req.query)
+        effective_query = extraction.semantic_query
+
         tf           = self._tenant_svc.get_tenant_filter(tenant_id)
         if req.filters:
             tf = {**(tf or {}), **req.filters}
-        nlu = await self._nlu.analyze(req.query, self._llm, chat_history, tenant_id, user_id)
+        if extraction.filters:
+            tf = {**(tf or {}), **extraction.filters}
+        nlu = await self._nlu.analyze(effective_query, self._llm, chat_history, tenant_id, user_id)
 
         # 与 run() 保持一致：动态 top_k + long_term_context
         effective_top_k = self._nlu.recommend_top_k(nlu.intent, req.top_k)
@@ -584,9 +624,19 @@ class AgentQueryPipeline:
         mem_ctx      = await self._memory.load_context(req.session_id, user_id, tenant_id, req.query)
         _MAX_TURN_CHARS = 2000
         chat_history = [{"role": t.role, "content": t.content[:_MAX_TURN_CHARS]} for t in mem_ctx.short_term[-6:]]
+
+        # QUERY-01 mirror: extract filters from req.query so every tool-driven
+        # retrieve() call inherits the page/section scope via `tf`. Agent does
+        # not run NLU.analyze, so effective_query is not consumed here — req.query
+        # remains the raw initial user message (audit boundary; Claude still sees
+        # "第63页" so it can phrase tool queries naturally).
+        extraction = extract_filters(req.query)
+
         tf           = self._tenant_svc.get_tenant_filter(tenant_id)
         if req.filters:
             tf = {**(tf or {}), **req.filters}
+        if extraction.filters:
+            tf = {**(tf or {}), **extraction.filters}
 
         # 构建初始 messages（含对话历史）
         messages: list[dict] = []

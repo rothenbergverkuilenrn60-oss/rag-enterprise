@@ -5,6 +5,15 @@ import os
 import sys
 from pathlib import Path
 
+import pytest
+
+# RAGAS deps live in requirements-eval.txt (separate from base requirements.txt).
+# The unit-tests CI job installs only base + dev deps; skip these tests when the
+# RAGAS stack is unavailable. They run end-to-end in the dedicated `RAGAS Eval Gate`
+# CI job which does install requirements-eval.txt.
+pytest.importorskip("datasets", reason="RAGAS deps (requirements-eval.txt) not installed")
+pytest.importorskip("ragas", reason="RAGAS deps (requirements-eval.txt) not installed")
+
 os.environ.setdefault("APP_MODEL_DIR", "/tmp")
 os.environ.setdefault("SECRET_KEY", "a-very-secure-key-for-testing-that-is-long-32c")
 os.environ.setdefault("RAGAS_REPORT_DIR", "/tmp/eval_reports")
@@ -15,8 +24,12 @@ _SCRIPTS_DIR = str(Path(__file__).parent.parent.parent / "scripts")
 if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import (  # noqa: E402  # must follow sys.path bootstrap above
+    AsyncMock,
+    MagicMock,
+)
+
+import pytest  # noqa: E402  # must follow sys.path bootstrap above
 
 
 @pytest.mark.asyncio

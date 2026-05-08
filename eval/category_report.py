@@ -12,7 +12,6 @@ from typing import Any
 
 from eval.models import EvalReport, SingleEvalResult
 
-
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 分类聚合
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -115,7 +114,6 @@ _METRIC_LABELS = {
 def _score_bar(score: float | None, width: int = 120) -> str:
     if score is None:
         return '<span style="color:#9ca3af">N/A</span>'
-    pct = int(score * 100)
     color = "#16a34a" if score >= 0.75 else "#d97706" if score >= 0.5 else "#dc2626"
     bar_w = int(score * width)
     return (

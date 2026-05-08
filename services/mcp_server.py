@@ -23,6 +23,7 @@ from __future__ import annotations
 import asyncio
 import json
 from pathlib import Path
+
 import asyncpg
 import httpx
 import openai
@@ -32,9 +33,9 @@ from loguru import logger
 async def _run_server() -> None:
     """MCP Server 主函数（stdio 传输模式）。"""
     try:
+        from mcp import types
         from mcp.server import Server
         from mcp.server.stdio import stdio_server
-        from mcp import types
     except ImportError:
         raise RuntimeError(
             "MCP 依赖未安装。请运行：pip install mcp\n"
@@ -140,8 +141,9 @@ async def _tool_search(args: dict):
     """search_knowledge_base 实现：调用 HybridRetrieverService。"""
     try:
         from mcp import types as mcp_types
-        from services.retriever.retriever import get_retriever
+
         from services.generator.llm_client import get_llm_client
+        from services.retriever.retriever import get_retriever
 
         query     = args.get("query", "")
         top_k     = min(int(args.get("top_k", 6)), 20)
@@ -193,6 +195,7 @@ async def _tool_ingest(args: dict):
     """ingest_document 实现：调用 IngestionPipeline。"""
     try:
         from mcp import types as mcp_types
+
         from services.pipeline import get_ingest_pipeline
         from utils.models import IngestionRequest
 
@@ -236,8 +239,9 @@ async def _tool_stats():
     """get_knowledge_stats 实现。"""
     try:
         from mcp import types as mcp_types
-        from services.vectorizer.vector_store import get_vector_store
+
         from config.settings import settings
+        from services.vectorizer.vector_store import get_vector_store
 
         store = get_vector_store()
         count = await store.count()

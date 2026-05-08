@@ -264,7 +264,7 @@ class SummaryIndexer:
             await vector_store.create_collection()
 
             # 将摘要封装为 DocumentChunk 写入（复用 upsert 接口）
-            from utils.models import DocumentChunk, ChunkMetadata
+            from utils.models import ChunkMetadata, DocumentChunk
             pseudo_chunks: list[DocumentChunk] = []
             for entry in entries:
                 # chunk_ids 列表编码进 tags，检索结果解析时展开

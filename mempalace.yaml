@@ -1,0 +1,65 @@
+wing: rag_enterprise
+rooms:
+- name: testing
+  description: Files from tests/
+  keywords:
+  - testing
+  - tests
+- name: logs
+  description: Files from logs/
+  keywords:
+  - logs
+  - logs
+- name: docker
+  description: Files from docker/
+  keywords:
+  - docker
+  - docker
+- name: documentation
+  description: Files from docs/
+  keywords:
+  - documentation
+  - docs
+- name: backend
+  description: Files from services/
+  keywords:
+  - backend
+  - services
+- name: scripts
+  description: Files from utils/
+  keywords:
+  - scripts
+  - utils
+- name: eval
+  description: Files from eval/
+  keywords:
+  - eval
+  - eval
+- name: configuration
+  description: Files from config/
+  keywords:
+  - configuration
+  - config
+- name: data
+  description: Files from data/
+  keywords:
+  - data
+  - data
+- name: k8s
+  description: Files from k8s/
+  keywords:
+  - k8s
+  - k8s
+- name: cache
+  description: Files from cache/
+  keywords:
+  - cache
+  - cache
+- name: research
+  description: Files from research/
+  keywords:
+  - research
+  - research
+- name: general
+  description: Files that don't fit other rooms
+  keywords: []

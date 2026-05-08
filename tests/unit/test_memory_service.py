@@ -9,10 +9,10 @@ import os
 os.environ.setdefault("APP_MODEL_DIR", "/tmp")
 os.environ.setdefault("SECRET_KEY", "a-very-secure-key-for-testing-that-is-long-32c")
 
+
+import fakeredis
 import pytest
 import pytest_asyncio
-import fakeredis
-from unittest.mock import AsyncMock, MagicMock
 
 
 @pytest_asyncio.fixture
@@ -32,7 +32,7 @@ def reset_memory_singleton(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_short_term_memory_append_and_get(fake_redis, monkeypatch):
-    from services.memory.memory_service import ShortTermMemory, ConversationTurn
+    from services.memory.memory_service import ConversationTurn, ShortTermMemory
 
     mem = ShortTermMemory()
     monkeypatch.setattr(mem, "_client", fake_redis)
@@ -48,7 +48,7 @@ async def test_short_term_memory_append_and_get(fake_redis, monkeypatch):
 @pytest.mark.asyncio
 async def test_short_term_memory_window_truncation(fake_redis, monkeypatch):
     """get_history with max_turns=3 only returns the last 6 items (3 turns * 2)."""
-    from services.memory.memory_service import ShortTermMemory, ConversationTurn
+    from services.memory.memory_service import ConversationTurn, ShortTermMemory
 
     mem = ShortTermMemory()
     monkeypatch.setattr(mem, "_client", fake_redis)

@@ -4,22 +4,23 @@
 # 流程：查询改写(HyDE/Multi-Query) → 密集检索 → 稀疏BM25 → RRF融合 → Cross-Encoder重排
 # =============================================================================
 from __future__ import annotations
+
 import asyncio
 import time
 from collections import defaultdict
-from loguru import logger
-from tenacity import retry, stop_after_attempt, wait_random_exponential
+
 import asyncpg
 import httpx
+from loguru import logger
 
 from config.settings import settings
-from utils.models import RetrievedChunk, ChunkMetadata, DocType
+from services.vectorizer.embedder import get_embedder
+from services.vectorizer.indexer import get_bm25_index
+from services.vectorizer.vector_store import VectorSearchResult, get_vector_store
 from utils.logger import log_latency
 from utils.metrics import retrieval_latency_seconds
+from utils.models import ChunkMetadata, DocType, RetrievedChunk
 from utils.observability import start_span
-from services.vectorizer.embedder import get_embedder
-from services.vectorizer.vector_store import get_vector_store, VectorSearchResult
-from services.vectorizer.indexer import get_bm25_index
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -80,8 +81,8 @@ def adaptive_rrf_fusion(
 # ══════════════════════════════════════════════════════════════════════════════
 class CrossEncoderReranker:
     def __init__(self) -> None:
-        from sentence_transformers import CrossEncoder
         import torch
+        from sentence_transformers import CrossEncoder
         device = "cuda" if torch.cuda.is_available() else "cpu"
         self._model = CrossEncoder(
             str(settings.reranker_model_path),

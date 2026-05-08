@@ -61,6 +61,49 @@ async def ingest_task(ctx: dict[str, Any], req_data: dict[str, Any]) -> dict[str
     }
 
 
+async def on_startup(ctx: dict[str, Any]) -> None:
+    """Pre-warm the OCR singleton — Phase 7 OCR-02 acceptance #4.
+
+    First call to PP-StructureV3() loads ~600MB-1.2GB of model weights and
+    takes 5–15s on CPU. Doing it here pays the latency tax once on worker boot
+    instead of on the first user-triggered ingest job.
+
+    Behaviour matrix:
+
+    +-----------------------------+-------------------------------------------+
+    | settings.ocr_engine         | Action                                    |
+    +-----------------------------+-------------------------------------------+
+    | "auto" / "paddle"           | Call ocr_engine._paddle_pipeline() to     |
+    |                             | materialise the singleton.                |
+    | "tesseract" / "none"        | Skip — engine never gets used.            |
+    | (paddleocr not installed)   | Catch ImportError, log warning, continue. |
+    | (any other warmup failure)  | Catch, log, continue (see ERR-01 note).   |
+    +-----------------------------+-------------------------------------------+
+    """
+    engine = (settings.ocr_engine or "auto").lower()
+    if engine in ("tesseract", "none"):
+        logger.info(f"[Worker:startup] ocr_engine={engine}, skipping OCR pre-warm")
+        return
+
+    try:
+        from services.extractor.ocr_engine import _paddle_pipeline
+        logger.info("[Worker:startup] pre-warming PP-StructureV3 singleton…")
+        _paddle_pipeline()
+        logger.info("[Worker:startup] PP-StructureV3 singleton ready")
+    except ImportError:
+        logger.warning(
+            "[Worker:startup] paddleocr not installed; "
+            "auto path will fall back to Tesseract at request time"
+        )
+    except Exception as exc:
+        # ERR-01 EXEMPTION: this is the documented exception. A failed pre-warm
+        # must not block worker boot — the first real OCR call will re-raise
+        # cleanly through the normal path. Without this catch, a transient
+        # init failure would leave the worker permanently down. The error is
+        # logged in full (not silently swallowed) so the operator sees it.
+        logger.warning(f"[Worker:startup] OCR pre-warm failed: {exc!r}")
+
+
 class WorkerSettings:
     """ARQ WorkerSettings — entry point for `arq services.ingest_worker.WorkerSettings`."""
 
@@ -70,3 +113,4 @@ class WorkerSettings:
     keep_result_forever = False
     job_timeout = settings.arq_job_timeout       # 300s
     max_jobs = 10
+    on_startup = on_startup                      # Phase 7 OCR-02 #4 pre-warm

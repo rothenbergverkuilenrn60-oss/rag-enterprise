@@ -1,106 +1,97 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: milestone
-status: complete
-stopped_at: "Milestone v1.0 shipped — pushed to origin/master (366d35d)"
-last_updated: "2026-04-27T10:30:00Z"
+milestone: v1.2
+milestone_name: Agentic Layer + Swarm
+status: planning
+stopped_at: v1.1 archived; v1.2 requirements pending
+last_updated: "2026-05-08T19:00:00.000Z"
 progress:
-  total_phases: 6
-  completed_phases: 6
-  total_plans: 20
-  completed_plans: 20
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
-# STATE — EnterpriseRAG Hardening
+# STATE — EnterpriseRAG v1.2 Agentic Layer + Swarm
 
 ## Project Reference
 
 **Core value:** Every query returns a grounded, auditable answer — no hallucinations, no silent failures, no security gaps.
-**Current focus:** Phase --phase — 04
+**Current focus:** Defining v1.2 requirements
 
 ## Current Position
 
-Phase: 5
-Plan: Not started
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-05-08 — Milestone v1.2 started; v1.1 archived + tagged
+
 | Field | Value |
 |-------|-------|
-| Milestone | v1 Hardening |
-| Current phase | 6 — Test Coverage and Eval |
-| Current plan | All plans complete (06-01, 06-02, 06-03) |
-| Phase status | Execution complete — pending verification |
-| Overall progress | 6/6 phases executed |
-
-```
-Progress: [##########] 100%
-```
+| Milestone | v1.2 Agentic Layer + Swarm |
+| Current phase | — |
+| Current plan | — |
+| Phase status | — |
+| Overall progress | 0/0 phases (v1.2 not yet roadmapped) |
 
 ## Phase Overview
 
-| Phase | Status |
-|-------|--------|
-| 1. pgvector Foundation | Complete ✓ |
-| 2. Security Hardening + Operational Fixes | Complete ✓ |
-| 3. Error Handling Sweep | Complete ✓ |
-| 4. Image Extraction | Complete ✓ |
-| 5. Async Ingest Tracking | Complete ✓ |
-| 6. Test Coverage and Eval | Complete ✓ |
-
-## Performance Metrics
-
-| Metric | Value |
-|--------|-------|
-| Phases completed | 6/6 (execution complete) |
-| Requirements complete | 20/22 (PG-01–05, SEC-01–04, OPS-01–02, ERR-01–02, IMG-01–04, TEST-01, TEST-02, TEST-03) |
-| Plans executed | 18 |
+(empty — run `/gsd-new-milestone v1.2` to define requirements + roadmap)
 
 ## Accumulated Context
 
-### Key Decisions Logged
+### Carry-Forward from v1.1 (key decisions still in force)
 
-| Decision | Rationale |
-|----------|-----------|
-| pgvector over Qdrant | Consolidates on PostgreSQL; eliminates external Qdrant dependency |
-| HNSW index | IVFFlat degrades on incremental inserts; HNSW handles continuous ingest |
-| Single table + PostgreSQL RLS | DB-level tenant enforcement; misconfiguration cannot leak data |
-| Caption-then-embed for images | Keeps vector space uniform; CLIP available as zero-cost fallback |
-| ARQ for async task queue | Retry + crash persistence; same Redis already in stack; zero new infra |
-| PII blocking before chunking (Stage 3) | PII split across chunk boundaries becomes undetectable |
-| JWT startup entropy check + denylist | Missing/weak secret = crash at boot, not silent runtime failure |
-| PyMuPDF AGPL | Proceed; licensing handled separately by team |
-| D-06 exemption (3x except Exception: pass in main.py) | Shutdown-flush blocks; silencing errors at teardown is intentional |
+| Decision | Source | Why it matters in v1.2 |
+|----------|--------|------------------------|
+| PostgreSQL + pgvector backend with HNSW + RLS | v1.0 | All v1.2 retrieval work runs on this stack |
+| Section heading text in embedded content; numeric IDs in metadata only | v1.1 Phase 8 D-02 | Any new chunker work must preserve this rule |
+| `hnsw.iterative_scan = strict_order` + `ef_search` GUC pattern when filter active | v1.1 Phase 8 | Pattern to reuse for any new filtered queries |
+| Regex-first filter extractor in `services/nlu/filter_extractor.py` | v1.1 Phase 8 QUERY-01 | LLM fallback is on v1.2 candidate list — extends this module |
+| FastAPI StaticFiles mount at `/ui/` | v1.1 Phase 9 UI-01 | Frontend assets live in `static/` |
+| `static/index.html → ui.html` symlink | v1.1 Phase 9 deviation | If JS/CSS extracted in v1.2, preserve this approach |
+| `diff-cover ≥ 80%` gate on v1.1+ files | v1.1 Phase 10 TEST-03 | All v1.2 PRs MUST pass this gate |
 
-### Pitfalls to Avoid
+### v1.2 Candidate Themes (captured during v1.1, awaiting prioritization)
 
-- IVFFlat index — recall degrades with incremental inserts; use HNSW; set `work_mem='256MB'`
-- Tenant data leakage — enforce RLS at vector store level, not only at API layer
-- asyncio silent drops — always attach `add_done_callback` to every `create_task()`
-- slowapi middleware-only — `@limiter.limit()` decorator required per-route; middleware is LIFO
-- Singleton leakage in tests — call `cache_clear()` in teardown after `dependency_overrides.clear()`
-- HNSW vector UPDATE — always DELETE + INSERT; schedule periodic `REINDEX`
-- Eval contamination — never generate QA pairs from documents in the retrieval index; 20% holdout first
+1. **Provider-agnostic agentic layer** — `BaseLLMClient.call_agentic_turn` abstract method. Closes the OpenAI/Anthropic gap in `AgentQueryPipeline` (currently OpenAI silently falls back to non-agentic via `services/pipeline.py:599-604`). Office-hours design APPROVED 2026-05-08.
+2. **Parallel tool-call burst** (single-turn multi-call) — README differentiator; uses `parallel_tool_calls=True` (OpenAI) / `disable_parallel_tool_use=False` (Anthropic). OpenAI probe verified working through OneAPI gateway.
+3. **True swarm with fork agents** — references `claude-code` `forkedAgent.ts` pattern; deeper architectural change.
+4. **LLM-based filter extractor** (fallback when regex misses) — extends `services/nlu/filter_extractor.py`.
+5. **Frontend modernization** (JS/CSS extraction; DOM API rewrites; potentially React/Vue/build step).
+6. **Integration-test coverage merging** via `coverage combine` — extends Phase 10 gate to integration paths.
+7. **Per-file `# coverage:ignore-diff` overrides** — escape hatch if main.py-style boot becomes recurring blocker.
+8. **Raising legacy 46% global coverage floor**.
 
-### Open Questions
+### Open Questions (v1.2)
 
-1. PyMuPDF commercial license — needed for enterprise on-premise before shipping image extraction?
-2. ARQ worker process (separate Docker service) vs. `asyncio.create_task + Redis` — ops overhead decision
-3. LLM captioning cost at ingest scale — per-document budget, or CLIP as default? *(D-03/D-04 mitigate: skip on failure, cap at 50/doc)*
-4. Eval holdout set — 20% of current documents available, or entirely synthetic bootstrap needed?
-5. asyncpg pool compatibility with RLS — `app.current_tenant` must be set per-connection; verify against current pool config
+1. Which v1.2 candidate themes ship together vs separate? (office-hours design proposed: Step 0 + v0 in one milestone, v1 swarm in next)
+2. Anthropic API key availability — Step 0 abstraction must work for both providers but live test only via OpenAI without key.
+3. Migration plan for existing `agent_mode: bool = False` field in `utils/models.py:215` (currently dead code in OpenAI mode).
+4. Should `services/pipeline.py:599-604` Anthropic-only gate be removed in Step 0 PR or in a follow-up?
+
+### Pitfalls to Carry into v1.2
+
+- `BaseLLMClient` abstraction must NOT leak provider-specific tool-call wire formats into call sites (`AgentQueryPipeline`)
+- `parallel_tool_calls=True` is OpenAI default but must be EXPLICIT in Anthropic adapter (`disable_parallel_tool_use=False`)
+- Worktree `isolation="worktree"` workflow has been used 4 phases without incident — keep this pattern for v1.2
 
 ### Blockers
 
 None.
 
-### Todos
+### Todos (carry-forward, not v1.2-scoped but tracked)
 
-- Plan Phase 5: `/gsd-plan-phase 5`
+- [ ] asyncpg pool + RLS: verify `app.current_tenant` per-connection in production pool
+- [ ] PyMuPDF AGPL license: resolve commercial licensing for on-premise deployments
+- [ ] Phase 9 visual diff vs v1.0 + Docker live build (deferred to first deploy)
+- [ ] Phase 10 live PR through CI confirms `coverage-diff` step + HTML artifact (natural confirmation on first PR)
+- [ ] Push tag `v1.1` to origin (currently local-only)
+- [ ] PR #1 review + merge
 
 ## Session Continuity
 
-**Last updated:** 2026-04-27 — Phase 6 Plan 01 complete (25 unit tests added, TEST-01 partially satisfied)
-**Stopped at:** Completed 06-01-PLAN.md — 25 tests added across 5 service modules
-**Next action:** Execute Phase 6 Plan 02 (`/gsd-execute-phase 6`)
-
-**Planned Phase:** 6 (Test Coverage and Eval) — 3 plans — 2026-04-27T08:09:59.013Z
+**Last updated:** 2026-05-08 — v1.1 milestone archived; v1.1 git tag created locally
+**Stopped at:** v1.1 archived; v1.2 requirements pending
+**Next action:** Run `/gsd-new-milestone v1.2` (resume) to define requirements + roadmap from office-hours design + carry-forward themes

@@ -11,8 +11,6 @@ os.environ.setdefault("RAGAS_EVAL_DATASET", "/tmp/qa_pairs_placeholder.json")
 
 from pathlib import Path
 
-import pytest
-
 REPO_ROOT = Path(__file__).parent.parent.parent
 QA_PAIRS_PATH = REPO_ROOT / "eval" / "datasets" / "qa_pairs.json"
 HOLDOUT_MANIFEST_PATH = REPO_ROOT / "eval" / "datasets" / "holdout_manifest.json"

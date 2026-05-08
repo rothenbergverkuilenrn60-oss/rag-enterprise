@@ -4,9 +4,11 @@
 # 路径基准: /mnt/f/  (WSL2 镜像模式 + F盘物理隔离)
 # =============================================================================
 from __future__ import annotations
+
 import os
 from pathlib import Path
 from typing import Literal
+
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -138,6 +140,12 @@ class Settings(BaseSettings):
     #   "none"      → 禁用 OCR，扫描件跳过不处理（返回空文本）
     ocr_engine:          Literal["auto", "paddle", "tesseract", "none"] = "auto"
     extractor_ocr_lang:  str  = "chi_sim+eng"   # Tesseract 语言包
+    # OCR-02: bounded concurrency + timeout for PP-StructureV3 calls.
+    # Default 2 chosen because paddlepaddle CPU build uses all cores for matmul;
+    # >2 concurrent OCR calls cause thrashing on typical 4–8 core hosts even when
+    # WorkerSettings.max_jobs=10. Operators may raise via OCR_CONCURRENCY env var.
+    ocr_concurrency:     int  = 2
+    ocr_timeout_sec:     int  = 120     # Hard timeout per PDF; tenacity retries once on hit.
     extractor_table_extract:  bool = True        # 用 pdfplumber 单独提取表格结构
     extractor_image_extract:  bool = False       # 提取图片（暂未实现，留作扩展）
     extractor_max_workers:    int  = 4           # PDF 并行解析线程数
@@ -232,6 +240,7 @@ class Settings(BaseSettings):
     # ══════════════════════════════════════════════════════════════════════════
     top_k_dense:  int   = 20    # 向量检索返回候选数
     top_k_sparse: int   = 20    # BM25 返回候选数
+    pgvector_ef_search_filtered: int = 200    # hnsw.ef_search for filtered queries (REQ A-4)
     top_k_rerank: int   = 6     # Cross-Encoder 精排后最终返回数（送给 LLM 的块数）
     rrf_k:        int   = 60    # RRF 融合参数，行业默认值，无需修改
 
@@ -394,9 +403,9 @@ class Settings(BaseSettings):
         secret = self.secret_key
         if len(secret) < 32:
             raise ValueError(
-                f"secret_key must be at least 32 characters. "
-                f"Run: python -c \"import secrets; print(secrets.token_hex(32))\" "
-                f"and set SECRET_KEY env var. Server will not start."
+                "secret_key must be at least 32 characters. "
+                "Run: python -c \"import secrets; print(secrets.token_hex(32))\" "
+                "and set SECRET_KEY env var. Server will not start."
             )
         # Repeated-character check: all same char = weak regardless of denylist
         if len(set(secret)) == 1:

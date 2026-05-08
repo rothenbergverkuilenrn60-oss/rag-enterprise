@@ -17,13 +17,13 @@ from __future__ import annotations
 
 import hashlib
 import json
-import math
 import time
 import uuid
 from dataclasses import asdict, dataclass, field
 from enum import Enum
-from loguru import logger
 from typing import Any
+
+from loguru import logger
 
 
 class ExperimentStatus(str, Enum):

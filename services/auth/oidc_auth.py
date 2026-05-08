@@ -15,11 +15,12 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 from typing import Any
-from loguru import logger
+
 import httpx
-from jose import JWTError
 from fastapi import Depends, HTTPException
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jose import JWTError
+from loguru import logger
 
 from config.settings import settings
 

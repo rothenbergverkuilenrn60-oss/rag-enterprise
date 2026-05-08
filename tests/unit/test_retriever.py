@@ -3,10 +3,11 @@
 # 单元测试 — STAGE 5 检索（RRF 融合 + 忠实度评估）
 # =============================================================================
 import pytest
-from services.retriever.retriever import rrf_fusion, _to_retrieved_chunk
+
 from services.generator.generator import estimate_faithfulness
+from services.retriever.retriever import _to_retrieved_chunk, rrf_fusion
 from services.vectorizer.vector_store import VectorSearchResult
-from utils.models import RetrievedChunk, ChunkMetadata, DocType
+from utils.models import ChunkMetadata, DocType, RetrievedChunk
 
 
 # ══════════════════════════════════════════════════════════════════════════════
