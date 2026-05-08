@@ -6,18 +6,24 @@ EnterpriseRAG is a production-grade Retrieval-Augmented Generation platform buil
 
 v1.0 Hardening shipped: the system now runs on PostgreSQL+pgvector (no Qdrant), enforces JWT/PII/rate-limit security at startup, surfaces all exceptions through structured logging, extracts and indexes PDF-embedded images, supports async ingest with job status polling, and has 263 unit tests with a RAGAS eval gate.
 
-v1.1 Retrieval Depth & Frontend (active): closes the image-only-PDF retrieval gap (PP-StructureV3 OCR + section-aware metadata + page/section query filter), extracts the inline UI to a static asset served via FastAPI StaticFiles, and adds a diff-coverage gate that holds new code at ≥ 80% without blocking on legacy.
+v1.1 Retrieval Depth & Frontend shipped: closed the image-only-PDF retrieval gap (PP-StructureV3 OCR + section-aware metadata + page/section query filter), extracted the inline UI to a static asset served via FastAPI StaticFiles, and added a diff-coverage gate that holds new code at ≥ 80% without blocking on legacy.
 
-## Current Milestone: v1.1 Retrieval Depth & Frontend
+## Current State
 
-**Status:** in_progress (roadmap drafted 2026-04-27)
-**Phases:** 7–10 (4 phases, 7 requirements)
-**Driver:** post-v1.0 discovery — `data/raw/GB4785-2019.pdf` (image-only PDF) returns wrong sources for "第N页" / section-scoped queries because captions don't carry page/section context
+- ✅ **v1.0 Hardening** shipped 2026-04-27 — [archive](milestones/v1.0-ROADMAP.md)
+- ✅ **v1.1 Retrieval Depth & Frontend** shipped 2026-05-08 — [archive](milestones/v1.1-ROADMAP.md)
 
-**Tracks:**
-- A. Image PDF Retrieval Depth (Phase 7 OCR + Phase 8 metadata/filter) — REQ A-1..A-5
-- B. Frontend Separation (Phase 9) — REQ B-1
-- C. Coverage Gate on New Code (Phase 10) — REQ C-1
+## Next Milestone: v1.2 (pending requirements)
+
+**Status:** not started — run `/gsd-new-milestone v1.2` to define requirements
+
+**Candidate themes** (captured during v1.1, awaiting prioritization):
+- Provider-agnostic agentic layer (`BaseLLMClient.call_agentic_turn` abstraction) — closes the OpenAI/Anthropic gap in `AgentQueryPipeline` (currently OpenAI silently falls back to non-agentic). Office-hours design APPROVED 2026-05-08.
+- Parallel tool-call burst (single-turn multi-call) — README differentiator; reuses `parallel_tool_calls=True` (OpenAI) / `disable_parallel_tool_use=False` (Anthropic).
+- True swarm with fork agents — references `claude-code` `forkedAgent.ts` pattern; deeper architectural change.
+- LLM-based filter extractor (fallback when regex misses).
+- Frontend modernization (JS/CSS extraction; DOM API rewrites).
+- Integration-test coverage merging via `coverage combine`.
 
 ## Core Value
 
@@ -57,19 +63,24 @@ Every query returns a grounded, auditable answer — no hallucinations, no silen
 - ✓ 200 stratified RAGAS QA pairs with holdout discipline; CI eval gate — v1.0
 - ✓ APP_MODEL_DIR required env var; Rule.check() enforced at class definition — v1.0
 
-### Active (v1.1)
+**v1.1 Retrieval Depth & Frontend**
+- ✓ PP-StructureV3 layout-aware OCR for scanned PDFs (OCR-01) — v1.1
+- ✓ Async-safe OCR with bounded concurrency + Docker-baked models (OCR-02) — v1.1
+- ✓ Section-heading enrichment in chunk content; `section_id`/`section_title` in metadata (META-01) — v1.1
+- ✓ pgvector JSONB filter retrieval with HNSW iterative_scan + GUCs + B-tree expression indexes (META-02) — v1.1
+- ✓ Regex-first Chinese query filter extractor for `第N页` / `第N.M节` (QUERY-01) — v1.1
+- ✓ Inline `_UI_HTML` extracted to `static/ui.html`, served via FastAPI StaticFiles mount (UI-01) — v1.1
+- ✓ `diff-cover` ≥ 80% gate on v1.1-touched files; legacy 46% floor preserved as informational (TEST-03) — v1.1
 
-- [ ] OCR-01: PP-StructureV3 layout-aware OCR for scanned PDFs (Phase 7)
-- [ ] OCR-02: async-safe OCR with bounded concurrency and baked models (Phase 7)
-- [ ] META-01: section-heading enrichment in chunk content; structured IDs in metadata (Phase 8)
-- [ ] META-02: pgvector metadata-filter retrieval with iterative scan (Phase 8)
-- [ ] QUERY-01: regex-first query-side filter extractor for "第N页" / "第N.M节" (Phase 8)
-- [ ] UI-01: extract inline HTML to `static/ui.html`, serve via FastAPI StaticFiles (Phase 9)
-- [ ] TEST-03: diff-coverage gate ≥ 80% on v1.1-touched files (Phase 10)
+### Active
 
-**Carried over (not v1.1-scoped, still tracked):**
+(none — v1.2 requirements pending; run `/gsd-new-milestone v1.2`)
+
+**Carried over (not milestone-scoped, still tracked):**
 - [ ] asyncpg pool + RLS: verify `app.current_tenant` per-connection in production pool
 - [ ] PyMuPDF AGPL license: resolve commercial licensing for on-premise deployments
+- [ ] Phase 9 visual diff vs v1.0 + Docker live build (deferred to first deploy)
+- [ ] Phase 10 live PR through CI confirms `coverage-diff` step + HTML artifact (natural confirmation on first PR)
 
 ### Out of Scope
 
@@ -116,13 +127,15 @@ Every query returns a grounded, auditable answer — no hallucinations, no silen
 | PyMuPDF AGPL | Proceed; licensing handled separately by team | ⚠ Revisit — commercial license needed for on-premise |
 | CI coverage floor at 46% | 80% target unrealistic with current test suite; guards regression | ⚠ Revisit — raise in v1.1 |
 | RAGAS eval gate (main-branch only) | Avoid API budget burn on every PR; gpt-4o-mini keeps cost low | ✓ Good |
-| PP-StructureV3 over raw PP-OCRv5 (v1.1) | Layout + table + reading-order recovery in one pipeline; right granularity for GB national-standard PDFs | Pending — Phase 7 |
-| Bake OCR models into Docker image (v1.1) | Cold-start download is 10–60s and flaky behind enterprise proxies; image size delta acceptable | Pending — Phase 7 |
-| Section heading text in embedded content; numeric IDs in metadata only (v1.1) | High-cardinality numerics (page_number) dilute embeddings; heading words help recall | Pending — Phase 8 |
-| pgvector `hnsw.iterative_scan = relaxed_order` + raised `ef_search` when filter active (v1.1) | Default post-filter recall collapses on selective filters; iterative scan keeps walking HNSW until k matches found | Pending — Phase 8 |
-| Regex-first query filter extractor, no LLM (v1.1) | 100% deterministic, zero per-query cost; LLM fallback deferred to v1.2 | Pending — Phase 8 |
-| Static HTML via FastAPI StaticFiles, no bundler (v1.1) | v1.1 ceiling is "edit like a normal frontend file" — no React/Vue/build step | Pending — Phase 9 |
-| Diff-cover gate on touched files only (v1.1) | Legacy 46% floor stays as informational; v1.1 does not block on legacy code | Pending — Phase 10 |
+| PP-StructureV3 over raw PP-OCRv5 (v1.1) | Layout + table + reading-order recovery in one pipeline; right granularity for GB national-standard PDFs | ✓ Good — Phase 7 |
+| Bake OCR models into Docker image (v1.1) | Cold-start download is 10–60s and flaky behind enterprise proxies; image size delta acceptable | ✓ Good — Phase 7 |
+| Section heading text in embedded content; numeric IDs in metadata only (v1.1) | High-cardinality numerics (page_number) dilute embeddings; heading words help recall | ✓ Good — Phase 8 D-02 |
+| pgvector `hnsw.iterative_scan = strict_order` + raised `ef_search` when filter active (v1.1) | Default post-filter recall collapses on selective filters; iterative scan keeps walking HNSW until k matches found | ✓ Good — Phase 8 |
+| Regex-first query filter extractor, no LLM (v1.1) | 100% deterministic, zero per-query cost; LLM fallback deferred to v1.2 | ✓ Good — Phase 8 |
+| Static HTML via FastAPI StaticFiles, no bundler (v1.1) | v1.1 ceiling is "edit like a normal frontend file" — no React/Vue/build step | ✓ Good — Phase 9 |
+| `static/index.html → ui.html` symlink (v1.1) | `StaticFiles(html=True)` looks for `index.html`; symlink preserves SC #1 file-name AND makes SC #2 work | ✓ Good — Phase 9 (deviation surfaced at executor checkpoint) |
+| Diff-cover gate on touched files only (v1.1) | Legacy 46% floor stays as informational; v1.1 does not block on legacy code | ✓ Good — Phase 10 |
+| CI vs `v1.0` tag, local vs `origin/master` (v1.1) | REQ baseline-vs-milestone-delta in CI; SC dev-loop ref locally; each ref serves its written use case | ✓ Good — Phase 10 D-01/D-02 split |
 
 ## Evolution
 
@@ -140,4 +153,4 @@ Every query returns a grounded, auditable answer — no hallucinations, no silen
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-27 — v1.1 milestone initiated (Retrieval Depth & Frontend)*
+*Last updated: 2026-05-08 — v1.1 milestone shipped (Retrieval Depth & Frontend); v1.2 pending requirements*
