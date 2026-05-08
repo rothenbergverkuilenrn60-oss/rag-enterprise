@@ -13,12 +13,16 @@
 # =============================================================================
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import time
 import uuid
 from pathlib import Path
-from typing import AsyncGenerator
+from typing import Any, AsyncGenerator
 
+import anthropic                                          # noqa: F401 — referenced in narrow except in AgentQueryPipeline.run
+import httpx                                              # noqa: F401 — referenced in narrow except in AgentQueryPipeline.run
+import openai                                             # noqa: F401 — referenced in narrow except in AgentQueryPipeline.run
 from loguru import logger
 
 from config.settings import settings
@@ -62,6 +66,7 @@ from utils.metrics import (
     rule_trigger_total,
 )
 from utils.models import (
+    AgenticTurn,
     DocType,
     GenerationRequest,
     GenerationResponse,
@@ -69,6 +74,7 @@ from utils.models import (
     IngestionResponse,
     RawDocument,
     RetrievedChunk,
+    ToolCall,
 )
 from utils.observability import start_span
 
@@ -608,127 +614,149 @@ class AgentQueryPipeline:
         self._tenant_svc = get_tenant_service()
 
     async def run(self, req: GenerationRequest) -> GenerationResponse:
-        from services.generator.llm_client import AnthropicLLMClient
-
-        # Agent 模式要求 Anthropic LLM（Tool Use 原生支持）
-        if not isinstance(self._llm, AnthropicLLMClient):
-            logger.warning("[Agent] Non-Anthropic provider, falling back to QueryPipeline")
-            return await get_query_pipeline().run(req)
-
-        import anthropic
         trace_id  = str(uuid.uuid4())[:8]
         tenant_id = getattr(req, "tenant_id", "")
         user_id   = getattr(req, "user_id",   "")
         t0        = time.perf_counter()
 
-        mem_ctx      = await self._memory.load_context(req.session_id, user_id, tenant_id, req.query)
-        _MAX_TURN_CHARS = 2000
-        chat_history = [{"role": t.role, "content": t.content[:_MAX_TURN_CHARS]} for t in mem_ctx.short_term[-6:]]
-
-        # QUERY-01 mirror: extract filters from req.query so every tool-driven
-        # retrieve() call inherits the page/section scope via `tf`. Agent does
-        # not run NLU.analyze, so effective_query is not consumed here — req.query
-        # remains the raw initial user message (audit boundary; Claude still sees
-        # "第63页" so it can phrase tool queries naturally).
+        # v1.1 QUERY-01 carry-forward: extract filters from raw query so every
+        # tool-driven retrieve() call inherits page/section scope via `tf`.
+        # Agent does not run NLU.analyze; req.query stays as raw user input.
         extraction = extract_filters(req.query)
 
-        tf           = self._tenant_svc.get_tenant_filter(tenant_id)
+        tf = self._tenant_svc.get_tenant_filter(tenant_id)
         if req.filters:
             tf = {**(tf or {}), **req.filters}
         if extraction.filters:
             tf = {**(tf or {}), **extraction.filters}
 
-        # 构建初始 messages（含对话历史）
-        messages: list[dict] = []
-        for turn in chat_history:
-            messages.append({"role": turn["role"], "content": turn["content"]})
+        # 短期对话历史
+        mem_ctx = await self._memory.load_context(req.session_id, user_id, tenant_id, req.query)
+        _MAX_TURN_CHARS = 2000
+        chat_history = [
+            {"role": t.role, "content": t.content[:_MAX_TURN_CHARS]}
+            for t in mem_ctx.short_term[-6:]
+        ]
+
+        messages: list[dict[str, Any]] = []
+        for turn_msg in chat_history:
+            messages.append({"role": turn_msg["role"], "content": turn_msg["content"]})
         messages.append({"role": "user", "content": req.query})
 
         all_chunks: list[RetrievedChunk] = []
         answer = ""
+        parallelism_factors: list[int] = []   # one entry per turn that issued tool calls
 
-        from services.generator.llm_client import _report_usage
         for iteration in range(self.MAX_ITERATIONS):
             try:
-                resp = await self._llm._client.messages.create(
-                    model=self._llm._default_model,
-                    max_tokens=settings.llm_max_tokens,
-                    system=self._llm._cached_system(self._AGENT_SYSTEM),
-                    tools=self._AGENT_TOOLS,
+                turn: AgenticTurn = await self._llm.call_agentic_turn(
                     messages=messages,
+                    tools=self._AGENT_TOOLS,
+                    system=self._AGENT_SYSTEM,
+                    max_tokens=settings.llm_max_tokens,
+                    parallel_tool_calls=True,
                 )
-            except anthropic.APIError as exc:
-                logger.error("[Agent] Anthropic API error", iteration=iteration + 1, exc_info=exc)
+            except NotImplementedError:
+                # D-03: provider doesn't support agent_mode (e.g. Ollama in v1.2).
+                # Fall back to fixed pipeline; preserves user-visible behavior of
+                # the deleted Anthropic-only gate without Anthropic-specific code.
+                logger.warning(
+                    f"[Agent] provider lacks call_agentic_turn — falling back: "
+                    f"provider={type(self._llm).__name__}"
+                )
+                return await get_query_pipeline().run(req)
+            except (
+                anthropic.APIError,
+                openai.APIError,
+                httpx.HTTPError,
+                asyncio.TimeoutError,
+            ) as exc:
+                # B-1: NARROW provider-error tuple per project ERR-01 rule
+                # (CLAUDE.md). Catches provider rate-limit/API errors,
+                # transport-level HTTP failures, and async timeouts. Does NOT
+                # catch generic Exception — internal bugs (KeyError, etc.) bubble.
+                logger.error(f"[Agent] call_agentic_turn failed iter={iteration+1}: {exc!r}")
                 answer = "抱歉，智能助手在处理您的请求时遇到了错误，请稍后重试。"
                 break
-            _report_usage(resp, "anthropic", model=self._llm._default_model)
 
-            if resp.stop_reason == "end_turn":
-                # Claude 已有足够信息，提取最终答案
-                answer = " ".join(
-                    b.text for b in resp.content if b.type == "text"
-                )
-                break
-
-            if resp.stop_reason != "tool_use":
-                answer = " ".join(b.text for b in resp.content if b.type == "text")
-                break
-
-            # 处理工具调用
-            messages.append({"role": "assistant", "content": resp.content})
-            tool_results: list[dict] = []
-
-            for block in resp.content:
-                if block.type != "tool_use":
-                    continue
-                tool_input = block.input
-                query_str  = tool_input.get("query") or tool_input.get("refined_query", req.query)
-                top_k      = min(int(tool_input.get("top_k", 5)), 10)
-                src_filter = tool_input.get("source_filter")
-
-                effective_filter = dict(tf or {})
-                if src_filter:
-                    effective_filter["source"] = src_filter
-
-                logger.info(f"[Agent] iter={iteration+1} tool={block.name} query='{query_str[:50]}'")
-
-                chunks, _ = await self._retriever.retrieve(
-                    query=query_str,
-                    top_k=top_k,
-                    filters=effective_filter or None,
-                    llm_client=self._llm,
-                )
-                all_chunks.extend(chunks)
-
-                # 去重（按 chunk_id）
-                seen_ids: set[str] = set()
-                deduped: list[RetrievedChunk] = []
-                for c in all_chunks:
-                    if c.chunk_id not in seen_ids:
-                        seen_ids.add(c.chunk_id)
-                        deduped.append(c)
-                all_chunks = deduped[:20]
-
-                # 将检索结果序列化返回给 Claude（XML document 格式，与主 RAG prompt 一致）
-                if chunks:
-                    doc_blocks = "\n\n".join(
-                        f'<document index="{i+1}" title="{c.metadata.title or c.doc_id}">\n'
-                        f"{c.content}\n"
-                        f"</document>"
-                        for i, c in enumerate(chunks)
+            # Terminal: text_only / max_tokens / error → take whatever text we have
+            if turn.stop_reason in ("text_only", "max_tokens", "error"):
+                answer = turn.text or answer
+                if turn.stop_reason == "max_tokens":
+                    logger.warning(
+                        f"[Agent] iter={iteration+1} stop_reason=max_tokens (response truncated)"
                     )
-                    ctx_text = f"<search_results>\n{doc_blocks}\n</search_results>"
+                break
+
+            # turn.stop_reason == "tool_use" → execute requested tool calls
+            if not turn.tool_calls:
+                # Defensive: stop_reason says tool_use but no calls returned.
+                logger.warning(
+                    f"[Agent] iter={iteration+1} stop_reason=tool_use but no tool_calls; breaking"
+                )
+                answer = turn.text or answer
+                break
+
+            # Append the assistant's raw message verbatim — adapter normalizes shape.
+            messages.append(turn.raw_assistant_msg)
+
+            # AGENT-02: execute N≥1 tool calls concurrently. asyncio.gather with
+            # N=1 is functionally equivalent to a single await; we always go
+            # through gather to keep the audit log shape uniform.
+            parallelism = len(turn.tool_calls)
+            parallelism_factors.append(parallelism)
+            tool_names = [tc.name for tc in turn.tool_calls]
+
+            # AGENT-02 AC#4 (W-1): the structured logger IS the per-turn audit
+            # trail. AuditService.log_query records a SINGLE end-of-run aggregate
+            # entry (existing v1.0/v1.1 pattern, intent="agent" — W-3 backward
+            # compat). When AC#4 says "audit log per turn" it refers to THIS
+            # structured log line, not AuditService.
+            logger.info(
+                f"[Agent] iter={iteration+1} parallel_factor={parallelism} tools={tool_names}"
+            )
+
+            tool_coros = [
+                self._execute_tool_call(tc, tf or {}, req)
+                for tc in turn.tool_calls
+            ]
+            tool_outputs = await asyncio.gather(*tool_coros, return_exceptions=True)
+
+            # Build one tool_result per tool_call.id (preserve order via zip).
+            tool_results: list[dict[str, Any]] = []
+            for tc, output in zip(turn.tool_calls, tool_outputs):
+                if isinstance(output, BaseException):
+                    logger.error(
+                        f"[Agent] tool_call_id={tc.id} name={tc.name} failed: {output!r}"
+                    )
+                    tool_results.append({
+                        "type":        "tool_result",
+                        "tool_use_id": tc.id,
+                        "content":     f"工具执行失败:{type(output).__name__}: {output}",
+                        "is_error":    True,
+                    })
                 else:
-                    ctx_text = "未找到相关内容"
-                tool_results.append({
-                    "type":        "tool_result",
-                    "tool_use_id": block.id,
-                    "content":     ctx_text,
-                })
+                    chunks, ctx_text = output
+                    all_chunks.extend(chunks)
+                    tool_results.append({
+                        "type":        "tool_result",
+                        "tool_use_id": tc.id,
+                        "content":     ctx_text,
+                    })
+
+            # Dedup ONCE per turn, AFTER gather (gotcha #1 — moved out of inner loop).
+            seen_ids: set[str] = set()
+            deduped: list[RetrievedChunk] = []
+            for c in all_chunks:
+                if c.chunk_id not in seen_ids:
+                    seen_ids.add(c.chunk_id)
+                    deduped.append(c)
+            all_chunks = deduped[:20]
 
             messages.append({"role": "user", "content": tool_results})
 
         total_ms = round((time.perf_counter() - t0) * 1000, 1)
+        max_parallelism = max(parallelism_factors) if parallelism_factors else 0
 
         # 保存记忆
         await self._memory.save_turn(
@@ -740,6 +768,11 @@ class AgentQueryPipeline:
             ),
             intent=None,
         )
+
+        # W-3: audit log keeps backward compat with v1.0/v1.1. The `intent` field
+        # stays exactly "agent" — same value existing dashboards/ETL key on. The
+        # per-turn parallelism factor is in the structured logger above
+        # (`[Agent] iter=… parallel_factor=…`), NOT pushed into AuditService.
         await self._audit.log_query(
             user_id=user_id, tenant_id=tenant_id,
             query=req.query, trace_id=trace_id,
@@ -747,7 +780,10 @@ class AgentQueryPipeline:
             sources_count=len(all_chunks), intent="agent",
         )
 
-        logger.info(f"[Agent] DONE trace={trace_id} {total_ms}ms chunks={len(all_chunks)}")
+        logger.info(
+            f"[Agent] DONE trace={trace_id} {total_ms}ms chunks={len(all_chunks)} "
+            f"max_parallelism={max_parallelism} turns={len(parallelism_factors)}"
+        )
         return GenerationResponse(
             answer=answer,
             sources=all_chunks[:req.top_k],
@@ -757,6 +793,49 @@ class AgentQueryPipeline:
             trace_id=trace_id,
             model=settings.active_model,
         )
+
+    async def _execute_tool_call(
+        self,
+        tc: ToolCall,
+        tf: dict[str, Any],
+        req: GenerationRequest,
+    ) -> tuple[list[RetrievedChunk], str]:
+        """Execute one tool call and return (chunks, ctx_text).
+
+        Side-effect-free with respect to the calling pipeline state — this lets
+        ``asyncio.gather(return_exceptions=True)`` collect results without
+        mutating shared state during the parallel section. Caller merges
+        ``chunks`` into ``all_chunks`` and runs dedup AFTER the gather.
+        """
+        args       = tc.arguments or {}
+        query_str  = args.get("query") or args.get("refined_query", req.query)
+        top_k      = min(int(args.get("top_k", 5)), 10)
+        src_filter = args.get("source_filter")
+
+        effective_filter = dict(tf or {})
+        if src_filter:
+            effective_filter["source"] = src_filter
+
+        chunks, _ = await self._retriever.retrieve(
+            query=query_str,
+            top_k=top_k,
+            filters=effective_filter or None,
+            llm_client=self._llm,
+        )
+
+        # Format chunks as XML document blocks (mirrors v1.1 shape).
+        if chunks:
+            doc_blocks = "\n\n".join(
+                f'<document index="{i+1}" title="{c.metadata.title or c.doc_id}">\n'
+                f"{c.content}\n"
+                f"</document>"
+                for i, c in enumerate(chunks)
+            )
+            ctx_text = f"<search_results>\n{doc_blocks}\n</search_results>"
+        else:
+            ctx_text = "未找到相关内容"
+
+        return chunks, ctx_text
 
 
 _ingest_pipeline = None
