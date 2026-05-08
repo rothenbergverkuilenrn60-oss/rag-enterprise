@@ -224,7 +224,35 @@ make test-unit
 conda run -n torch_env pytest tests/unit/ -v --cov=services --cov-report=term-missing
 ```
 
-Current coverage: **46.6%** (CI floor enforced). Target 80% deferred to v1.1.
+Current coverage: **46.6%** (CI floor enforced). Diff-coverage gate (≥ 80% on changed lines) is enforced for v1.1 — see below.
+
+### Diff-Coverage Gate on v1.1 PRs (TEST-03)
+
+From v1.1 onward, any file modified in a PR must ship with **≥ 80% line coverage on the changed lines**. The legacy 46% global floor remains as a separate informational metric for unchanged files.
+
+**What it measures:** lines added or modified in your PR (relative to the v1.0 git tag in CI, or `origin/master...HEAD` locally) that are not exercised by unit tests in `tests/unit/`.
+
+**How to run locally before pushing:**
+
+```bash
+# one-time install
+conda run -n torch_env pip install -r requirements-dev.txt
+
+# run the gate
+make coverage-diff
+```
+
+The target writes `diff-cover.html` to the repo root — open it in a browser to see exactly which lines are uncovered.
+
+**CI behaviour:** the `Run diff-cover against v1.0 (TEST-03 hard gate)` step in the `unit-tests` job runs the same check against the `v1.0` tag. A diff coverage below 80% **blocks the merge** — there are no override comments and no soft-warn mode (decision D-05 in `.planning/phases/10-coverage-gate-on-new-code/10-CONTEXT.md`).
+
+**How to fix a failure:** add unit tests in `tests/unit/` that exercise the changed lines. If a v1.1 file is genuinely impossible to unit-test (e.g., a `main.py`-style boot wrapper), refactor the testable logic into a helper module rather than bypassing the gate.
+
+**Scope notes:**
+
+- Only unit-test coverage counts (`pytest tests/unit/ --cov=services --cov=utils`). Integration tests are not consumed by the gate (decision D-03).
+- The legacy `--cov-fail-under=46` global floor on the unit-tests step is unchanged — it's a separate informational gate, not the v1.1 quality bar.
+- The HTML diff-coverage report is uploaded as the `coverage-report` GitHub Actions artifact alongside `.coverage` and `coverage.xml`.
 
 ## RAGAS Evaluation
 
