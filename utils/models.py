@@ -130,6 +130,8 @@ class ChunkMetadata(BaseModel):
     author:          str           = ""
     section:         str           = ""           # 顶层章节标题
     sub_section:     str           = ""           # 子章节/条款标题
+    section_id:      str           = ""           # GB标准章节号，例如 "3.10" (META-01)
+    section_title:   str           = ""           # 章节标题文本，例如 "定义的透光面" (META-01)
     page_number:     int | None    = None
     chunk_index:     int           = 0
     total_chunks:    int           = 0

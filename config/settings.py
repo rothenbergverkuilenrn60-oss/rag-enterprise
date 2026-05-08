@@ -238,6 +238,7 @@ class Settings(BaseSettings):
     # ══════════════════════════════════════════════════════════════════════════
     top_k_dense:  int   = 20    # 向量检索返回候选数
     top_k_sparse: int   = 20    # BM25 返回候选数
+    pgvector_ef_search_filtered: int = 200    # hnsw.ef_search for filtered queries (REQ A-4)
     top_k_rerank: int   = 6     # Cross-Encoder 精排后最终返回数（送给 LLM 的块数）
     rrf_k:        int   = 60    # RRF 融合参数，行业默认值，无需修改
 
