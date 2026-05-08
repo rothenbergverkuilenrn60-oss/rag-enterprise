@@ -119,3 +119,19 @@
 - Automatic query routing (agent vs swarm selection) — manual `agent_mode` flag only in v1.3; NLU-03 deferred
 - Anthropic live integration tests for swarm — mock-tested; live test deferred until `ANTHROPIC_API_KEY` available in CI
 - Raising coverage above 70% — 70% is the v1.3 ceiling; further raise in v1.4+
+
+---
+
+## Traceability
+
+| REQ-ID | Track | Phase | Status |
+|--------|-------|-------|--------|
+| AGENT-03 (E-3) | E — Agentic Layer | Phase 12 | Pending |
+| NLU-02 | NLU — Query Understanding | Phase 13 | Pending |
+| UI-02 | UI — Frontend | Phase 14 | Pending |
+| TEST-04 | TEST — Coverage | Phase 15 | Pending |
+| TEST-06 | TEST — Coverage | Phase 15 | Pending |
+
+**Coverage:** 5/5 requirements mapped ✓
+**Orphans:** none
+**Duplicates:** none
