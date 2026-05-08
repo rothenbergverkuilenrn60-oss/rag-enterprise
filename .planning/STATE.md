@@ -1,11 +1,11 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.3
-milestone_name: (pending)
-status: "v1.2 archived — ready for v1.3 milestone definition"
-stopped_at: v1.2 milestone closed 2026-05-08
+milestone_name: Fork Swarm, NLU & Quality
+status: "planning"
+stopped_at: Defining requirements
 last_updated: "2026-05-08"
-last_activity: 2026-05-08 — v1.2 Agentic Layer + Swarm archived + tagged
+last_activity: 2026-05-08 — Milestone v1.3 started
 progress:
   total_phases: 0
   completed_phases: 0
@@ -14,24 +14,25 @@ progress:
   percent: 0
 ---
 
-# STATE — EnterpriseRAG v1.3 (pending)
+# STATE — EnterpriseRAG v1.3 Fork Swarm, NLU & Quality
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-08)
 
 **Core value:** Every query returns a grounded, auditable answer — no hallucinations, no silent failures, no security gaps.
-**Current focus:** Planning v1.3 milestone
+**Current focus:** Defining v1.3 requirements
 
 ## Current Position
 
-Phase: —
+Phase: Not started (defining requirements)
 Plan: —
-Status: v1.2 archived — run `/gsd-new-milestone v1.3` to define next milestone
+Status: Defining requirements
+Last activity: 2026-05-08 — Milestone v1.3 started
 
 | Field | Value |
 |-------|-------|
-| Milestone | v1.3 (pending) |
+| Milestone | v1.3 Fork Swarm, NLU & Quality |
 | Current phase | — |
 | Current plan | — |
 | Phase status | — |
@@ -39,7 +40,7 @@ Status: v1.2 archived — run `/gsd-new-milestone v1.3` to define next milestone
 
 ## Phase Overview
 
-(empty — run `/gsd-new-milestone v1.3` to define requirements + roadmap)
+(populated after roadmap creation)
 
 ## Accumulated Context
 

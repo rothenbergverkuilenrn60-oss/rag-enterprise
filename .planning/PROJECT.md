@@ -16,16 +16,16 @@ v1.2 Agentic Layer + Swarm shipped: `agent_mode=True` now executes the real tool
 - ✅ **v1.1 Retrieval Depth & Frontend** shipped 2026-05-08 — [archive](milestones/v1.1-ROADMAP.md)
 - ✅ **v1.2 Agentic Layer + Swarm** shipped 2026-05-08 — [archive](milestones/v1.2-ROADMAP.md)
 
-## Next Milestone: v1.3 (pending requirements)
+## Current Milestone: v1.3 Fork Swarm, NLU & Quality
 
-**Status:** not started — run `/gsd-new-milestone v1.3` to define requirements
+**Goal:** Upgrade `agent_mode` to true multi-agent fork swarm with isolated sub-agent contexts, add LLM filter fallback for missed regex queries, modernize the frontend to multi-file + clean DOM, and raise test coverage to 70%.
 
-**Candidate themes** (deferred from v1.2):
-- True swarm with fork agents (AGENT-03) — multi-agent orchestration, inter-agent coordination, stop conditions
-- LLM-based filter extractor fallback (NLU-02) — extends `services/nlu/filter_extractor.py`
-- Frontend modernization (UI-02) — JS/CSS extraction; potentially React/Vue + build step
-- Integration-test coverage merging (TEST-04) — `coverage combine` across unit + integration
-- Raise legacy 46% global coverage floor (TEST-06)
+**Target features:**
+- AGENT-03: True fork-agent swarm — coordinator spawns N sub-agents, each with isolated message history, tool registry, and iteration budget; builds on v1.2 `call_agentic_turn` baseline
+- NLU-02: LLM-based filter extractor — regex-first; LLM called only when regex returns empty (confidence-gated, zero cost on hits); extends `services/nlu/filter_extractor.py`
+- UI-02: Frontend mid-modernization — JS/CSS split to `static/ui.js` + `static/ui.css`; modern DOM API cleanup; possibly lightweight bundler (Vite/esbuild); no React/Vue; `static/ui.html` stays as entry point
+- TEST-04: `coverage combine` across unit + integration pipelines
+- TEST-06: raise global coverage floor 46% → 70%
 
 ## Core Value
 
@@ -82,7 +82,11 @@ Every query returns a grounded, auditable answer — no hallucinations, no silen
 
 ### Active
 
-(none — v1.3 requirements pending; run `/gsd-new-milestone v1.3`)
+- [ ] **AGENT-03**: Fork-agent swarm — coordinator spawns N sub-agents with isolated context per sub-question
+- [ ] **NLU-02**: LLM-based filter extractor — confidence-gated LLM fallback when regex returns empty
+- [ ] **UI-02**: Frontend multi-file split (JS/CSS); modern DOM API cleanup; possibly Vite/esbuild
+- [ ] **TEST-04**: `coverage combine` across unit + integration pipelines
+- [ ] **TEST-06**: Raise global coverage floor 46% → 70%
 
 **Carried over (not milestone-scoped, still tracked):**
 - [ ] asyncpg pool + RLS: verify `app.current_tenant` per-connection in production pool
@@ -170,4 +174,4 @@ Every query returns a grounded, auditable answer — no hallucinations, no silen
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-08 — v1.2 milestone shipped (Agentic Layer + Swarm); v1.3 pending requirements*
+*Last updated: 2026-05-08 — v1.3 milestone started (Fork Swarm, NLU & Quality)*
