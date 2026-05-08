@@ -497,6 +497,106 @@ class AnthropicLLMClient(BaseLLMClient):
             logger.error(f"[AnthropicClient] chat_with_tools failed: {exc}")
             return {}
 
+    async def call_agentic_turn(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        system: str,
+        max_tokens: int = 1024,
+        parallel_tool_calls: bool = True,
+    ) -> AgenticTurn:
+        """Anthropic implementation of the provider-neutral agentic turn (AGENT-01).
+
+        Wire mapping:
+          - Anthropic content block ``{type:"tool_use", id, name, input}`` →
+            ``ToolCall(id, name, arguments=input)``
+          - Anthropic content block ``{type:"text", text}`` concatenated into
+            ``AgenticTurn.text``
+          - stop_reason: ``end_turn`` / ``stop_sequence`` → ``"text_only"``;
+            ``tool_use`` → ``"tool_use"``; ``max_tokens`` → ``"max_tokens"``;
+            anything else → ``"error"`` (gotcha #6 mapping table — locked).
+
+        ``disable_parallel_tool_use`` is set explicitly per AGENT-02 acceptance
+        #2 (default is False on Anthropic side; explicit makes the contract
+        auditable). The caller's ``parallel_tool_calls`` flag is the project's
+        provider-neutral name; on Anthropic's wire format the equivalent is
+        the inverse-named ``disable_parallel_tool_use``.
+
+        Preserves Prompt Caching via ``self._cached_system(system)``.
+        Preserves token-usage metrics via ``_report_usage(resp, "anthropic", ...)``.
+        """
+        # Local import avoids a circular at module load (utils.models is
+        # already imported at module top, but ToolCall is only needed here).
+        from utils.models import ToolCall
+
+        model = self._default_model
+        # disable_parallel_tool_use is the OPPOSITE of the parallel_tool_calls
+        # flag — caller passes parallel_tool_calls=True meaning "I want
+        # parallelism", which maps to disable_parallel_tool_use=False on
+        # Anthropic's wire format.
+        resp = await self._client.messages.create(
+            model=model,
+            max_tokens=max_tokens,
+            system=self._cached_system(system),                # Prompt Caching preserved
+            tools=tools,
+            messages=messages,
+            disable_parallel_tool_use=(not parallel_tool_calls),
+        )
+        _report_usage(resp, "anthropic", model=model)
+
+        # Parse content blocks
+        text_parts: list[str] = []
+        tool_calls: list[ToolCall] = []
+        for block in resp.content:
+            if block.type == "text":
+                text_parts.append(block.text)
+            elif block.type == "tool_use":
+                tool_calls.append(ToolCall(
+                    id=block.id,
+                    name=block.name,
+                    arguments=dict(block.input) if block.input else {},
+                ))
+
+        # Map stop_reason (gotcha #6 — locked)
+        raw_stop = getattr(resp, "stop_reason", None)
+        stop_reason: str
+        if raw_stop in ("end_turn", "stop_sequence"):
+            stop_reason = "text_only"
+        elif raw_stop == "tool_use":
+            stop_reason = "tool_use"
+        elif raw_stop == "max_tokens":
+            stop_reason = "max_tokens"
+        else:
+            stop_reason = "error"
+
+        # raw_assistant_msg: pipeline appends this verbatim to next-turn
+        # messages list. Anthropic shape:
+        #     {"role": "assistant", "content": <list of content blocks>}
+        # We serialize blocks to plain dicts so the pipeline can JSON-round-trip
+        # if needed; the SDK accepts both block objects and dicts on subsequent
+        # calls.
+        raw_blocks: list[dict[str, Any]] = []
+        for block in resp.content:
+            if block.type == "text":
+                raw_blocks.append({"type": "text", "text": block.text})
+            elif block.type == "tool_use":
+                raw_blocks.append({
+                    "type":  "tool_use",
+                    "id":    block.id,
+                    "name":  block.name,
+                    "input": dict(block.input) if block.input else {},
+                })
+
+        usage = getattr(resp, "usage", None)
+        return AgenticTurn(
+            text="".join(text_parts),
+            tool_calls=tool_calls,
+            stop_reason=stop_reason,                            # type: ignore[arg-type]
+            raw_assistant_msg={"role": "assistant", "content": raw_blocks},
+            usage_input_tokens=getattr(usage, "input_tokens", 0) or 0,
+            usage_output_tokens=getattr(usage, "output_tokens", 0) or 0,
+        )
+
     async def chat_with_citations(
         self,
         system: str,
