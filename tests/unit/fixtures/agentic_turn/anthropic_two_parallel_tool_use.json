@@ -1,0 +1,14 @@
+{
+  "id": "msg_03TwoParallel",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-sonnet-4-6-20251022",
+  "content": [
+    {"type": "text", "text": "我需要并行查询产假和病假两项规定。"},
+    {"type": "tool_use", "id": "toolu_02parallelA", "name": "search_knowledge_base", "input": {"query": "产假天数", "top_k": 5}},
+    {"type": "tool_use", "id": "toolu_02parallelB", "name": "search_knowledge_base", "input": {"query": "病假规定", "top_k": 5}}
+  ],
+  "stop_reason": "tool_use",
+  "stop_sequence": null,
+  "usage": {"input_tokens": 305, "output_tokens": 98}
+}

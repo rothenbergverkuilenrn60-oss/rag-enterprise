@@ -31,6 +31,7 @@ from tenacity import (
 )
 
 from config.settings import settings
+from utils.models import AgenticTurn
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -154,6 +155,32 @@ class BaseLLMClient(ABC):
         默认实现：回退到普通 chat()。
         """
         return await self.chat(system=system, user=user, temperature=0.1, task_type="thinking")
+
+    async def call_agentic_turn(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        system: str,
+        max_tokens: int = 1024,
+        parallel_tool_calls: bool = True,
+    ) -> AgenticTurn:
+        """Provider-neutral single-turn agentic call (AGENT-01).
+
+        Returns one ``AgenticTurn`` containing text content + zero-or-more
+        ``ToolCall`` entries + a ``stop_reason``. Adapters override to absorb
+        provider-specific wire formats (Anthropic ``tool_use`` blocks, OpenAI
+        ``tool_calls`` array). The pipeline (``AgentQueryPipeline.run``) drives
+        the multi-turn loop on top of this single-turn primitive.
+
+        Default implementation raises ``NotImplementedError``. Providers that
+        do not support tool-use (e.g. ``OllamaLLMClient`` — pending agentic
+        backend in v1.3) inherit this default. The pipeline catches the
+        ``NotImplementedError`` and falls back to ``QueryPipeline`` with a
+        structured-log warning (D-03).
+        """
+        raise NotImplementedError(
+            f"agent_mode not supported by {self.__class__.__name__}"
+        )
 
     @property
     def supports_tools(self) -> bool:
@@ -340,6 +367,128 @@ class OpenAILLMClient(BaseLLMClient):
         )
         return resp.choices[0].message.content or ""
 
+    async def call_agentic_turn(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        system: str,
+        max_tokens: int = 1024,
+        parallel_tool_calls: bool = True,
+    ) -> AgenticTurn:
+        """OpenAI implementation of the provider-neutral agentic turn (AGENT-01).
+
+        Wire mapping:
+          - Project's tools list uses Anthropic shape ``{name, description,
+            input_schema}``; this method converts to OpenAI shape
+            ``{type:"function", function:{name, description, parameters}}``.
+          - OpenAI returns ``choices[0].message.tool_calls[i].function.arguments``
+            as a JSON-encoded STRING; this method ``json.loads``-decodes it
+            into ``ToolCall.arguments`` dict.
+          - finish_reason: ``stop`` → ``"text_only"``; ``tool_calls`` →
+            ``"tool_use"``; ``length`` → ``"max_tokens"``; anything else →
+            ``"error"`` (gotcha #6 mapping table — locked).
+          - System prompt: OpenAI Chat Completions does not have a separate
+            ``system=`` kwarg; it is the first message with ``role="system"``.
+            The caller's ``messages`` list is assumed to NOT already contain a
+            system message — this method prepends one.
+
+        ``parallel_tool_calls=True`` is set explicitly per AGENT-02 acceptance
+        #2 (default is True on OpenAI side; explicit makes the contract
+        auditable).
+        """
+        # Local import avoids a circular at module load.
+        from utils.models import ToolCall
+
+        # Convert tools from project's Anthropic-shape to OpenAI-shape.
+        openai_tools: list[dict[str, Any]] = []
+        for t in tools:
+            openai_tools.append({
+                "type": "function",
+                "function": {
+                    "name":        t["name"],
+                    "description": t["description"],
+                    "parameters":  t.get("input_schema", t.get("parameters", {})),
+                },
+            })
+
+        # OpenAI puts system in the messages list, not a separate kwarg.
+        full_messages: list[dict[str, Any]] = [{"role": "system", "content": system}]
+        full_messages.extend(messages)
+
+        resp = await self._client.chat.completions.create(
+            model=self._model,
+            messages=full_messages,
+            tools=openai_tools,
+            parallel_tool_calls=parallel_tool_calls,
+            max_tokens=max_tokens,
+            temperature=0.0,
+        )
+        _report_usage(resp, "openai", model=self._model)
+
+        choice = resp.choices[0]
+        msg    = choice.message
+
+        # Parse tool calls (may be None / missing on text-only responses).
+        tool_calls: list[ToolCall] = []
+        raw_tool_calls_for_msg: list[dict[str, Any]] = []
+        for tc in (getattr(msg, "tool_calls", None) or []):
+            try:
+                args = json.loads(tc.function.arguments) if tc.function.arguments else {}
+            except json.JSONDecodeError:
+                logger.warning(
+                    f"[OpenAI] tool_call arguments not valid JSON: "
+                    f"{tc.function.arguments!r}"
+                )
+                args = {}
+            tool_calls.append(ToolCall(
+                id=tc.id,
+                name=tc.function.name,
+                arguments=args,
+            ))
+            raw_tool_calls_for_msg.append({
+                "id":   tc.id,
+                "type": "function",
+                "function": {
+                    "name":      tc.function.name,
+                    # Keep STRING shape for next-turn replay — OpenAI's
+                    # documented contract is `arguments` is a JSON string.
+                    "arguments": tc.function.arguments,
+                },
+            })
+
+        # Map finish_reason (gotcha #6 — locked).
+        finish = getattr(choice, "finish_reason", None)
+        stop_reason: str
+        if finish == "stop":
+            stop_reason = "text_only"
+        elif finish == "tool_calls":
+            stop_reason = "tool_use"
+        elif finish == "length":
+            stop_reason = "max_tokens"
+        else:
+            stop_reason = "error"
+
+        # raw_assistant_msg: pipeline appends this verbatim before tool result
+        # messages.
+        raw_assistant_msg: dict[str, Any] = {
+            "role":    "assistant",
+            "content": msg.content,                                  # may be None for tool-only responses
+        }
+        if raw_tool_calls_for_msg:
+            raw_assistant_msg["tool_calls"] = raw_tool_calls_for_msg
+
+        # OpenAI's `usage` field uses `prompt_tokens` / `completion_tokens`
+        # (NOT Anthropic's `input_tokens` / `output_tokens`). We normalize.
+        usage = getattr(resp, "usage", None)
+        return AgenticTurn(
+            text=msg.content or "",
+            tool_calls=tool_calls,
+            stop_reason=stop_reason,                                 # type: ignore[arg-type]
+            raw_assistant_msg=raw_assistant_msg,
+            usage_input_tokens=getattr(usage, "prompt_tokens",     0) or 0,
+            usage_output_tokens=getattr(usage, "completion_tokens", 0) or 0,
+        )
+
     @property
     def supports_tools(self) -> bool:
         return True
@@ -469,6 +618,106 @@ class AnthropicLLMClient(BaseLLMClient):
         except Exception as exc:
             logger.error(f"[AnthropicClient] chat_with_tools failed: {exc}")
             return {}
+
+    async def call_agentic_turn(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        system: str,
+        max_tokens: int = 1024,
+        parallel_tool_calls: bool = True,
+    ) -> AgenticTurn:
+        """Anthropic implementation of the provider-neutral agentic turn (AGENT-01).
+
+        Wire mapping:
+          - Anthropic content block ``{type:"tool_use", id, name, input}`` →
+            ``ToolCall(id, name, arguments=input)``
+          - Anthropic content block ``{type:"text", text}`` concatenated into
+            ``AgenticTurn.text``
+          - stop_reason: ``end_turn`` / ``stop_sequence`` → ``"text_only"``;
+            ``tool_use`` → ``"tool_use"``; ``max_tokens`` → ``"max_tokens"``;
+            anything else → ``"error"`` (gotcha #6 mapping table — locked).
+
+        ``disable_parallel_tool_use`` is set explicitly per AGENT-02 acceptance
+        #2 (default is False on Anthropic side; explicit makes the contract
+        auditable). The caller's ``parallel_tool_calls`` flag is the project's
+        provider-neutral name; on Anthropic's wire format the equivalent is
+        the inverse-named ``disable_parallel_tool_use``.
+
+        Preserves Prompt Caching via ``self._cached_system(system)``.
+        Preserves token-usage metrics via ``_report_usage(resp, "anthropic", ...)``.
+        """
+        # Local import avoids a circular at module load (utils.models is
+        # already imported at module top, but ToolCall is only needed here).
+        from utils.models import ToolCall
+
+        model = self._default_model
+        # disable_parallel_tool_use is the OPPOSITE of the parallel_tool_calls
+        # flag — caller passes parallel_tool_calls=True meaning "I want
+        # parallelism", which maps to disable_parallel_tool_use=False on
+        # Anthropic's wire format.
+        resp = await self._client.messages.create(
+            model=model,
+            max_tokens=max_tokens,
+            system=self._cached_system(system),                # Prompt Caching preserved
+            tools=tools,
+            messages=messages,
+            disable_parallel_tool_use=(not parallel_tool_calls),
+        )
+        _report_usage(resp, "anthropic", model=model)
+
+        # Parse content blocks
+        text_parts: list[str] = []
+        tool_calls: list[ToolCall] = []
+        for block in resp.content:
+            if block.type == "text":
+                text_parts.append(block.text)
+            elif block.type == "tool_use":
+                tool_calls.append(ToolCall(
+                    id=block.id,
+                    name=block.name,
+                    arguments=dict(block.input) if block.input else {},
+                ))
+
+        # Map stop_reason (gotcha #6 — locked)
+        raw_stop = getattr(resp, "stop_reason", None)
+        stop_reason: str
+        if raw_stop in ("end_turn", "stop_sequence"):
+            stop_reason = "text_only"
+        elif raw_stop == "tool_use":
+            stop_reason = "tool_use"
+        elif raw_stop == "max_tokens":
+            stop_reason = "max_tokens"
+        else:
+            stop_reason = "error"
+
+        # raw_assistant_msg: pipeline appends this verbatim to next-turn
+        # messages list. Anthropic shape:
+        #     {"role": "assistant", "content": <list of content blocks>}
+        # We serialize blocks to plain dicts so the pipeline can JSON-round-trip
+        # if needed; the SDK accepts both block objects and dicts on subsequent
+        # calls.
+        raw_blocks: list[dict[str, Any]] = []
+        for block in resp.content:
+            if block.type == "text":
+                raw_blocks.append({"type": "text", "text": block.text})
+            elif block.type == "tool_use":
+                raw_blocks.append({
+                    "type":  "tool_use",
+                    "id":    block.id,
+                    "name":  block.name,
+                    "input": dict(block.input) if block.input else {},
+                })
+
+        usage = getattr(resp, "usage", None)
+        return AgenticTurn(
+            text="".join(text_parts),
+            tool_calls=tool_calls,
+            stop_reason=stop_reason,                            # type: ignore[arg-type]
+            raw_assistant_msg={"role": "assistant", "content": raw_blocks},
+            usage_input_tokens=getattr(usage, "input_tokens", 0) or 0,
+            usage_output_tokens=getattr(usage, "output_tokens", 0) or 0,
+        )
 
     async def chat_with_citations(
         self,

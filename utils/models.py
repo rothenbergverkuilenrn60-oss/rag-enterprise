@@ -8,9 +8,8 @@ from __future__ import annotations
 import time
 import uuid
 from enum import Enum
-from typing import Any
-
-from pydantic import BaseModel, Field, field_validator
+from typing import Any, Literal
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 枚举类型
@@ -235,6 +234,57 @@ class GenerationResponse(BaseModel):
     faithfulness_score: float                    = 0.0
     trace_id:          str                       = ""
     model:             str                       = ""
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# STAGE 6 — Agentic Tool Use (provider-neutral; AGENT-01)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class ToolCall(BaseModel):
+    """A single tool invocation requested by the LLM in one assistant turn.
+
+    Provider-neutral: Anthropic's ``tool_use`` content block and OpenAI's
+    ``tool_calls[i]`` array element both normalize to this shape inside the
+    adapter's ``call_agentic_turn``.
+
+    ``id`` correlates the call to its result on the next turn (Anthropic
+    ``tool_use_id``, OpenAI ``tool_call_id``). Frozen — adapters never mutate.
+    """
+    model_config = ConfigDict(frozen=True)
+
+    id:        str
+    name:      str
+    arguments: dict[str, Any] = Field(default_factory=dict)
+
+
+class AgenticTurn(BaseModel):
+    """One LLM turn in the agentic tool-use loop, normalized across providers.
+
+    Adapters (``AnthropicLLMClient.call_agentic_turn``,
+    ``OpenAILLMClient.call_agentic_turn``) parse provider-specific wire formats
+    and return this. ``AgentQueryPipeline`` consumes only this — it does NOT
+    branch on provider type.
+
+    ``raw_assistant_msg`` is the provider-shaped dict the pipeline appends to
+    the next-turn ``messages`` list verbatim (Anthropic:
+    ``{"role": "assistant", "content": [...blocks...]}``; OpenAI:
+    ``{"role": "assistant", "content": ..., "tool_calls": [...]}``). The
+    adapter is the only thing that knows the wire shape.
+
+    ``stop_reason`` literals:
+      - ``"text_only"``  → Anthropic ``end_turn`` / ``stop_sequence``; OpenAI ``stop``
+      - ``"tool_use"``   → Anthropic ``tool_use``; OpenAI ``tool_calls``
+      - ``"max_tokens"`` → Anthropic ``max_tokens``; OpenAI ``length``
+      - ``"error"``      → reserved for adapter-side normalization failures
+    """
+    model_config = ConfigDict(frozen=True)
+
+    text:                str                                                  = ""
+    tool_calls:          list[ToolCall]                                       = Field(default_factory=list)
+    stop_reason:         Literal["text_only", "tool_use", "max_tokens", "error"]
+    raw_assistant_msg:   dict[str, Any]                                       = Field(default_factory=dict)
+    usage_input_tokens:  int                                                  = 0
+    usage_output_tokens: int                                                  = 0
 
 
 # ══════════════════════════════════════════════════════════════════════════════

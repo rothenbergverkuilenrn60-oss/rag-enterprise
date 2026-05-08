@@ -1,0 +1,29 @@
+{
+  "id": "chatcmpl-OAISingleTool",
+  "object": "chat.completion",
+  "created": 1715000002,
+  "model": "gpt-4o-mini-2024-07-18",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": null,
+        "refusal": null,
+        "tool_calls": [
+          {
+            "id": "call_oai_single_A",
+            "type": "function",
+            "function": {
+              "name": "search_knowledge_base",
+              "arguments": "{\"query\": \"产假天数规定\", \"top_k\": 5}"
+            }
+          }
+        ]
+      },
+      "finish_reason": "tool_calls",
+      "logprobs": null
+    }
+  ],
+  "usage": {"prompt_tokens": 290, "completion_tokens": 38, "total_tokens": 328}
+}
