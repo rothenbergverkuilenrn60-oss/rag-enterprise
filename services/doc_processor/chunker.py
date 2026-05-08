@@ -170,6 +170,102 @@ _LIST_PATTERNS = [
 ]
 
 
+# ── Phase 8 (META-01) — GB national-standard section walker ──────────────────
+# Numbered heading: "3.10 定义的透光面" (digit chain + space + Chinese-leading title).
+# `[一-鿿]` covers CJK Unified Ideographs; `\S` after ensures non-whitespace continuation.
+# Pitfall #1: `_classify_line` does NOT match this — `_ARTICLE_PATTERNS[1]` requires
+# digit + dot + Chinese char immediately, but GB headings have a digit after the dot.
+_GB_HEADING_RE = re.compile(
+    r"^(\d+(?:\.\d+)*)\s+([一-鿿]\S.*?)\s*$",
+    re.MULTILINE,
+)
+# OCR page-marker — Phase 7 ocr_engine prepends "[第N页·OCR]\n" to each page (D-01).
+_OCR_PAGE_MARKER_RE = re.compile(r"\[第(\d+)页·OCR\]\n?")
+
+
+def _strip_ocr_markers_with_pages(body_text: str) -> tuple[str, dict[int, int]]:
+    """Strip [第N页·OCR] markers; return (clean_text, {clean_offset: page_number}).
+
+    The page_offset_map records, for each marker, the offset in the cleaned
+    text where the corresponding page begins. Used to assign page_number to
+    chunks by their content offset (Pitfall #6: offsets must be consistent
+    between section_map and page_offset_map — both built from the SAME
+    cleaned string).
+
+    Args:
+        body_text: Raw OCR body_text from ExtractedContent (may contain markers).
+
+    Returns:
+        (clean_text_without_markers, page_offset_map).
+        If no markers present, returns (body_text, {}).
+    """
+    parts: list[str] = []
+    page_offset_map: dict[int, int] = {}
+    cursor = 0
+    last_end = 0
+    for m in _OCR_PAGE_MARKER_RE.finditer(body_text):
+        # Append text before this marker
+        segment = body_text[last_end:m.start()]
+        parts.append(segment)
+        cursor += len(segment)
+        # Record the page boundary at the cleaned-text cursor
+        page_offset_map[cursor] = int(m.group(1))
+        last_end = m.end()
+    # Tail after the final marker
+    parts.append(body_text[last_end:])
+    return "".join(parts), page_offset_map
+
+
+def _build_gb_section_map(clean_text: str) -> list[tuple[int, str, str]]:
+    """Return [(text_offset, section_id, section_title)] for GB-standard headings.
+
+    Result is sorted by offset (regex finditer is left-to-right). Empty list
+    if the text contains no numbered GB headings — caller must handle empty
+    map by leaving section_id/section_title at "".
+
+    Args:
+        clean_text: Body text WITH OCR markers already stripped (call
+            `_strip_ocr_markers_with_pages` first — Pitfall #6).
+    """
+    return [
+        (m.start(), m.group(1), m.group(2).strip())
+        for m in _GB_HEADING_RE.finditer(clean_text)
+    ]
+
+
+def _nearest_section(
+    offset: int,
+    section_map: list[tuple[int, str, str]],
+) -> tuple[str, str]:
+    """Find (section_id, section_title) for a given offset in cleaned text.
+
+    Returns the entry with the largest start_offset that is still ≤ offset.
+    If no entry qualifies (offset before the first heading), returns ("", "").
+    """
+    best_id, best_title = "", ""
+    for (heading_offset, sid, title) in section_map:
+        if heading_offset <= offset:
+            best_id, best_title = sid, title
+        else:
+            break
+    return best_id, best_title
+
+
+def _nearest_page(offset: int, page_offset_map: dict[int, int]) -> int | None:
+    """Find page_number for a given offset in cleaned text.
+
+    Returns the page from the entry with the largest key still ≤ offset,
+    or None if no marker preceded the offset (treat as unknown).
+    """
+    best_page: int | None = None
+    for boundary, page in sorted(page_offset_map.items()):
+        if boundary <= offset:
+            best_page = page
+        else:
+            break
+    return best_page
+
+
 def _classify_line(line: str) -> str:
     """把一行文本分类为 chapter / article / list_item / paragraph。"""
     stripped = line.strip()
@@ -768,8 +864,16 @@ class DocProcessorService:
             return self._primary
         # 简单启发式：文档中有「第X章」或「第X条」模式则认为有结构
         sample = content.body_text[:3000]
+        # Phase 8 (META-01, Pitfall #2): also detect OCR'd GB documents — the
+        # legacy `第X章/条` heuristic never matches GB national standards
+        # (numbered sections like "3.10 ..."). Force "structure" when:
+        #   - existing `第X章/条` pattern matches (legacy HR docs)
+        #   - OR OCR page markers are present (PP-StructureV3 output)
+        #   - OR a `_GB_HEADING_RE` match is found in the sample
         has_structure = bool(
             re.search(r"第[一二三四五六七八九十百零\d]+[章条]", sample)
+            or _OCR_PAGE_MARKER_RE.search(sample)
+            or _GB_HEADING_RE.search(sample)
         )
         resolved = "structure" if has_structure else "recursive"
         logger.debug(f"[DocProcess] auto resolved to: {resolved}")
