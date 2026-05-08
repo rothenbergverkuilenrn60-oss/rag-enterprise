@@ -1,0 +1,19 @@
+{
+  "id": "chatcmpl-OAITextOnly",
+  "object": "chat.completion",
+  "created": 1715000001,
+  "model": "gpt-4o-mini-2024-07-18",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "根据已检索的知识库内容,产假天数为158天,符合国家规定。",
+        "refusal": null
+      },
+      "finish_reason": "stop",
+      "logprobs": null
+    }
+  ],
+  "usage": {"prompt_tokens": 312, "completion_tokens": 44, "total_tokens": 356}
+}
