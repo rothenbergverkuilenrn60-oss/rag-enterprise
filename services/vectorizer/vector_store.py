@@ -67,6 +67,59 @@ class BaseVectorStore(ABC):
 # ══════════════════════════════════════════════════════════════════════════════
 # pgvector Backend (production)
 # ══════════════════════════════════════════════════════════════════════════════
+def _build_filter_where(
+    filters: dict[str, int | str],
+    start_param: int = 3,
+) -> tuple[str, list[int | str]]:
+    """Build a parameterized WHERE clause for JSONB metadata filters (META-02).
+
+    Caller is responsible for $1=query_vector and $2=top_k. Filter values
+    occupy $start_param onwards. Filter VALUES are asyncpg ``$N`` parameters —
+    NEVER f-string-interpolated (T-08-01 mitigation). Filter KEYS are
+    hard-coded via ``repr`` of the str literal — keys must come from a trusted
+    extractor (services.nlu.filter_extractor), never from raw user input.
+
+    Args:
+        filters: dict whose keys are JSONB extraction targets (e.g. ``page_number``,
+            ``section_id``) and values are ``int`` or ``str``. Unknown value types
+            are silently dropped (defense-in-depth).
+        start_param: ``$N`` index for the first filter value.
+
+    Returns:
+        ``(where_sql, param_list)``. Empty filters or all-skipped filters
+        return ``("", [])``.
+
+    Examples:
+        >>> _build_filter_where({"page_number": 63})
+        ("WHERE (metadata->>'page_number')::int = $3", [63])
+        >>> _build_filter_where({"section_id": "3.10"})
+        ("WHERE metadata->>'section_id' = $3", ["3.10"])
+        >>> _build_filter_where({})
+        ("", [])
+    """
+    if not filters:
+        return "", []
+    clauses: list[str] = []
+    params: list[int | str] = []
+    n = start_param
+    for key, value in filters.items():
+        # bool is a subclass of int in Python; the explicit ``not isinstance(value, bool)``
+        # guard prevents ``filters={"x": True}`` from being routed to the integer branch.
+        if isinstance(value, int) and not isinstance(value, bool):
+            # Cast JSONB extraction to int — backed by B-tree expression index.
+            clauses.append(f"(metadata->>{key!r})::int = ${n}")
+        elif isinstance(value, str):
+            clauses.append(f"metadata->>{key!r} = ${n}")
+        else:
+            # Unknown type — skip silently (defense-in-depth: never inject untyped value).
+            continue
+        params.append(value)
+        n += 1
+    if not clauses:
+        return "", []
+    return "WHERE " + " AND ".join(clauses), params
+
+
 class PgVectorStore(BaseVectorStore):
 
     def __init__(self) -> None:
@@ -139,6 +192,25 @@ class PgVectorStore(BaseVectorStore):
                         OR current_setting('app.current_tenant', true) IS NULL
                         OR current_setting('app.current_tenant', true) = ''
                     );
+            """)
+            # Phase 8 (META-02): B-tree expression indexes for JSONB-filtered HNSW.
+            # Partial indexes WHERE … IS NOT NULL skip legacy chunks (no section_id);
+            # text-shape index supports IS NOT NULL predicate evaluation, int-cast
+            # index backs the (metadata->>'page_number')::int = $N filter clause.
+            await conn.execute(f"""
+                CREATE INDEX IF NOT EXISTS {self._table}_page_idx
+                    ON {self._table} USING btree ((metadata->>'page_number'))
+                    WHERE metadata->>'page_number' IS NOT NULL;
+            """)
+            await conn.execute(f"""
+                CREATE INDEX IF NOT EXISTS {self._table}_page_int_idx
+                    ON {self._table} USING btree (((metadata->>'page_number')::int))
+                    WHERE metadata->>'page_number' IS NOT NULL;
+            """)
+            await conn.execute(f"""
+                CREATE INDEX IF NOT EXISTS {self._table}_section_idx
+                    ON {self._table} USING btree ((metadata->>'section_id'))
+                    WHERE metadata->>'section_id' IS NOT NULL;
             """)
             # Parent chunk table (no vector column — pure content storage)
             await conn.execute(f"""
