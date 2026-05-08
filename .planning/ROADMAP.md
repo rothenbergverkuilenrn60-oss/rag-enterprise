@@ -89,7 +89,7 @@ Plans:
 
 Plans:
 **Wave 1**
-- [ ] 09-01-PLAN.md — Extract `_UI_HTML` to `static/ui.html`, mount StaticFiles in main.py, verify Dockerfile COPY, integration test + human visual verify (UI-01)
+- [x] 09-01-PLAN.md — Extract `_UI_HTML` to `static/ui.html`, mount StaticFiles in main.py, verify Dockerfile COPY, integration test + human visual verify (UI-01)
 
 ### Phase 10: Coverage Gate on New Code
 
