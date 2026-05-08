@@ -53,7 +53,11 @@ See [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md) for full phase deta
   3. When the LLM returns N ≥ 2 tool calls in a single turn, `AgentQueryPipeline` executes them concurrently via `asyncio.gather`; the total turn-internal latency is bounded by the slowest tool, not the sum of all tools.
   4. Audit log per turn records the parallelism factor (number of tool calls executed in parallel).
   5. Live integration test against OpenAI through OneAPI gateway (`gpt-4o-mini`) submits a multi-dimension `agent_mode=True` query, verifies ≥ 2 tool calls executed concurrently, and verifies all results made it into the next turn's message list. Anthropic side mock-tested if no `ANTHROPIC_API_KEY` available.
-**Plans:** TBD
+**Plans:** 4 plans across 3 waves
+- [ ] 11-01-PLAN.md (Wave 1) — `AgenticTurn` + `ToolCall` Pydantic V2 frozen models in `utils/models.py` + `BaseLLMClient.call_agentic_turn` non-abstract default-raise method [AGENT-01]
+- [ ] 11-02-PLAN.md (Wave 1, parallel with 11-01) — 7 wire-format JSON fixtures under `tests/unit/fixtures/agentic_turn/` (4 Anthropic + 3 OpenAI) [AGENT-01]
+- [ ] 11-03-PLAN.md (Wave 2, depends on 11-01 + 11-02) — `AnthropicLLMClient.call_agentic_turn` + `OpenAILLMClient.call_agentic_turn` adapter overrides + parametrized unit tests [AGENT-01]
+- [ ] 11-04-PLAN.md (Wave 3, depends on 11-03) — `AgentQueryPipeline.run` refactor onto `call_agentic_turn` + `asyncio.gather` parallel burst + live OpenAI integration test + README differentiator [AGENT-01, AGENT-02]
 
 ## Progress
 
