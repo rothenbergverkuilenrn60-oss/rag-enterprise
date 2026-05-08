@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Agentic Layer + Swarm
-status: Defining requirements
+status: "Phase 11 shipped — PR #2 stacked on PR #1"
 stopped_at: Phase 11 PASS — 4/4 plans verified
-last_updated: "2026-05-08T12:45:46.936Z"
+last_updated: "2026-05-08T12:51:37.488Z"
 last_activity: 2026-05-08 — Milestone v1.2 started; v1.1 archived + tagged
 progress:
   total_phases: 1
@@ -25,7 +25,7 @@ progress:
 
 Phase: Not started (defining requirements)
 Plan: —
-Status: Defining requirements
+Status: Phase 11 shipped — PR #2 stacked on PR #1
 Last activity: 2026-05-08 — Milestone v1.2 started; v1.1 archived + tagged
 
 | Field | Value |
