@@ -104,7 +104,7 @@ Plans:
 **Plans:** 1 plan
 
 Plans:
-- [ ] 10-01-PLAN.md — diff-cover dependency pin + CI step against v1.0 + Makefile coverage-diff target + README docs (TEST-03 complete in single wave)
+- [x] 10-01-PLAN.md — diff-cover dependency pin + CI step against v1.0 + Makefile coverage-diff target + README docs (TEST-03 complete in single wave)
 
 ## Progress
 
