@@ -1,114 +1,97 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.1
-milestone_name: Retrieval Depth & Frontend
-status: unknown
-stopped_at: Phase 10 planned (1 plan, 5 tasks, verified)
-last_updated: "2026-05-08T10:58:34.219Z"
+milestone: v1.2
+milestone_name: Agentic Layer + Swarm
+status: planning
+stopped_at: v1.1 archived; v1.2 requirements pending
+last_updated: "2026-05-08T19:00:00.000Z"
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 9
-  completed_plans: 9
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
-# STATE — EnterpriseRAG v1.1 Retrieval Depth & Frontend
+# STATE — EnterpriseRAG v1.2 Agentic Layer + Swarm
 
 ## Project Reference
 
 **Core value:** Every query returns a grounded, auditable answer — no hallucinations, no silent failures, no security gaps.
-**Current focus:** Phase 09 — Frontend Extraction
+**Current focus:** Defining v1.2 requirements
 
 ## Current Position
 
-Phase: 09 (Frontend Extraction) — EXECUTING
-Plan: 1 of 1
-Phase status: Verified PASS_WITH_NOTES — PR #1 open against master
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-05-08 — Milestone v1.2 started; v1.1 archived + tagged
 
 | Field | Value |
 |-------|-------|
-| Milestone | v1.1 Retrieval Depth & Frontend |
-| Current phase | 8 — Multimodal Metadata + Query Filter (shipped) |
-| Current plan | All Phase 8 plans complete (08-01 → 08-05) |
-| Phase status | PR #1 open — https://github.com/rothenbergverkuilenrn60-oss/rag-enterprise/pull/1 |
-| Overall progress | 2/4 phases (v1.1) |
-
-```
-Progress: [█████░░░░░] 50%
-```
+| Milestone | v1.2 Agentic Layer + Swarm |
+| Current phase | — |
+| Current plan | — |
+| Phase status | — |
+| Overall progress | 0/0 phases (v1.2 not yet roadmapped) |
 
 ## Phase Overview
 
-| Phase | Status |
-|-------|--------|
-| 7. OCR Engine Integration | Shipped in PR #1 (code GREEN, container e2e HUMAN_NEEDED) |
-| 8. Multimodal Metadata + Query Filter | Shipped in PR #1 — verified PASS_WITH_NOTES (5/5 SC, 3/3 reqs, 16/16 unit, 4/4 integration) |
-| 9. Frontend Extraction | Not started |
-| 10. Coverage Gate on New Code | Not started |
-
-## Performance Metrics
-
-| Metric | Value |
-|--------|-------|
-| Phases completed (v1.1) | 2/4 |
-| Requirements complete (v1.1) | 5/7 (OCR-01, OCR-02, META-01, META-02, QUERY-01) |
-| Plans executed (v1.1) | 7 (07-01, 07-02, 08-01–08-05) |
-| Phase 7 unit tests | 33/33 PASS |
-| Phase 8 unit tests | 16/16 PASS (filter_extractor + chunker_section_metadata) |
-| Phase 8 integration tests | 4/4 PASS against live PG |
-| Phase 4 regression tests | 17/17 PASS |
-| Phase 7 e2e integration test | Skip-gated (paddleocr only inside container); will run after `docker compose build rag-api` |
-| PR #1 | https://github.com/rothenbergverkuilenrn60-oss/rag-enterprise/pull/1 |
+(empty — run `/gsd-new-milestone v1.2` to define requirements + roadmap)
 
 ## Accumulated Context
 
-### Key Decisions Logged (v1.1)
+### Carry-Forward from v1.1 (key decisions still in force)
 
-| Decision | Rationale |
-|----------|-----------|
-| PP-StructureV3 over raw PP-OCRv5 | Layout + table + reading-order recovery in one pipeline; right granularity for GB national-standard PDFs |
-| Bake OCR models into Docker image | Cold-start download is 10–60s and flaky behind enterprise proxies; image size delta (~600MB–1.2GB) is acceptable |
-| Singleton + asyncio.to_thread + bounded semaphore | PP-StructureV3 has no documented thread safety; this is the safe contract under FastAPI/ARQ |
-| Section heading text in embedded content; numeric IDs in metadata only | High-cardinality numerics (page_number) dilute embeddings; heading words help recall (verified anti-pattern via LlamaIndex guidance) |
-| pgvector `hnsw.iterative_scan = relaxed_order` + raised `ef_search` when filter active | Default post-filter recall collapses on selective filters; iterative scan keeps walking the HNSW graph until k matches found |
-| Regex-first query filter extractor (no LLM in v1.1) | 100% deterministic, zero per-query cost; LLM fallback deferred to v1.2 |
-| Static HTML via FastAPI StaticFiles (no bundler) | v1.1 ceiling is "edit like a normal frontend file" — no React/Vue/build step |
-| Diff-cover gate on touched files only | Legacy 46% floor stays as informational; v1.1 does not block on legacy code |
+| Decision | Source | Why it matters in v1.2 |
+|----------|--------|------------------------|
+| PostgreSQL + pgvector backend with HNSW + RLS | v1.0 | All v1.2 retrieval work runs on this stack |
+| Section heading text in embedded content; numeric IDs in metadata only | v1.1 Phase 8 D-02 | Any new chunker work must preserve this rule |
+| `hnsw.iterative_scan = strict_order` + `ef_search` GUC pattern when filter active | v1.1 Phase 8 | Pattern to reuse for any new filtered queries |
+| Regex-first filter extractor in `services/nlu/filter_extractor.py` | v1.1 Phase 8 QUERY-01 | LLM fallback is on v1.2 candidate list — extends this module |
+| FastAPI StaticFiles mount at `/ui/` | v1.1 Phase 9 UI-01 | Frontend assets live in `static/` |
+| `static/index.html → ui.html` symlink | v1.1 Phase 9 deviation | If JS/CSS extracted in v1.2, preserve this approach |
+| `diff-cover ≥ 80%` gate on v1.1+ files | v1.1 Phase 10 TEST-03 | All v1.2 PRs MUST pass this gate |
 
-### Pitfalls to Avoid (v1.1)
+### v1.2 Candidate Themes (captured during v1.1, awaiting prioritization)
 
-- PaddleOCR is **not thread-safe** — never call `predict()` from multiple threads on the same instance
-- Forgetting `hnsw.iterative_scan` is the silent killer — `page_number=63` filter on default `ef_search=40` returns near-zero results
-- Do not prepend "Page 63 — section 3.10:" into embedded text — verified to dilute recall
-- CMYK is an *image-extraction* problem, not an OCR problem — full-page rasterization in PP-StructureV3 renders to RGB regardless of source colorspace
-- Model warmup latency 10–60s on cold start — pre-warm in ARQ worker `on_startup`
-- Section IDs in GB docs use multiple formats (`3.10`, `附录A.1`, `表5`) — start with `\d+\.\d+`, extend from real query logs; do not over-engineer upfront
-- `ef_search=200` raises latency 3–5x — acceptable for v1.1 single-tenant low-QPS, revisit when scaling
+1. **Provider-agnostic agentic layer** — `BaseLLMClient.call_agentic_turn` abstract method. Closes the OpenAI/Anthropic gap in `AgentQueryPipeline` (currently OpenAI silently falls back to non-agentic via `services/pipeline.py:599-604`). Office-hours design APPROVED 2026-05-08.
+2. **Parallel tool-call burst** (single-turn multi-call) — README differentiator; uses `parallel_tool_calls=True` (OpenAI) / `disable_parallel_tool_use=False` (Anthropic). OpenAI probe verified working through OneAPI gateway.
+3. **True swarm with fork agents** — references `claude-code` `forkedAgent.ts` pattern; deeper architectural change.
+4. **LLM-based filter extractor** (fallback when regex misses) — extends `services/nlu/filter_extractor.py`.
+5. **Frontend modernization** (JS/CSS extraction; DOM API rewrites; potentially React/Vue/build step).
+6. **Integration-test coverage merging** via `coverage combine` — extends Phase 10 gate to integration paths.
+7. **Per-file `# coverage:ignore-diff` overrides** — escape hatch if main.py-style boot becomes recurring blocker.
+8. **Raising legacy 46% global coverage floor**.
 
-### Open Questions (v1.1)
+### Open Questions (v1.2)
 
-1. OCR worker placement — same ARQ pool with separate `ocr_queue` vs separate container? (research leans separate container)
-2. PP-StructureV3 vs MinerU/Marker/Surya — flag for follow-up if PaddleOCR latency proves unacceptable on real GB PDFs
-3. Section ID extraction — trust PP-StructureV3 `block_order` heading detection or run regex `^第?\d+(\.\d+)*\s+...` over markdown output? (recommend regex over markdown, fall back to V3 blocks)
-4. paddlepaddle exact patch pin (3.0.0 vs 3.0.1) — needs `pip install --dry-run` on actual build host before locking Dockerfile
-5. `hnsw.ef_search=200` is a guess — needs eval set with known page/section ground truth
+1. Which v1.2 candidate themes ship together vs separate? (office-hours design proposed: Step 0 + v0 in one milestone, v1 swarm in next)
+2. Anthropic API key availability — Step 0 abstraction must work for both providers but live test only via OpenAI without key.
+3. Migration plan for existing `agent_mode: bool = False` field in `utils/models.py:215` (currently dead code in OpenAI mode).
+4. Should `services/pipeline.py:599-604` Anthropic-only gate be removed in Step 0 PR or in a follow-up?
+
+### Pitfalls to Carry into v1.2
+
+- `BaseLLMClient` abstraction must NOT leak provider-specific tool-call wire formats into call sites (`AgentQueryPipeline`)
+- `parallel_tool_calls=True` is OpenAI default but must be EXPLICIT in Anthropic adapter (`disable_parallel_tool_use=False`)
+- Worktree `isolation="worktree"` workflow has been used 4 phases without incident — keep this pattern for v1.2
 
 ### Blockers
 
 None.
 
-### Todos
+### Todos (carry-forward, not v1.2-scoped but tracked)
 
-- User: `docker compose build rag-api` then `bash scripts/verify_ocr_bake.sh` then `pytest tests/integration/test_ocr_e2e.py -m integration -x -s` inside container — closes Phase 7 SC #1 and SC #3 live verification.
-- Plan Phase 8: `/gsd-plan-phase 8` (Multimodal Metadata + Query Filter — META-01, META-02, QUERY-01)
+- [ ] asyncpg pool + RLS: verify `app.current_tenant` per-connection in production pool
+- [ ] PyMuPDF AGPL license: resolve commercial licensing for on-premise deployments
+- [ ] Phase 9 visual diff vs v1.0 + Docker live build (deferred to first deploy)
+- [ ] Phase 10 live PR through CI confirms `coverage-diff` step + HTML artifact (natural confirmation on first PR)
+- [ ] Push tag `v1.1` to origin (currently local-only)
+- [ ] PR #1 review + merge
 
 ## Session Continuity
 
-**Last updated:** 2026-04-27 22:00 — Phase 7 executed (2 plans, 9 commits) and verified (15/15 criteria PASS in code)
-**Stopped at:** Phase 10 planned (1 plan, 5 tasks, verified)
-**Next action:** User runs docker rebuild + e2e; in parallel, can run `/gsd-plan-phase 8` to plan Multimodal Metadata + Query Filter
-
-**Phase 7 artifacts:** 07-01-SUMMARY.md, 07-02-SUMMARY.md, VERIFICATION.md
-
-**Planned Phase:** 8 (Multimodal Metadata + Query Filter) — 5 plans — 2026-05-08T02:55:02.368Z
+**Last updated:** 2026-05-08 — v1.1 milestone archived; v1.1 git tag created locally
+**Stopped at:** v1.1 archived; v1.2 requirements pending
+**Next action:** Run `/gsd-new-milestone v1.2` (resume) to define requirements + roadmap from office-hours design + carry-forward themes
