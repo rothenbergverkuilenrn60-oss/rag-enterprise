@@ -398,10 +398,22 @@ def structure_nodes_to_chunks(
     nodes: list[StructureNode],
     doc_id: str,
     content: ExtractedContent,
+    *,
+    section_map: list[tuple[int, str, str]] | None = None,
+    page_offset_map: dict[int, int] | None = None,
+    full_clean_text: str | None = None,
 ) -> list[DocumentChunk]:
     """
     把 StructureNode 列表转换为 DocumentChunk 列表，同时注入层级元数据。
     支持动态 chunk size：不同节点类型使用不同的切分大小。
+
+    Phase 8 (META-01): when ``section_map`` + ``full_clean_text`` are provided
+    (OCR'd GB pipeline), each chunk is annotated with ``section_id`` /
+    ``section_title`` / ``page_number`` resolved by anchor-based offset lookup
+    against ``full_clean_text``. ``content_with_header`` then takes the locked
+    D-02 form ``f"{section_id} {section_title}\\n\\n{body}"``. When the maps
+    are absent (legacy / non-GB pipelines), behaviour is unchanged: empty
+    section fields and the legacy ``[node_type] header\\n\\n{body}`` shape.
     """
     chunks: list[DocumentChunk] = []
     total = len(nodes)
@@ -428,6 +440,21 @@ def structure_nodes_to_chunks(
         for sub_idx, sub_text in enumerate(sub_texts):
             if not sub_text.strip():
                 continue
+
+            # Phase 8 (META-01): resolve section + page for this sub_text via
+            # offset lookup. Only effective when caller provides full_clean_text
+            # + maps (OCR'd GB pipeline). Legacy callers leave fields empty.
+            sec_id, sec_title = "", ""
+            sub_page: int | None = None
+            if section_map is not None and full_clean_text is not None:
+                # Anchor: first 50 chars of sub_text — Pattern 1 in 08-RESEARCH.
+                anchor = sub_text[:50]
+                offset = full_clean_text.find(anchor) if anchor else -1
+                if offset >= 0:
+                    sec_id, sec_title = _nearest_section(offset, section_map)
+                    if page_offset_map is not None:
+                        sub_page = _nearest_page(offset, page_offset_map)
+
             # 构建带层级上下文的嵌入文本
             context_parts = []
             if node.parent_heading:
@@ -435,7 +462,13 @@ def structure_nodes_to_chunks(
             if node.heading and node.heading != node.parent_heading:
                 context_parts.append(node.heading)
             context_header = " > ".join(context_parts) if context_parts else content.title
-            enriched = f"[{node.node_type}] {context_header}\n\n{sub_text}"
+
+            if sec_id and sec_title:
+                # D-02 LOCKED: leaf-only "section_id section_title\n\n{body}"
+                enriched = f"{sec_id} {sec_title}\n\n{sub_text}"
+            else:
+                # Legacy / non-GB: keep original hierarchical header form
+                enriched = f"[{node.node_type}] {context_header}\n\n{sub_text}"
 
             # 二次切分时在 chunk_id 中加入子索引，保证唯一性
             unique_idx = idx * 100 + sub_idx
@@ -447,6 +480,9 @@ def structure_nodes_to_chunks(
                 author=content.author,
                 section=node.parent_heading,
                 sub_section=node.heading,
+                section_id=sec_id,             # META-01 NEW
+                section_title=sec_title,       # META-01 NEW
+                page_number=sub_page,          # META-01: derived from page_offset_map
                 chunk_index=unique_idx,
                 total_chunks=total,
                 doc_type=content.doc_type,
@@ -746,6 +782,12 @@ class DocProcessorService:
         self._use_parent_child  = getattr(settings, "parent_child_enabled", False)
         self._use_contextual    = getattr(settings, "contextual_retrieval_enabled", False)
         self._use_proposition   = getattr(settings, "proposition_on_articles", False)
+        # Phase 8 (META-01): per-document section context cache populated by
+        # _process_structure and consumed by _chunk_images on the same call.
+        # Reset by process() on each invocation so stale maps from a previous
+        # document never leak into a new one.
+        self._last_section_map: list[tuple[int, str, str]] = []
+        self._last_page_offset_map: dict[int, int] = {}
 
     @log_latency
     async def process(
@@ -773,6 +815,11 @@ class DocProcessorService:
           第四层（可选）：proposition_on_articles = true
             对 article 类型节点额外做命题化拆解（精确条款查询场景）
         """
+        # Phase 8 (META-01): reset per-document section cache (set by
+        # _process_structure when GB headings are present).
+        self._last_section_map = []
+        self._last_page_offset_map = {}
+
         if not content.body_text.strip() and not content.images:
             logger.warning(f"[DocProcess] Empty body_text and no images for doc_id={doc_id}")
             return []
@@ -783,12 +830,15 @@ class DocProcessorService:
                 f"[DocProcess] Image-only doc: doc_id={doc_id} "
                 f"images={len(content.images)}"
             )
+            # Image-only docs have no text → empty section/page maps (legacy behaviour).
             return await self._chunk_images(
                 images=content.images,
                 content=content,
                 doc_id=doc_id,
                 llm_client=llm_client,
                 start_index=0,
+                section_map=None,
+                page_offset_map=None,
             )
 
         # 确定实际使用的主策略
@@ -838,12 +888,17 @@ class DocProcessorService:
 
         # ── Image chunks (appended after all text chunks) ─────────────────────
         if content.images and llm_client is not None:
+            # Phase 8 (META-01 / D-04): pass the section + page maps captured
+            # by _process_structure (empty when the doc had no GB headings or
+            # took the basic-strategy branch — falls back to legacy behaviour).
             image_chunks = await self._chunk_images(
                 images=content.images,
                 content=content,
                 doc_id=doc_id,
                 llm_client=llm_client,
                 start_index=len(all_chunks),
+                section_map=self._last_section_map or None,
+                page_offset_map=self._last_page_offset_map or None,
             )
             all_chunks.extend(image_chunks)
 
@@ -1021,8 +1076,28 @@ class DocProcessorService:
         doc_id: str,
         llm_client,
     ) -> list[DocumentChunk]:
-        nodes = structure_aware_split(content.body_text)
-        chunks = structure_nodes_to_chunks(nodes, doc_id, content)
+        # Phase 8 (META-01): pre-pass — strip OCR markers, build section/page maps.
+        # structure_aware_split now operates on the CLEAN body so chunk content
+        # never carries [第N页·OCR] markers (Pitfall #6 — offset consistency:
+        # section_map and page_offset_map must be built from the SAME string
+        # that structure_aware_split sees, otherwise anchor offsets diverge).
+        clean_body, page_offset_map = _strip_ocr_markers_with_pages(content.body_text)
+        section_map = _build_gb_section_map(clean_body)
+        # Stash the maps on `self` so this branch's image-chunk pass can reuse
+        # them via process()'s outer call to _chunk_images (set unconditionally;
+        # truthy-check at the consumer end keeps legacy paths empty).
+        self._last_section_map = section_map
+        self._last_page_offset_map = page_offset_map
+
+        nodes = structure_aware_split(clean_body)
+        chunks = structure_nodes_to_chunks(
+            nodes,
+            doc_id,
+            content,
+            section_map=section_map,
+            page_offset_map=page_offset_map,
+            full_clean_text=clean_body,
+        )
 
         # 表格单独处理：每行一个命题式块
         table_chunks = self._process_tables(content, doc_id, len(chunks))
@@ -1250,11 +1325,22 @@ class DocProcessorService:
         doc_id: str,
         llm_client: object,
         start_index: int = 0,
+        *,
+        section_map: list[tuple[int, str, str]] | None = None,
+        page_offset_map: dict[int, int] | None = None,
     ) -> list["DocumentChunk"]:
         """
         Caption each ExtractedImage via LLM and produce DocumentChunk objects.
         D-03: catch (openai.APIError, httpx.HTTPError, anthropic.APIError) only.
         D-04: on failure, append to content.extraction_errors, continue; do not raise.
+
+        Phase 8 (META-01 / D-04): when ``section_map`` + ``page_offset_map`` are
+        provided, each image is joined to the section heading owning its host
+        page. The section_id / section_title flow into ChunkMetadata, the
+        chat_with_vision query is prefixed with a Chinese context-hint, and
+        ``content_with_header`` adopts the D-02-shaped wrap. Images whose host
+        page has no preceding GB heading fall back to the legacy caption-only
+        form.
         """
         if llm_client is None:
             logger.warning(
@@ -1264,15 +1350,41 @@ class DocProcessorService:
 
         chunks: list[DocumentChunk] = []
 
+        # Build a page → first-offset lookup once, sorted ascending so we pick
+        # the first occurrence of each page (matches `_nearest_section`'s
+        # assumption that map entries are scanned left-to-right).
+        page_to_offset: dict[int, int] = {}
+        if page_offset_map:
+            for off, page in sorted(page_offset_map.items()):
+                page_to_offset.setdefault(page, off)
+
         for img_offset, img in enumerate(images):
             chunk_index = start_index + img_offset
             image_b64 = base64.b64encode(img.raw_bytes).decode()
             media_type = f"image/{img.ext}" if img.ext != "jpg" else "image/jpeg"
 
+            # Phase 8 (META-01 / D-04): resolve section context for this image.
+            img_sec_id, img_sec_title = "", ""
+            if section_map and page_to_offset and img.page_number:
+                page_offset = page_to_offset.get(img.page_number)
+                if page_offset is not None:
+                    img_sec_id, img_sec_title = _nearest_section(
+                        page_offset, section_map
+                    )
+
+            # D-04 part 1: vision-prompt context-hint prefix.
+            if img_sec_title and img.page_number:
+                context_hint = (
+                    f"图片位于第{img.page_number}页，"
+                    f"所属章节：{img_sec_id} {img_sec_title}。"
+                )
+            else:
+                context_hint = ""
+
             try:
                 caption: str = await llm_client.chat_with_vision(
                     image_b64=image_b64,
-                    query="请描述这张图片的内容。",
+                    query=f"{context_hint}请描述这张图片的内容。",
                     media_type=media_type,
                     system=_IMAGE_CAPTION_SYSTEM,
                 )
@@ -1297,6 +1409,13 @@ class DocProcessorService:
                 )
                 continue
 
+            # D-04 part 2: content_with_header — D-02-shaped wrap when section
+            # is known, fallback to caption-only for legacy / pre-v1.1 images.
+            if img_sec_id and img_sec_title:
+                cwh = f"{img_sec_id} {img_sec_title}\n\n{caption}"
+            else:
+                cwh = caption
+
             chunk_id = _make_chunk_id(doc_id, chunk_index, caption)
             meta = ChunkMetadata(
                 source=content.title or doc_id,
@@ -1304,6 +1423,8 @@ class DocProcessorService:
                 chunk_type="image",
                 image_b64=image_b64,
                 page_number=img.page_number,
+                section_id=img_sec_id,           # META-01 NEW
+                section_title=img_sec_title,     # META-01 NEW
                 chunk_index=chunk_index,
                 doc_type=content.doc_type,
                 language=content.language,
@@ -1314,7 +1435,7 @@ class DocProcessorService:
                 chunk_id=chunk_id,
                 doc_id=doc_id,
                 content=caption,
-                content_with_header=caption,
+                content_with_header=cwh,
                 metadata=meta,
                 token_count=len(caption.split()),
             ))

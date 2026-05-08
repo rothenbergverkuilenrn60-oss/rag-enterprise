@@ -72,7 +72,12 @@ class TestSectionWalkerEndToEnd:
     """META-01 SC#1: full chunker pipeline — content_with_header == '{sid} {title}\\n\\n{body}'."""
 
     def test_chunker_emits_d02_form_for_gb_text(self):
-        from services.doc_processor.chunker import structure_aware_split, structure_nodes_to_chunks
+        from services.doc_processor.chunker import (
+            _build_gb_section_map,
+            _strip_ocr_markers_with_pages,
+            structure_aware_split,
+            structure_nodes_to_chunks,
+        )
         from utils.models import ExtractedContent, DocType
         body = (
             "[第63页·OCR]\n"
@@ -82,6 +87,7 @@ class TestSectionWalkerEndToEnd:
             "条件二……\n"
         )
         content = ExtractedContent(
+            raw_id="test-gb-1",
             title="GB4785-2019",
             author="",
             body_text=body,
@@ -90,9 +96,19 @@ class TestSectionWalkerEndToEnd:
             metadata={"source": "test.pdf"},
             extraction_errors=[],
         )
-        # 08-03 must wire structure_aware_split to consume cleaned text + propagate section_*.
-        nodes = structure_aware_split(body)
-        chunks = structure_nodes_to_chunks(nodes, "doc-1", content)
+        # 08-03 wires the pre-pass so structure_aware_split sees clean text and
+        # structure_nodes_to_chunks receives the section + page maps.
+        clean_body, page_offset_map = _strip_ocr_markers_with_pages(body)
+        section_map = _build_gb_section_map(clean_body)
+        nodes = structure_aware_split(clean_body)
+        chunks = structure_nodes_to_chunks(
+            nodes,
+            "doc-1",
+            content,
+            section_map=section_map,
+            page_offset_map=page_offset_map,
+            full_clean_text=clean_body,
+        )
         assert chunks, "expected at least one chunk from GB body_text"
         target = next(c for c in chunks if "灯具的发光面" in c.content)
         assert target.metadata.section_id == "3.10"
@@ -102,18 +118,80 @@ class TestSectionWalkerEndToEnd:
         # Page/OCR markers MUST NOT be in embedded text
         assert "[第63页·OCR]" not in target.content_with_header
         assert "第63页" not in target.content_with_header
+        # Page number derived from the OCR marker preceding this content.
+        assert target.metadata.page_number == 63
 
 
 class TestImageChunkSectionMetadata:
     """SC#4: image-caption chunks carry section_id/title from host page; D-04 content_with_header form."""
 
+    @staticmethod
+    def _build_fixture():
+        """Shared GB fixture: one image on page 63 sitting under section 3.10."""
+        import asyncio
+        from services.doc_processor.chunker import (
+            DocProcessorService,
+            _build_gb_section_map,
+            _strip_ocr_markers_with_pages,
+        )
+        from utils.models import DocType, ExtractedContent, ExtractedImage
+
+        body = (
+            "[第63页·OCR]\n"
+            "3.10 定义的透光面\n"
+            "本节定义了灯具的发光面。\n"
+        )
+        clean, page_offset_map = _strip_ocr_markers_with_pages(body)
+        section_map = _build_gb_section_map(clean)
+
+        content = ExtractedContent(
+            raw_id="test-img-1",
+            title="GB4785-2019",
+            body_text=body,
+            doc_type=DocType.PDF,
+            language="zh",
+            metadata={"source": "test.pdf"},
+            images=[ExtractedImage(raw_bytes=b"\x89PNG\r\n", page_number=63)],
+        )
+
+        captured: dict[str, object] = {}
+
+        class _FakeLLM:
+            async def chat_with_vision(self, *, image_b64, query, media_type, system):
+                captured["query"] = query
+                captured["system"] = system
+                return "示意图：透光面区域。"
+
+        svc = DocProcessorService()
+        chunks = asyncio.run(svc._chunk_images(
+            images=content.images,
+            content=content,
+            doc_id="doc-1",
+            llm_client=_FakeLLM(),
+            start_index=0,
+            section_map=section_map,
+            page_offset_map=page_offset_map,
+        ))
+        return chunks, captured
+
     def test_image_chunk_carries_section_fields(self) -> None:
-        """RED until 08-03 T2: _chunk_images populates section_id/section_title from host page section map."""
-        # Will reference _chunk_images and section-map join — ImportError until 08-03 T2 wires it.
-        from services.doc_processor.chunker import _chunk_images  # noqa: F401
-        assert False, "image-chunk section enrichment unimplemented"
+        chunks, captured = self._build_fixture()
+        assert len(chunks) == 1
+        meta = chunks[0].metadata
+        assert meta.chunk_type == "image"
+        assert meta.page_number == 63
+        assert meta.section_id == "3.10"
+        assert meta.section_title.startswith("定义的透光面")
+        # D-04 part 1: vision prompt prefix carries page + section context.
+        assert "图片位于第63页" in captured["query"]
+        assert "3.10" in captured["query"]
+        assert "定义的透光面" in captured["query"]
 
     def test_image_chunk_content_with_header_d04_form(self) -> None:
-        """RED until 08-03 T2: image content_with_header == f'{section_id} {section_title}\\n\\n{caption}'."""
-        from services.doc_processor.chunker import _chunk_images  # noqa: F401
-        assert False, "D-04 image header form unimplemented"
+        chunks, _captured = self._build_fixture()
+        assert len(chunks) == 1
+        cwh = chunks[0].content_with_header
+        # D-04 = D-02 shape: "{sid} {title}\n\n{caption}"
+        assert cwh.startswith("3.10 定义的透光面\n\n")
+        assert cwh.endswith("示意图：透光面区域。")
+        assert "[第63页·OCR]" not in cwh
