@@ -57,15 +57,29 @@ jobs:
             --cov=services \
             --cov=utils \
             --cov-report=term-missing \
+            --cov-report=xml:coverage.xml \
             --cov-fail-under=46 \
             -v
+
+      - name: Fetch v1.0 tag for diff-cover baseline
+        run: git fetch --no-tags --depth=1 origin +refs/tags/v1.0:refs/tags/v1.0
+
+      - name: Run diff-cover against v1.0 (TEST-03 hard gate)
+        run: |
+          diff-cover coverage.xml \
+            --compare-branch=v1.0 \
+            --fail-under=80 \
+            --html-report diff-cover.html
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: coverage-report
-          path: .coverage
+          path: |
+            .coverage
+            coverage.xml
+            diff-cover.html
 
   integration-tests:
     name: Integration Tests
