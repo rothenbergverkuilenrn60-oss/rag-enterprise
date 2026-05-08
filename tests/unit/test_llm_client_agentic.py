@@ -176,3 +176,108 @@ async def test_anthropic_cached_system_used(anthropic_client: Any) -> None:
     assert isinstance(sent_system, list)
     assert sent_system[0]["text"] == "SYS_PROMPT"
     assert sent_system[0].get("cache_control", {}).get("type") == "ephemeral"
+
+
+# ───── OpenAI adapter ────────────────────────────────────────────────────────
+
+@pytest.fixture
+def openai_client() -> Any:
+    """Bypass the AsyncOpenAI constructor so we don't need an API key.
+    Returns (OpenAILLMClient, fake) where fake is the mocked SDK client.
+    """
+    from services.generator import llm_client as mod
+    fake = MagicMock()
+    fake.chat = MagicMock()
+    fake.chat.completions = MagicMock()
+    fake.chat.completions.create = AsyncMock()
+    with patch("openai.AsyncOpenAI", return_value=fake):
+        client = mod.OpenAILLMClient()
+    return client, fake
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("fixture_name,expected", [
+    ("openai_text_only.json",
+        {"len_tool_calls": 0, "stop_reason": "text_only", "input_tokens": 312, "output_tokens": 44}),
+    ("openai_single_tool_call.json",
+        {"len_tool_calls": 1, "stop_reason": "tool_use", "input_tokens": 290, "output_tokens": 38,
+         "first_tool_id": "call_oai_single_A", "first_tool_name": "search_knowledge_base",
+         "first_tool_args": {"query": "产假天数规定", "top_k": 5}}),
+    ("openai_two_parallel_tool_calls.json",
+        {"len_tool_calls": 2, "stop_reason": "tool_use", "input_tokens": 305, "output_tokens": 71,
+         "tool_ids_in_order": ["call_oai_parallel_A", "call_oai_parallel_B"]}),
+])
+@pytest.mark.asyncio
+async def test_openai_call_agentic_turn(
+    openai_client: Any, fixture_name: str, expected: dict[str, Any],
+) -> None:
+    client, fake = openai_client
+    fake.chat.completions.create.return_value = _to_namespace(_load(fixture_name))
+
+    turn = await client.call_agentic_turn(
+        messages=[{"role": "user", "content": "查询产假规定"}],
+        tools=[_TOOL],
+        system="你是助手",
+    )
+
+    assert isinstance(turn, AgenticTurn)
+    assert len(turn.tool_calls) == expected["len_tool_calls"]
+    assert turn.stop_reason == expected["stop_reason"]
+    assert turn.usage_input_tokens == expected["input_tokens"]
+    assert turn.usage_output_tokens == expected["output_tokens"]
+    if "first_tool_id" in expected:
+        assert turn.tool_calls[0].id == expected["first_tool_id"]
+        assert turn.tool_calls[0].name == expected["first_tool_name"]
+        assert turn.tool_calls[0].arguments == expected["first_tool_args"]
+    if "tool_ids_in_order" in expected:
+        assert [tc.id for tc in turn.tool_calls] == expected["tool_ids_in_order"]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_openai_parallel_tool_calls_explicit(openai_client: Any) -> None:
+    """parallel_tool_calls=True is passed explicitly (default arg value).
+
+    Verifies AGENT-02 acceptance #2: OpenAI adapter sets the explicit kwarg
+    for auditability/symmetry with Anthropic side.
+    """
+    client, fake = openai_client
+    fake.chat.completions.create.return_value = _to_namespace(_load("openai_text_only.json"))
+    await client.call_agentic_turn(
+        messages=[{"role": "user", "content": "q"}], tools=[_TOOL], system="s",
+    )
+    kwargs = fake.chat.completions.create.call_args.kwargs
+    assert kwargs.get("parallel_tool_calls") is True
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_openai_tools_converted_to_openai_shape(openai_client: Any) -> None:
+    """Project's _AGENT_TOOLS shape (Anthropic-style) → OpenAI tools shape conversion."""
+    client, fake = openai_client
+    fake.chat.completions.create.return_value = _to_namespace(_load("openai_text_only.json"))
+    await client.call_agentic_turn(
+        messages=[{"role": "user", "content": "q"}], tools=[_TOOL], system="s",
+    )
+    sent_tools = fake.chat.completions.create.call_args.kwargs["tools"]
+    assert len(sent_tools) == 1
+    assert sent_tools[0]["type"] == "function"
+    assert sent_tools[0]["function"]["name"] == "search_knowledge_base"
+    assert "parameters" in sent_tools[0]["function"]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_openai_system_prepended_to_messages(openai_client: Any) -> None:
+    """OpenAI Chat Completions does not have a separate `system=` kwarg —
+    the system prompt must be prepended to the messages list as role=system.
+    """
+    client, fake = openai_client
+    fake.chat.completions.create.return_value = _to_namespace(_load("openai_text_only.json"))
+    await client.call_agentic_turn(
+        messages=[{"role": "user", "content": "q"}], tools=[_TOOL], system="SYSTEM_TEXT",
+    )
+    sent_msgs = fake.chat.completions.create.call_args.kwargs["messages"]
+    assert sent_msgs[0]["role"] == "system"
+    assert sent_msgs[0]["content"] == "SYSTEM_TEXT"
+    assert sent_msgs[1]["role"] == "user"
