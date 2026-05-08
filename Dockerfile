@@ -46,7 +46,7 @@ RUN pip install --upgrade pip wheel \
 RUN pip install --no-cache-dir --find-links=/wheels \
         paddlepaddle==3.0.0 \
         "paddleocr==3.1.*" \
-    && python -c "from paddleocr import PPStructureV3; PPStructureV3(use_doc_orientation_classify=False, use_doc_unwarping=False, lang='ch')" \
+    && python -c "from paddleocr import PPStructureV3; PPStructureV3(use_doc_orientation_classify=False, use_doc_unwarping=False)" \
     && du -sh /root/.paddlex \
     && ls /root/.paddlex/official_models
 

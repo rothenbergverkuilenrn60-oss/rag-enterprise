@@ -106,10 +106,11 @@ def _paddle_pipeline() -> Any:
     """
     from paddleocr import PPStructureV3  # local import: optional dep
     logger.info("[OCR] Initializing PP-StructureV3 singleton (first call)")
+    # paddleocr 3.1.x dropped the `lang` kwarg from PPStructureV3 (now controlled via config / model selection);
+    # default Chinese support is built in for the layout/table sub-pipelines.
     return PPStructureV3(
         use_doc_orientation_classify=False,
         use_doc_unwarping=False,
-        lang="ch",
     )
 
 
