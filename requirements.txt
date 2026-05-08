@@ -93,8 +93,8 @@ opentelemetry-exporter-otlp==1.29.0
 # Models are baked into the Docker image (Plan 02); local dev environments
 # may opt out by removing these two lines — extractor.py auto-falls-back to
 # Tesseract when paddleocr is not importable.
-paddlepaddle==3.0.0
-paddleocr==3.1.*
+# paddlepaddle==3.0.0  # Docker-only (baked via Dockerfile); transitive paddlex[ie] conflicts with openai==1.59.6 pin
+# paddleocr==3.1.*     # Docker-only (Phase 7 OCR-01 production engine); CI uses Tesseract fallback per services/extractor/extractor.py
 
 # 方案B：Tesseract（轻量回退；系统包通过 Dockerfile 安装：tesseract-ocr-chi-sim）
 # pytesseract==0.3.13
