@@ -57,37 +57,57 @@ See [milestones/v1.3-ROADMAP.md](milestones/v1.3-ROADMAP.md) for full phase deta
 
 </details>
 
-### 📋 v1.4 Agent-First Architecture Inversion (Phases 16–19) — IN PLANNING (opened 2026-05-09)
+## v1.4 Agent-First Architecture Inversion (Phases 16–19) — IN PLANNING (opened 2026-05-09)
 
-**Goal:** Invert the architecture so the agent runtime is the project's core (planner + executor + tool registry), and agentic RAG becomes one tool the agent calls. Source design doc: `~/.gstack/projects/rothenbergverkuilenrn60-oss-rag-enterprise/ubuntu-gsd-v1.3-milestone-design-20260509-163809.md` (Approach A — incremental refactor).
+**Milestone goal:** Invert the architecture so the agent runtime is the project's core (planner + executor + tool registry), and agentic RAG becomes one tool the agent calls. Source design doc: `~/.gstack/projects/rothenbergverkuilenrn60-oss-rag-enterprise/ubuntu-gsd-v1.3-milestone-design-20260509-163809.md` (Approach A — incremental refactor, no framework lock-in).
 
-- [ ] **Phase 16: Planner + Executor Extraction** (REQ-IDs: AGENT-06, AGENT-09, NLU-03)
-  - Refactor `services/pipeline.py::AgentQueryPipeline` into `Planner` + `Executor` + `Synthesizer` collaborators
-  - Extract `_execute_tool_call` to a single shared helper used by both `SwarmQueryPipeline` and the new `Executor` (eliminates v1.3-accepted duplication)
-  - Subsume NLU-03 into the planner output (intent = `ToolPlan` shape, no separate router)
-  - Behavioral parity vs v1.3 baseline asserted by tests before any new behavior lands
-  - Success criteria: parity tests green; coverage ≥ 70% combined; no v1.3 invariant regressed (multi-tenancy, JWT, audit)
+### Phase 16: Planner + Executor Extraction
+**Goal:** Refactor `services/pipeline.py::AgentQueryPipeline` into three explicit collaborators (`Planner`, `Executor`, `Synthesizer`); extract `_execute_tool_call` to a shared helper used by both `SwarmQueryPipeline` and the new `Executor`; subsume query-intent classification into the planner's `ToolPlan` output. Behavioral parity vs v1.3 baseline asserted before any new behavior lands.
+**Requirements:** AGENT-06, AGENT-09, NLU-03
+**Depends on:** Phase 11 (v1.2 `call_agentic_turn` abstraction), Phase 12 (v1.3 `SwarmQueryPipeline` source for `_execute_tool_call` shared helper)
+**Canonical refs:** `~/.gstack/projects/rothenbergverkuilenrn60-oss-rag-enterprise/ubuntu-gsd-v1.3-milestone-design-20260509-163809.md`, `services/pipeline.py`, `services/generator/llm_client.py`
+**Success Criteria:**
+1. `AgentQueryPipeline.run` body delegates to `Planner` → `Executor` → `Synthesizer`; collaborators each have a single-purpose Pydantic V2 frozen model interface (`ToolPlan`, `ToolCall`).
+2. Behavioral parity test fixture (recorded v1.3 transcript) replays through the new pipeline and produces byte-identical tool-call sequences for the parity scenarios.
+3. `_execute_tool_call` exists in exactly one location; both `SwarmQueryPipeline` and the new `Executor` import the helper (no copy duplicates; verified via `grep -rn "def _execute_tool_call"` returning ≤ 1 match).
+4. Query intent (single-hop / parallel / short-circuit) is encoded as `ToolPlan` shape — no separate `IntentRouter` class introduced.
+5. v1.3 invariants intact under integration test: PostgreSQL RLS isolates tenants on every tool call; audit log carries the same fields as v1.3; combined coverage ≥ 70%.
 
-- [ ] **Phase 17: Tool Abstraction + RetrieveTool** (REQ-IDs: AGENT-07)
-  - Define `Tool` Protocol (or `BaseTool` ABC, decided in plan)
-  - Wrap `QueryPipeline.run()` as `RetrieveTool` — hybrid + RRF + rerank stays internal
-  - Register ≥ 1 additional skeletal tool (`WebSearchTool` or `SQLTool` placeholder) to prove pluggability
-  - Static class registry; abstraction clean enough that MCP can replace it later
-  - Success criteria: `Executor` dispatches via the registry only; multi-tool integration test green; tool authoring guide stub exists
+### Phase 17: Tool Abstraction + RetrieveTool
+**Goal:** Define a provider-neutral `Tool` Protocol; wrap `QueryPipeline.run()` as `RetrieveTool` with hybrid retrieval + RRF + rerank kept internal; register ≥ 1 additional skeletal tool to prove pluggability via static class registry; abstraction clean enough that MCP plug-in discovery (10x roadmap #3) replaces it later without callsite changes.
+**Requirements:** AGENT-07
+**Depends on:** Phase 16 (Planner + Executor + Synthesizer extracted)
+**Canonical refs:** `services/pipeline.py::QueryPipeline`, `services/retriever/retriever.py`, `services/reranker_service/`
+**Success Criteria:**
+1. `Tool` Protocol (or `BaseTool` ABC, decided in plan) declared with `name`, `description`, `parameters_schema`, `async run(...)` surface.
+2. `RetrieveTool` wraps `QueryPipeline.run()`; v1.3 retrieval behavior preserved on existing test fixtures (no recall/rank regression).
+3. ≥ 1 additional skeletal tool registered (`WebSearchTool` or `SQLTool` placeholder) — exercises the registry with a non-RAG implementation.
+4. `Executor` dispatches strictly through the registry; no direct imports of `RetrieveTool` or other tools by name in pipeline code.
+5. Tool authoring guide stub exists at `docs/agent-architecture.md#authoring-tools` with one runnable example.
 
-- [ ] **Phase 18: SSE Planner Trace Event Stream** (REQ-IDs: AGENT-04)
-  - Emit `planner.plan` / `tool.span` (start/end/error w/ timing) / `executor.parallel` / `synthesizer.final` on `/query/stream` (and/or new `/agent/v1/run/stream`)
-  - Document event schemas in `docs/agent-architecture.md`
-  - Latency assertion: agentic queries with N parallel tools bounded by `max(tool_latency)`, not sum
-  - Success criteria: streaming smoke test asserts each event type fires once; multi-hop demo query produces visible parallel fan-out in the timeline
+### Phase 18: SSE Planner Trace Event Stream
+**Goal:** Emit a planner trace event stream on `/query/stream` (and/or new `/agent/v1/run/stream`) so peer engineers can see the agent's reasoning as it happens; documented schemas; latency assertion that parallel tool calls are bounded by `max(tool_latency)`, not sum.
+**Requirements:** AGENT-04
+**Depends on:** Phase 16 (collaborator boundaries), Phase 17 (tool registry — `tool.span` references tool names)
+**Canonical refs:** `services/pipeline.py` (existing SSE infra), `controllers/api.py` (`/query/stream` route), `docs/agent-architecture.md` (created in Phase 17, extended here)
+**Success Criteria:**
+1. Streaming endpoint emits at minimum: `planner.plan` (with the `ToolPlan` JSON), `tool.span.start` / `tool.span.end` / `tool.span.error` (per-call timing, inputs, outputs/error), `executor.parallel` (fan-out factor), `synthesizer.final` (composed answer).
+2. Event schemas documented in `docs/agent-architecture.md` with example payloads; one example per event type.
+3. Streaming smoke test asserts each event type fires exactly the expected count for a known multi-hop query.
+4. Latency assertion in integration test: agentic query with N parallel tools completes in `max(tool_latency) + planner + synthesizer + small overhead`, NOT `sum(tool_latency)`.
+5. Multi-hop demo query produces visible parallel fan-out in the SSE timeline (manual reproduction via `make demo-agent` in Phase 19).
 
-- [ ] **Phase 19: Agent-First Docs + Demo + Release** (REQ-IDs: AGENT-08)
-  - README rewrite: lead with agent-first architecture; agentic RAG framed as one tool
-  - `docs/agent-architecture.md`: planner/executor model + tool authoring + SSE event schema reference
-  - `make demo-agent` target: spins up stack and runs multi-hop demo query end-to-end
-  - Recorded asciinema/gif of parallel fan-out embedded in README
-  - Tag v1.4 release on `main`
-  - Success criteria: `make demo-agent` exits 0 from clean checkout; README screenshots/gif render correctly on GitHub; release tag pushed
+### Phase 19: Agent-First Docs + Demo + Release
+**Goal:** README rewrite leading with agent-first architecture (RAG framed as one tool); `docs/agent-architecture.md` covers planner/executor model + tool authoring + SSE event schema; `make demo-agent` target reproduces the whoa from a clean checkout; recorded asciinema/gif embedded in README; v1.4 release tagged.
+**Requirements:** AGENT-08
+**Depends on:** Phase 16, Phase 17, Phase 18 (all features in place before docs/demo lock the surface)
+**Canonical refs:** `README.md`, `docs/agent-architecture.md`, `Makefile`, source design doc Distribution Plan
+**Success Criteria:**
+1. README "What This Is" / "Architecture" sections lead with agent-first framing; agentic RAG appears under "Tools the agent calls."
+2. `docs/agent-architecture.md` has Planner/Executor model section, Tool authoring guide, SSE event schema reference — each with a runnable code snippet.
+3. `make demo-agent` target spins up the Docker stack and runs the multi-hop demo query end-to-end from a clean checkout; exits 0; produces SSE event log to stdout.
+4. Asciinema (or gif) recording of the parallel fan-out demo embedded in README; renders correctly on GitHub.
+5. v1.4 release tag created on `main` after merge; release notes link to design doc + the four phase summaries.
 
 ## Progress
 
