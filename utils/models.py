@@ -356,6 +356,51 @@ class ToolPlan(BaseModel):
         return v
 
 
+class ToolResult(BaseModel):
+    """A single tool's output, normalized across tool implementations (AGENT-07).
+
+    The orchestrator builds provider tool_results from ``content``; ``chunks``
+    is consumed only on the RetrieveTool path; ``metadata`` carries free-form
+    per-tool diagnostic data surfaced to Phase 18 ``tool.span`` SSE events.
+
+    Frozen — adapters never mutate.
+
+    Metadata key convention (Phase 18 SSE forward-compat):
+      - ``latency_ms: int``    — wall-clock ms for the tool run (0 for errors/placeholders)
+      - ``query: str``         — effective query string (RetrieveTool family)
+      - ``placeholder: bool``  — True for skeletal/stub tools (WebSearchTool v1.4)
+      - ``chunk_count: int``   — number of chunks returned (RetrieveTool family)
+      - ``provider: str``      — tool-specific provider tag (future web search tools)
+    """
+    model_config = ConfigDict(frozen=True)
+
+    content:  str
+    chunks:   list[Any]       = Field(default_factory=list)
+    metadata: dict[str, Any]  = Field(default_factory=dict)
+    is_error: bool             = False
+
+
+class ToolContext(BaseModel):
+    """Per-tool-dispatch context (AGENT-07).
+
+    Mirrors v1.3's positional ``execute_tool_call(tc, tf, req, retriever, llm)``
+    signature: ``Executor`` constructs a ``ToolContext`` per dispatch from
+    its bound retriever + llm and the orchestrator's ``tf`` + ``req``.
+
+    ``arbitrary_types_allowed=True`` is REQUIRED — ``retriever`` and ``llm``
+    hold concrete adapter instances (HybridRetrieverService,
+    AnthropicLLMClient) that are not Pydantic models. Without this flag,
+    Pydantic V2 raises ``PydanticUserError`` at construction.
+    Frozen — tools never mutate ctx.
+    """
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+
+    req:       GenerationRequest
+    tf:        dict[str, Any]
+    retriever: Any
+    llm:       Any
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # API 层通用模型
 # ══════════════════════════════════════════════════════════════════════════════
