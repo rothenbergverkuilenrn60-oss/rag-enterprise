@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Fork Swarm, NLU & Quality
-status: Phase 15 Wave 1 (15-01) complete — Wave 2 (15-02 backfill) pending
-stopped_at: Plan 15-01 executed (3/3 tasks, 3 task commits + SUMMARY commit; CI plumbing in place; Wave 2 measure-then-plan ready)
-last_updated: "2026-05-09T05:13:00.000Z"
-last_activity: 2026-05-09 — Plan 15-01 executed (Wave 1 plumbing: pyproject coverage config + ci.yml 3-job topology + README + Makefile)
+status: Phase 15 complete — both plans done (Wave 1 plumbing + Wave 2 backfill); ready for `/gsd-verify-work 15`
+stopped_at: Plan 15-02 executed inline (20 modules backfilled; combined coverage 53.2% → 71.9%; fail-under=70 gate exits 0)
+last_updated: "2026-05-09T17:30:00.000Z"
+last_activity: 2026-05-09 — Plan 15-02 executed (Wave 2 backfill: 20 new test files, ~262 tests, +18.7pp combined coverage)
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 9
-  completed_plans: 8
-  percent: 89
+  completed_plans: 9
+  percent: 100
 ---
 
 # STATE — EnterpriseRAG v1.3 Fork Swarm, NLU & Quality
@@ -26,17 +26,24 @@ See: .planning/PROJECT.md (updated 2026-05-08)
 ## Current Position
 
 Phase: 15
-Plan: 15-01 ✅ complete (Wave 1 plumbing); 15-02 pending (Wave 2 backfill)
-Status: Wave 1 done — ready for `/gsd-execute-phase 15` Wave 2 OR `/gsd-verify-work 15` after Wave 2
+Plan: 15-01 ✅ complete (Wave 1 plumbing); 15-02 ✅ complete (Wave 2 backfill)
+Status: Phase 15 done — ready for `/gsd-verify-work 15`
 Last activity: 2026-05-09
 
 | Field | Value |
 |-------|-------|
 | Milestone | v1.3 Fork Swarm, NLU & Quality |
-| Current phase | 15 — Coverage Combine and 70% Floor (Wave 1 complete; Wave 2 pending) |
-| Current plan | 15-01 ✅ — 3/3 tasks complete (commits 8fb1722, 72672a0, 5cd93d2) |
-| Phase status | 1/2 plans complete; 15-02 (backfill) is next |
-| Overall progress | 8/9 plans across phases 12-15; Wave 2 of Phase 15 is the only remaining v1.3 work |
+| Current phase | 15 — Coverage Combine and 70% Floor (both waves complete) |
+| Current plan | 15-02 ✅ — 21/21 tasks complete (1 baseline + 20 module backfills) |
+| Phase status | 2/2 plans complete; combined coverage 71.9% (gate green) |
+| Overall progress | 9/9 plans across phases 12-15; v1.3 implementation work complete |
+
+### Plan 15-02 Execution Notes
+
+- **Subagent fallback to inline.** First spawn (`gsd-executor`) hit user account usage limit at tool call #28 with no commits. Continued inline per `execute-phase.md` runtime_compatibility fallback. No data lost.
+- **Runtime adapter.** PLAN frontmatter assumed `conda run -n torch_env`; user environment uses `uv` (uv 0.11.7, .venv pinned to Python 3.12.13). All measurements + pytest invocations used `uv run --no-sync`. pyproject `[tool.coverage.*]` config from Wave 1 works under both runtimes.
+- **5 large modules below per-module 70% post-backfill.** `pipeline.py` 58.1%, `llm_client.py` 51.8%, `vector_store.py` 40.0%, `retriever.py` 34.1%, `extractor.py` 37.3% — each has a new test file with happy + error path covering pure helpers, but full body coverage requires deep mocks or live PG/LLM (out of Wave 2 scope per CONTEXT D-04). Aggregate combined floor is met. Captured as v1.4 follow-up in 15-02-SUMMARY.md.
+- **No production code changes.** `git diff services/ utils/` returns empty after Wave 2.
 
 ### Phase 13 Plan Summary
 
