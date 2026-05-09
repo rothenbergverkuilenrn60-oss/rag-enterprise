@@ -1103,3 +1103,46 @@ class SwarmQueryPipeline:
             temperature=0.1,
             task_type="generate",
         )
+
+    async def _execute_tool_call(
+        self,
+        tc: ToolCall,
+        tf: dict[str, Any],
+        req: GenerationRequest,
+    ) -> tuple[list[RetrievedChunk], str]:
+        """Execute one tool call and return (chunks, ctx_text).
+
+        Side-effect-free with respect to the calling pipeline state — this lets
+        ``asyncio.gather(return_exceptions=True)`` collect results without
+        mutating shared state during the parallel section. Caller merges
+        ``chunks`` into ``all_chunks`` and runs dedup AFTER the gather.
+        """
+        args       = tc.arguments or {}
+        query_str  = args.get("query") or args.get("refined_query", req.query)
+        top_k      = min(int(args.get("top_k", 5)), 10)
+        src_filter = args.get("source_filter")
+
+        effective_filter = dict(tf or {})
+        if src_filter:
+            effective_filter["source"] = src_filter
+
+        chunks, _ = await self._retriever.retrieve(
+            query=query_str,
+            top_k=top_k,
+            filters=effective_filter or None,
+            llm_client=self._llm,
+        )
+
+        # Format chunks as XML document blocks (mirrors v1.1 shape).
+        if chunks:
+            doc_blocks = "\n\n".join(
+                f'<document index="{i+1}" title="{c.metadata.title or c.doc_id}">\n'
+                f"{c.content}\n"
+                f"</document>"
+                for i, c in enumerate(chunks)
+            )
+            ctx_text = f"<search_results>\n{doc_blocks}\n</search_results>"
+        else:
+            ctx_text = "未找到相关内容"
+
+        return chunks, ctx_text
