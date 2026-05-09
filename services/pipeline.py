@@ -982,3 +982,89 @@ class SwarmQueryPipeline:
 
         # Cap at MAX_SWARM_AGENTS (D-09).
         return sub_questions[: self.MAX_SWARM_AGENTS]
+
+    async def _run_sub_agent(
+        self,
+        agent_index: int,
+        sub_question: str,
+        tf: dict[str, Any],
+        req: GenerationRequest,
+    ) -> _SubAgentResult:
+        """Run a single sub-agent — bounded tool loop, isolated state (Pitfall 1, D-06)."""
+        # Fresh messages list per coroutine — never shared (Pitfall 1).
+        # Sub-agents receive ONLY their sub-question; chat history is excluded (D-06).
+        messages: list[dict[str, Any]] = [{"role": "user", "content": sub_question}]
+        answer: str = ""
+        turns: int = 0
+        tool_calls_count: int = 0
+        all_chunks: list[RetrievedChunk] = []
+
+        for iteration in range(self.MAX_SWARM_TURNS_PER_AGENT):
+            turns = iteration + 1
+            try:
+                turn = await self._llm.call_agentic_turn(
+                    messages=messages,
+                    tools=AgentQueryPipeline._AGENT_TOOLS,        # reuse, do NOT modify (D-01)
+                    system=AgentQueryPipeline._AGENT_SYSTEM,      # reuse, do NOT modify (D-01)
+                    max_tokens=settings.llm_max_tokens,
+                    parallel_tool_calls=True,
+                )
+            except (
+                anthropic.APIError,
+                openai.APIError,
+                httpx.HTTPError,
+                asyncio.TimeoutError,
+            ) as exc:
+                logger.error(f"[Swarm] sub-agent {agent_index} call_agentic_turn failed iter={turns}: {exc!r}")
+                answer = f"[Sub-agent {agent_index} failed: {exc!r}]"
+                break
+
+            # Terminal stop reasons → take the text and exit.
+            if turn.stop_reason in ("text_only", "max_tokens", "error"):
+                answer = turn.text or answer
+                break
+
+            if not turn.tool_calls:
+                answer = turn.text or answer
+                break
+
+            # Append assistant's tool-use message; gather tool results concurrently.
+            messages.append(turn.raw_assistant_msg)
+            tool_calls_count += len(turn.tool_calls)
+
+            tool_coros = [
+                self._execute_tool_call(tc, tf, req)
+                for tc in turn.tool_calls
+            ]
+            tool_outputs = await asyncio.gather(*tool_coros, return_exceptions=True)
+
+            tool_results: list[dict[str, Any]] = []
+            for tc, output in zip(turn.tool_calls, tool_outputs):
+                if isinstance(output, BaseException):
+                    tool_results.append({
+                        "type":        "tool_result",
+                        "tool_use_id": tc.id,
+                        "content":     f"工具执行失败:{type(output).__name__}: {output}",
+                        "is_error":    True,
+                    })
+                else:
+                    chunks, ctx_text = output
+                    all_chunks.extend(chunks)
+                    tool_results.append({
+                        "type":        "tool_result",
+                        "tool_use_id": tc.id,
+                        "content":     ctx_text,
+                    })
+
+            messages.append({"role": "user", "content": tool_results})
+        else:
+            # Loop exited via for-else → max turns reached without break.
+            logger.warning(f"[Swarm] sub-agent {agent_index} hit MAX_SWARM_TURNS_PER_AGENT={self.MAX_SWARM_TURNS_PER_AGENT}")
+            answer = answer or f"[Sub-agent {agent_index} reached max turns without final answer]"
+
+        return _SubAgentResult(
+            answer=answer,
+            turns=turns,
+            tool_calls_count=tool_calls_count,
+            chunks=all_chunks,
+        )
