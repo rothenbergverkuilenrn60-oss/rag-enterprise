@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Fork Swarm, NLU & Quality
-status: Phase 13 Wave 1 + Wave 2 (13-02) executed — Wave 3 (13-03) unblocked
-stopped_at: 13-02 SUMMARY written; pipeline.py 4 callsites migrated to async FilterExtractor (commit ade413f); existing tests pass with zero regression; mypy/ruff baseline preserved
-last_updated: "2026-05-09T03:28:00.000Z"
-last_activity: 2026-05-09 — Plan 13-02 executed (Wave 2, 1/1 task committed: ade413f)
+status: Phase 13 complete (Wave 1 + Wave 2 + Wave 3 executed); ready for `/gsd-verify-work 13`
+stopped_at: Completed 13-03-PLAN.md (2/2 tasks; 363 unit tests pass; 1 integration test deselected by default)
+last_updated: "2026-05-09T03:37:27.683Z"
+last_activity: 2026-05-09 — Plan 13-03 executed (2/2 tasks; 13/13 unit tests + 1 integration; ruff clean; 0 regressions)
 progress:
   total_phases: 4
   completed_phases: 2
-  total_plans: 3
-  completed_plans: 5
-  percent: 55
+  total_plans: 6
+  completed_plans: 6
+  percent: 100
 ---
 
 # STATE — EnterpriseRAG v1.3 Fork Swarm, NLU & Quality
@@ -25,18 +25,18 @@ See: .planning/PROJECT.md (updated 2026-05-08)
 
 ## Current Position
 
-Phase: 13 (Wave 1 + Wave 2 done; Wave 3 unblocked)
-Plan: 13-03 (Wave 3 — test coverage extension)
-Status: Wave 1 (13-01) + Wave 2 (13-02) executed; ready for `/gsd-execute-phase 13` to run Wave 3
-Last activity: 2026-05-09 — Plan 13-02 executed (1/1 task; 349 unit tests pass; 0 regressions; mypy/ruff baseline preserved)
+Phase: 13 (Wave 1 + Wave 2 + Wave 3 done)
+Plan: 13-03 ✅ (Wave 3 — test coverage extension)
+Status: Phase 13 complete (3/3 plans); ready for `/gsd-verify-work 13`
+Last activity: 2026-05-09 — Plan 13-03 executed (2/2 tasks; 13/13 unit tests + 1 integration; ruff clean; 0 regressions)
 
 | Field | Value |
 |-------|-------|
 | Milestone | v1.3 Fork Swarm, NLU & Quality |
-| Current phase | 13 — LLM Filter Fallback |
-| Current plan | 13-01 ✅ (Wave 1) + 13-02 ✅ (Wave 2) → next 13-03 (Wave 3) |
-| Phase status | Waves 1 + 2 complete (2/3 plans done; 13-03 ready) |
-| Overall progress | 1/4 phases + 2/3 Phase-13 plans (Phase 12 closed; 13-01 + 13-02 done) |
+| Current phase | 13 — LLM Filter Fallback (complete; pending verify) |
+| Current plan | 13-01 ✅ + 13-02 ✅ + 13-03 ✅ — all three plans complete |
+| Phase status | All 3 plans complete; ready for `/gsd-verify-work 13` |
+| Overall progress | 2/4 phases + 3/3 Phase-13 plans (Phase 12 closed; Phase 13 ready for verification) |
 
 ### Phase 13 Plan Summary
 
@@ -44,11 +44,12 @@ Last activity: 2026-05-09 — Plan 13-02 executed (1/1 task; 349 unit tests pass
 |------|------|-------|----------------|------------|
 | 13-01 ✅ | 1 | 2 | `services/nlu/filter_extractor.py` (add FilterExtractor class) | — |
 | 13-02 ✅ | 2 | 1 | `services/pipeline.py` (4 callsites → await) | 13-01 |
-| 13-03 | 2-parallel | 2 | `tests/unit/test_filter_extractor.py` (extend), `tests/integration/test_filter_extractor_llm.py` (new) | 13-01 |
+| 13-03 ✅ | 2-parallel | 2 | `tests/unit/test_filter_extractor.py` (extend +6 tests), `tests/integration/test_filter_extractor_llm.py` (new) | 13-01 |
 
-13-02 complete; 13-03 unblocked.
+All three plans complete; NLU-02 ready for `/gsd-verify-work 13`.
 
 **Plan-checker findings:** PASS, 5 cosmetic flags (no blockers).
+
 - 13-03 cache-hit test uses in-memory dict (not real Redis) — TTL covered by utils/cache.py own tests
 - 13-02 explicitly skips per-callsite logger.info(fallback_source) — AC#4 satisfied via dataclass field
 - Minor shell-escape oddity in 13-01 frozen-test acceptance — harmless
@@ -58,7 +59,7 @@ Last activity: 2026-05-09 — Plan 13-02 executed (1/1 task; 349 unit tests pass
 | Phase | Name | REQ-IDs | Status |
 |-------|------|---------|--------|
 | 12 | Fork-Agent Swarm | AGENT-03 | Executed (verification pending) |
-| 13 | LLM Filter Fallback | NLU-02 | Plans ready |
+| 13 | LLM Filter Fallback | NLU-02 | Executed (verification pending) |
 | 14 | Frontend Split and DOM Modernization | UI-02 | Not started |
 | 15 | Coverage Combine and 70% Floor | TEST-04, TEST-06 | Not started |
 
@@ -126,9 +127,22 @@ None.
 
 ## Session Continuity
 
-**Last updated:** 2026-05-09 — Plan 13-02 executed (Wave 2 complete; pipeline.py 4 callsites migrated to async FilterExtractor)
-**Stopped at:** 13-02 SUMMARY written; 1 task commit (ade413f) on master. services/pipeline.py: 5 line changes (1 import + 4 callsites). 349 unit tests pass; 26 pipeline-relevant tests pass; ruff clean; 0 new mypy errors (11 ↔ 11 baseline parity); zero regressions.
-**Next action:** Run `/gsd-execute-phase 13` to dispatch Wave 3 (plan 13-03 — test coverage extension).
+**Last updated:** 2026-05-09 — Plan 13-03 executed (Wave 3 complete; FilterExtractor unit + integration test coverage delivered)
+**Stopped at:** Completed 13-03-PLAN.md (2/2 tasks; 363 unit tests pass; 1 integration test deselected by default)
+**Next action:** Run `/gsd-verify-work 13` to verify NLU-02 acceptance criteria coverage.
+
+### Plan 13-03 Execution Notes (Wave 3)
+
+- **Duration:** ~4 min, 2/2 tasks, 2 task commits + SUMMARY commit
+- **Edits:** 1 file modified (`tests/unit/test_filter_extractor.py` — +182 lines), 1 file created (`tests/integration/test_filter_extractor_llm.py` — 67 lines)
+- **D-02 freeze honored:** 7 existing regex tests preserved verbatim under renamed `class TestExtractFiltersRegex` (no body changes; only class name changed)
+- **D-15 6-contract enumeration implemented:** every contract maps to a distinct test under `class TestFilterExtractor` with `@pytest.mark.unit @pytest.mark.asyncio` markers
+- **Cache patching at consumer path:** `monkeypatch.setattr("services.nlu.filter_extractor.cache_get", …)` — not `utils.cache.cache_get` import source (per RESEARCH §Common Pitfalls #6)
+- **Cache-hit test uses stateful in-memory dict** (not real Redis) per plan-checker flag — TTL semantics belong to `utils/cache.py` own tests
+- **Integration test mirrors `test_swarm_pipeline_e2e.py` exactly:** `LLM_PROVIDER=openai` monkeypatch + dual singleton reset (`_llm_instance`, `_filter_extractor`) + `pytestmark = [pytest.mark.integration]` gating
+- **Haiku type drift tolerated:** integration test asserts `section in {"3", 3}` (A2 string-vs-int tolerance)
+- **No deviations:** plan executed exactly as written; no Rule 1-3 auto-fixes
+- **Verification:** 13/13 unit tests pass; integration test collects 1 / deselected 1 by default; full unit suite 363 passed (Wave 2 baseline 349 + 14 net new tests including 6 D-15 contracts); ruff clean on both files; pre-existing mypy baseline preserved
 
 ### Plan 13-02 Execution Notes (Wave 2)
 
