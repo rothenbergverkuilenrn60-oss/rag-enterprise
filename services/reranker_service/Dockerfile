@@ -3,11 +3,14 @@ FROM python:3.11-slim
 WORKDIR /app
 
 RUN pip install --no-cache-dir \
+    --index-url https://download.pytorch.org/whl/cpu \
+    torch==2.5.1
+
+RUN pip install --no-cache-dir \
     fastapi==0.115.0 \
     uvicorn[standard]==0.30.6 \
     uvloop==0.21.0 \
     sentence-transformers==3.3.1 \
-    torch==2.5.1 --index-url https://download.pytorch.org/whl/cpu \
     prometheus-client==0.21.0 \
     loguru==0.7.2 \
     pydantic==2.9.2
