@@ -70,7 +70,6 @@ from utils.metrics import (
     rule_trigger_total,
 )
 from utils.models import (
-    AgenticTurn,
     DocType,
     GenerationRequest,
     GenerationResponse,
@@ -78,7 +77,6 @@ from utils.models import (
     IngestionResponse,
     RawDocument,
     RetrievedChunk,
-    ToolCall,
     ToolPlan,
 )
 from utils.observability import start_span
