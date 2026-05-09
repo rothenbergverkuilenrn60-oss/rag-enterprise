@@ -47,7 +47,7 @@ See [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md) for full phase deta
 ### v1.3 Fork Swarm, NLU & Quality
 
 - [x] **Phase 12: Fork-Agent Swarm** — Coordinator decomposes multi-dimension queries; N sub-agents run isolated `call_agentic_turn` loops concurrently; synthesis LLM call produces final unified answer (completed 2026-05-09)
-- [ ] **Phase 13: LLM Filter Fallback** — `FilterExtractor` gains a confidence-gated LLM fallback that activates only when regex returns empty; cached per query; fallback source traced in returned filter (Wave 1 complete; Wave 2 + 3 pending)
+- [x] **Phase 13: LLM Filter Fallback** — `FilterExtractor` gains a confidence-gated LLM fallback that activates only when regex returns empty; cached per query; fallback source traced in returned filter (Wave 1 complete; Wave 2 + 3 pending) (completed 2026-05-09)
 - [ ] **Phase 14: Frontend Split and DOM Modernization** — JS and CSS extracted from `static/ui.html` into `static/ui.js` / `static/ui.css`; inline event handlers replaced with `addEventListener`; StaticFiles config unchanged
 - [ ] **Phase 15: Coverage Combine and 70% Floor** — CI wired to emit `.coverage.unit` + `.coverage.integration` and combine them; global floor raised from 46% to 70% backed by new unit tests on undercovered service modules
 
@@ -123,7 +123,7 @@ See [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md) for full phase deta
 | 10. Coverage Gate on New Code | v1.1 | 1/1 | Complete ✓ | 2026-05-08 |
 | 11. Provider-Agnostic Agentic Layer + Parallel Burst | v1.2 | 4/4 | Complete ✓ | 2026-05-08 |
 | 12. Fork-Agent Swarm | v1.3 | 3/3 | Complete    | 2026-05-09 |
-| 13. LLM Filter Fallback | v1.3 | 0/3 | Planned | — |
+| 13. LLM Filter Fallback | v1.3 | 3/3 | Complete    | 2026-05-09 |
 | 14. Frontend Split and DOM Modernization | v1.3 | 0/TBD | Not started | — |
 | 15. Coverage Combine and 70% Floor | v1.3 | 0/TBD | Not started | — |
 
