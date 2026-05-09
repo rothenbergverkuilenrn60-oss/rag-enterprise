@@ -29,7 +29,9 @@ import openai                                             # noqa: F401 — refer
 from loguru import logger
 
 from config.settings import settings
-from services.agent import execute_tool_call as _shared_execute_tool_call, get_executor, get_planner
+from services.agent import get_executor, get_planner
+from services.agent.tools import get_tool_registry
+from services.agent.tools.retrieve import retrieve_impl as _shared_execute_tool_call
 from services.audit.audit_service import AuditAction, AuditEvent, AuditResult, get_audit_service
 from services.doc_processor.chunker import get_doc_processor
 from services.events.event_bus import get_event_bus
@@ -78,6 +80,7 @@ from utils.models import (
     RawDocument,
     RetrievedChunk,
     ToolPlan,
+    ToolResult,
 )
 from utils.observability import start_span
 
@@ -582,6 +585,10 @@ _SYNTHESIS_SYSTEM: str = """\
 # one ToolPlan per call and does NOT enforce this limit internally.
 MAX_ITERATIONS: int = 5
 
+# Explicit allowlist of tool names exposed to the planner LLM (AGENT-07).
+# WebSearchTool is registered but excluded here (placeholder — v1.5+).
+AGENT_TOOL_ALLOWLIST: list[str] = ["search_knowledge_base", "refine_search"]
+
 
 class AgentQueryPipeline:
     """
@@ -598,46 +605,6 @@ class AgentQueryPipeline:
       3. 收到检索结果后继续推理
       4. 直到 stop_reason == "end_turn"（Claude 认为信息充足）
     """
-
-    _AGENT_TOOLS = [
-        {
-            "name": "search_knowledge_base",
-            "description": "在企业知识库中搜索相关信息",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "搜索查询词，应精确描述需要找到的信息",
-                    },
-                    "top_k": {
-                        "type": "integer",
-                        "description": "返回结果数量（1-10）",
-                        "default": 5,
-                    },
-                },
-                "required": ["query"],
-            },
-        },
-        {
-            "name": "refine_search",
-            "description": "用更精确的关键词细化搜索，适用于初次搜索结果不够具体时",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "refined_query": {
-                        "type": "string",
-                        "description": "更精确的搜索词",
-                    },
-                    "source_filter": {
-                        "type": "string",
-                        "description": "限定搜索的文档来源（可选）",
-                    },
-                },
-                "required": ["refined_query"],
-            },
-        },
-    ]
 
     _AGENT_SYSTEM = """\
 你是企业知识库的智能问答助手。通过工具自主检索知识库，逐步构建完整回答。
@@ -685,13 +652,18 @@ class AgentQueryPipeline:
     @staticmethod
     def _build_tool_results(
         plan: ToolPlan,
-        raw_outputs: list[tuple[list[RetrievedChunk], str] | BaseException],
+        raw_outputs: list[ToolResult | BaseException],
         all_chunks: list[RetrievedChunk],
     ) -> list[dict[str, Any]]:
         """Convert Executor output to provider tool_result dicts.
 
         Appends successfully retrieved chunks to ``all_chunks`` in-place.
         Returns the tool_results list for the next user message.
+
+        Handles three cases:
+          1. BaseException — escape (CancelledError / TimeoutError from gather)
+          2. ToolResult with is_error=True — controlled error from tool (e.g. RetrieveTool)
+          3. ToolResult success — extend all_chunks + build tool_result dict
         """
         tool_results: list[dict[str, Any]] = []
         for tc, output in zip(plan.steps, raw_outputs):
@@ -705,13 +677,22 @@ class AgentQueryPipeline:
                     "content":     f"工具执行失败:{type(output).__name__}: {output}",
                     "is_error":    True,
                 })
-            else:
-                chunks, ctx_text = output
-                all_chunks.extend(chunks)
+            elif output.is_error:
+                logger.error(
+                    f"[Agent] tool_call_id={tc.id} name={tc.name} returned is_error: {output.content}"
+                )
                 tool_results.append({
                     "type":        "tool_result",
                     "tool_use_id": tc.id,
-                    "content":     ctx_text,
+                    "content":     output.content,
+                    "is_error":    True,
+                })
+            else:
+                all_chunks.extend(output.chunks)
+                tool_results.append({
+                    "type":        "tool_result",
+                    "tool_use_id": tc.id,
+                    "content":     output.content,
                 })
         return tool_results
 
@@ -794,7 +775,12 @@ class AgentQueryPipeline:
         for iteration in range(MAX_ITERATIONS):
             try:
                 plan: ToolPlan = await planner.plan_from_messages(
-                    messages, tools=self._AGENT_TOOLS, system=self._AGENT_SYSTEM,
+                    messages,
+                    tools=get_tool_registry().schemas_for(
+                        self._llm.provider_name,
+                        names=AGENT_TOOL_ALLOWLIST,
+                    ),
+                    system=self._AGENT_SYSTEM,
                 )
             except NotImplementedError:
                 logger.warning(f"[Agent] provider lacks call_agentic_turn — falling back: "
@@ -942,8 +928,11 @@ class SwarmQueryPipeline:
             try:
                 turn = await self._llm.call_agentic_turn(
                     messages=messages,
-                    tools=AgentQueryPipeline._AGENT_TOOLS,        # reuse, do NOT modify (D-01)
-                    system=AgentQueryPipeline._AGENT_SYSTEM,      # reuse, do NOT modify (D-01)
+                    tools=get_tool_registry().schemas_for(
+                        self._llm.provider_name,
+                        names=AGENT_TOOL_ALLOWLIST,
+                    ),
+                    system=AgentQueryPipeline._AGENT_SYSTEM,
                     max_tokens=settings.llm_max_tokens,
                     parallel_tool_calls=True,
                 )
