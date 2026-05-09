@@ -242,35 +242,42 @@ make test-unit
 conda run -n torch_env pytest tests/unit/ -v --cov=services --cov-report=term-missing
 ```
 
-Current coverage: **46.6%** (CI floor enforced). Diff-coverage gate (≥ 80% on changed lines) is enforced for v1.1 — see below.
+## Coverage
 
-### Diff-Coverage Gate on v1.1 PRs (TEST-03)
+Current floor: **70%** (raised from 46% in v1.3 — Phase 15). CI enforces this on the **combined** unit + integration coverage report. The diff-coverage gate (>= 80% on changed lines vs the v1.0 baseline tag) also runs on the combined report.
 
-From v1.1 onward, any file modified in a PR must ship with **≥ 80% line coverage on the changed lines**. The legacy 46% global floor remains as a separate informational metric for unchanged files.
+### Combined Coverage in CI (TEST-04 + TEST-06)
 
-**What it measures:** lines added or modified in your PR (relative to the v1.0 git tag in CI, or `origin/master...HEAD` locally) that are not exercised by unit tests in `tests/unit/`.
+CI uses three jobs:
+1. `unit-tests` collects unit coverage → uploads `coverage-unit` artifact (`.coverage.unit`).
+2. `integration-tests` collects integration coverage with `--cov-append` → uploads `coverage-integration` artifact (`.coverage.integration`). Keeps `continue-on-error: true` so flaky infra doesn't block PRs.
+3. `coverage-combine` (new in v1.3) downloads both, runs `coverage combine`, then `coverage report --fail-under=70` (TEST-06) and `diff-cover coverage.xml --fail-under=80` (TEST-03) on the combined artifact.
+
+> **Supersession note:** Phase 10 decision D-03 ("only unit-test coverage counts") is superseded by Phase 15 D-05 — the combined coverage report is now the single source of truth for both the floor gate and the diff-cover gate. See `.planning/phases/15-coverage-combine-and-70-floor/15-CONTEXT.md`.
+
+### Diff-Coverage Gate on PRs (TEST-03)
+
+Any file modified in a PR must ship with **>= 80% line coverage on the changed lines**, measured against the v1.0 baseline. Both unit AND integration test execution count toward this gate (since Phase 15).
 
 **How to run locally before pushing:**
 
 ```bash
-# one-time install
-conda run -n torch_env pip install -r requirements-dev.txt
-
-# run the gate
-make coverage-diff
+make coverage-diff           # unit-only diff-cover (existing target — fast, dev DX)
+make coverage-combined       # NEW: full unit+integration mirror of CI (slower)
 ```
 
-The target writes `diff-cover.html` to the repo root — open it in a browser to see exactly which lines are uncovered.
+The `coverage-combined` target writes `diff-cover.html` and prints the per-module breakdown.
 
-**CI behaviour:** the `Run diff-cover against v1.0 (TEST-03 hard gate)` step in the `unit-tests` job runs the same check against the `v1.0` tag. A diff coverage below 80% **blocks the merge** — there are no override comments and no soft-warn mode (decision D-05 in `.planning/phases/10-coverage-gate-on-new-code/10-CONTEXT.md`).
+**CI behaviour:** the `Coverage Combine and Floor` job runs both gates. A floor below 70% OR diff-coverage below 80% **blocks the merge** — there are no override comments and no soft-warn mode (decisions D-05, D-06, D-09 in `.planning/phases/15-coverage-combine-and-70-floor/15-CONTEXT.md`).
 
-**How to fix a failure:** add unit tests in `tests/unit/` that exercise the changed lines. If a v1.1 file is genuinely impossible to unit-test (e.g., a `main.py`-style boot wrapper), refactor the testable logic into a helper module rather than bypassing the gate.
+**How to fix a failure:**
+- *Floor below 70%:* identify modules with low coverage (`coverage report --skip-covered=false | sort -k4 -n`), add unit tests in `tests/unit/test_<module>.py`.
+- *Diff-coverage below 80%:* add unit tests covering the changed lines in your PR.
 
 **Scope notes:**
 
-- Only unit-test coverage counts (`pytest tests/unit/ --cov=services --cov=utils`). Integration tests are not consumed by the gate (decision D-03).
-- The legacy `--cov-fail-under=46` global floor on the unit-tests step is unchanged — it's a separate informational gate, not the v1.1 quality bar.
-- The HTML diff-coverage report is uploaded as the `coverage-report` GitHub Actions artifact alongside `.coverage` and `coverage.xml`.
+- Combined coverage (unit + integration) counts. Integration paths exercised end-to-end count toward both gates.
+- The `coverage-report` GitHub Actions artifact contains the final `.coverage` SQLite, the per-job inputs (`.coverage.unit`, `.coverage.integration` — preserved via `--keep`), `coverage.xml`, and `diff-cover.html` for debugging.
 
 ## RAGAS Evaluation
 

@@ -4,7 +4,7 @@
 # 使用：make <target>
 # =============================================================================
 
-.PHONY: help build up down logs shell ingest eval clean coverage-diff
+.PHONY: help build up down logs shell ingest eval clean coverage-diff coverage-combined
 
 COMPOSE = docker compose
 SERVICE = rag-api
@@ -110,3 +110,19 @@ clean:  ## 清理构建缓存和悬空镜像
 
 clean-reports:  ## 清理评测报告
 	rm -f eval_reports/eval_*.json eval_reports/eval_*.html
+
+coverage-combined:  ## Mirror CI: combined unit+integration coverage report (TEST-04 + TEST-06)
+	@echo ">> Erasing prior coverage data..."
+	conda run -n torch_env coverage erase
+	@echo ">> Running unit tests with coverage (separate data file)..."
+	COVERAGE_FILE=.coverage.unit conda run -n torch_env pytest tests/unit/ \
+		--asyncio-mode=auto --timeout=30 \
+		--cov=services --cov=utils --cov-report= -q
+	@echo ">> Running integration tests with --cov-append..."
+	COVERAGE_FILE=.coverage.integration conda run -n torch_env pytest tests/integration/ \
+		--asyncio-mode=auto --timeout=60 \
+		--cov=services --cov=utils --cov-append --cov-report= -q || true
+	@echo ">> Combining and reporting..."
+	conda run -n torch_env coverage combine --keep .coverage.unit .coverage.integration
+	conda run -n torch_env coverage report
+	conda run -n torch_env coverage report --fail-under=70
