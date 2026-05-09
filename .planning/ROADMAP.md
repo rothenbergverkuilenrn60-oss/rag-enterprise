@@ -123,7 +123,7 @@ Plans:
 **Plans:** 8 plans (Wave 1 → 2 → 3 → 4 → 5 → 6; TDD on Waves 1-2)
 Plans:
 - [ ] 19-01-PLAN.md — Wave 1 (TDD): services/agent/_demo_stubs.py — DemoStubPlanner + make_fake_retrieve_tool + build_demo_registry + DEMO_QUERY (4-tool fan-out fixture promoted from Phase 18 SSE tests)
-- [ ] 19-02-PLAN.md — Wave 2 (TDD): services/agent/_demo_runner.py + tests/integration/test_demo_agent.py — in-process + subprocess demo correctness gate (11-event sequence + max-not-sum latency bound)
+- [x] 19-02-PLAN.md — Wave 2 (TDD): services/agent/_demo_runner.py + tests/integration/test_demo_agent.py — in-process + subprocess demo correctness gate (11-event sequence + max-not-sum latency bound)
 - [ ] 19-03-PLAN.md — Wave 3 (execute): Makefile demo-agent + demo-agent-record targets (bilingual help, asciinema-guarded record path)
 - [ ] 19-04-PLAN.md — Wave 3 (execute): docs/agent-architecture.md insert ## Planner / Executor Model section before ## Authoring Tools (D-09); closes ROADMAP SC2
 - [ ] 19-05-PLAN.md — Wave 4 (execute, autonomous: false): record docs/demo.cast via make demo-agent-record; redaction gates; visual playback verification
@@ -153,4 +153,4 @@ Plans:
 | 16. Planner + Executor Extraction | v1.4 | 2/3 | Wave 1 + 2 executed; Wave 3 pending | — |
 | 17. Tool Abstraction + RetrieveTool | v1.4 | 0/0 | Pending | — |
 | 18. SSE Planner Trace Event Stream | v1.4 | 0/0 | Pending | — |
-| 19. Agent-First Docs + Demo + Release | v1.4 | 0/8 | Planned (8 plans, 6 waves) | — |
+| 19. Agent-First Docs + Demo + Release | v1.4 | 3/8 | Plans 19-01, 19-02, 19-07 complete | — |
