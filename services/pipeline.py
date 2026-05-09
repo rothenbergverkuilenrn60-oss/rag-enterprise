@@ -29,6 +29,7 @@ import openai                                             # noqa: F401 — refer
 from loguru import logger
 
 from config.settings import settings
+from services.agent.tool_executor import execute_tool_call as _shared_execute_tool_call
 from services.audit.audit_service import AuditAction, AuditEvent, AuditResult, get_audit_service
 from services.doc_processor.chunker import get_doc_processor
 from services.events.event_bus import get_event_bus
@@ -849,42 +850,12 @@ class AgentQueryPipeline:
         tf: dict[str, Any],
         req: GenerationRequest,
     ) -> tuple[list[RetrievedChunk], str]:
-        """Execute one tool call and return (chunks, ctx_text).
+        """Delegate to the shared helper at services.agent.tool_executor.
 
-        Side-effect-free with respect to the calling pipeline state — this lets
-        ``asyncio.gather(return_exceptions=True)`` collect results without
-        mutating shared state during the parallel section. Caller merges
-        ``chunks`` into ``all_chunks`` and runs dedup AFTER the gather.
+        Method retained as a one-line delegate for backwards compatibility
+        with v1.2 callsites; Wave 3 of Phase 16 removes it entirely.
         """
-        args       = tc.arguments or {}
-        query_str  = args.get("query") or args.get("refined_query", req.query)
-        top_k      = min(int(args.get("top_k", 5)), 10)
-        src_filter = args.get("source_filter")
-
-        effective_filter = dict(tf or {})
-        if src_filter:
-            effective_filter["source"] = src_filter
-
-        chunks, _ = await self._retriever.retrieve(
-            query=query_str,
-            top_k=top_k,
-            filters=effective_filter or None,
-            llm_client=self._llm,
-        )
-
-        # Format chunks as XML document blocks (mirrors v1.1 shape).
-        if chunks:
-            doc_blocks = "\n\n".join(
-                f'<document index="{i+1}" title="{c.metadata.title or c.doc_id}">\n'
-                f"{c.content}\n"
-                f"</document>"
-                for i, c in enumerate(chunks)
-            )
-            ctx_text = f"<search_results>\n{doc_blocks}\n</search_results>"
-        else:
-            ctx_text = "未找到相关内容"
-
-        return chunks, ctx_text
+        return await _shared_execute_tool_call(tc, tf, req, self._retriever, self._llm)
 
 
 _ingest_pipeline = None
@@ -1110,42 +1081,13 @@ class SwarmQueryPipeline:
         tf: dict[str, Any],
         req: GenerationRequest,
     ) -> tuple[list[RetrievedChunk], str]:
-        """Execute one tool call and return (chunks, ctx_text).
+        """Delegate to the shared helper at services.agent.tool_executor.
 
-        Side-effect-free with respect to the calling pipeline state — this lets
-        ``asyncio.gather(return_exceptions=True)`` collect results without
-        mutating shared state during the parallel section. Caller merges
-        ``chunks`` into ``all_chunks`` and runs dedup AFTER the gather.
+        Method retained as a one-line delegate to preserve
+        SwarmQueryPipeline's v1.3 internal callsites; Wave 3 of Phase 16
+        removes it entirely once the new Executor owns dispatch end-to-end.
         """
-        args       = tc.arguments or {}
-        query_str  = args.get("query") or args.get("refined_query", req.query)
-        top_k      = min(int(args.get("top_k", 5)), 10)
-        src_filter = args.get("source_filter")
-
-        effective_filter = dict(tf or {})
-        if src_filter:
-            effective_filter["source"] = src_filter
-
-        chunks, _ = await self._retriever.retrieve(
-            query=query_str,
-            top_k=top_k,
-            filters=effective_filter or None,
-            llm_client=self._llm,
-        )
-
-        # Format chunks as XML document blocks (mirrors v1.1 shape).
-        if chunks:
-            doc_blocks = "\n\n".join(
-                f'<document index="{i+1}" title="{c.metadata.title or c.doc_id}">\n'
-                f"{c.content}\n"
-                f"</document>"
-                for i, c in enumerate(chunks)
-            )
-            ctx_text = f"<search_results>\n{doc_blocks}\n</search_results>"
-        else:
-            ctx_text = "未找到相关内容"
-
-        return chunks, ctx_text
+        return await _shared_execute_tool_call(tc, tf, req, self._retriever, self._llm)
 
     async def run(self, req: GenerationRequest) -> GenerationResponse:
         """Top-level swarm execution (AGENT-03).
