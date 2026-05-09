@@ -15,8 +15,11 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json   # noqa: F401 — referenced in SwarmQueryPipeline._decompose (Task 4)
+import re    # noqa: F401 — referenced in SwarmQueryPipeline._decompose (Task 4)
 import time
 import uuid
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, AsyncGenerator
 
@@ -529,6 +532,18 @@ class QueryPipeline:
 # ══════════════════════════════════════════════════════════════════════════════
 # Agent 查询流水线（Agentic RAG）
 # ══════════════════════════════════════════════════════════════════════════════
+@dataclass(frozen=True)
+class _SubAgentResult:
+    """Internal: result of a single SwarmQueryPipeline sub-agent run.
+
+    AGENT-03 — used only inside services/pipeline.py; not part of the public API.
+    """
+    answer: str
+    turns: int
+    tool_calls_count: int
+    chunks: list[RetrievedChunk]
+
+
 class AgentQueryPipeline:
     """
     Agentic RAG：Claude 通过 Tool Use 自主决策检索策略。
