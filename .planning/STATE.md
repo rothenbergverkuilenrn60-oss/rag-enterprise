@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Fork Swarm, NLU & Quality
-status: Phase 12 Wave 1 complete — ready for Wave 2 (Plan 12-02)
-stopped_at: Plan 12-01 executed (data-model foundations on master)
-last_updated: "2026-05-09T09:54:00.000Z"
-last_activity: 2026-05-09 — Plan 12-01 complete (swarm_mode + max_swarm_* settings)
+status: Phase 12 Wave 2 complete — ready for Wave 3 (Plan 12-03)
+stopped_at: Plan 12-02 executed (SwarmQueryPipeline core on master)
+last_updated: "2026-05-09T02:10:00.000Z"
+last_activity: 2026-05-09 — Plan 12-02 complete (SwarmQueryPipeline + factory + audit emission)
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 3
-  completed_plans: 1
+  completed_plans: 2
 ---
 
 # STATE — EnterpriseRAG v1.3 Fork Swarm, NLU & Quality
@@ -24,18 +24,18 @@ See: .planning/PROJECT.md (updated 2026-05-08)
 
 ## Current Position
 
-Phase: 12 (Wave 1 complete, Wave 2 next)
-Plan: 12-02 (Wave 2, depends on 12-01)
-Status: 12-01 executed and committed; ready for Plan 12-02
-Last activity: 2026-05-09 — Plan 12-01 complete (commits 83396b1, c0db54e)
+Phase: 12 (Wave 2 complete, Wave 3 next)
+Plan: 12-03 (Wave 3, depends on 12-01 + 12-02)
+Status: 12-02 executed and committed; ready for Plan 12-03 (routing + tests)
+Last activity: 2026-05-09 — Plan 12-02 complete (commits 435f7e4, fd7a54d, 97790d0, c873ba0, f712606, cb90e38, 1664c42, fe605d3, e8e8f64, 9392761)
 
 | Field | Value |
 |-------|-------|
 | Milestone | v1.3 Fork Swarm, NLU & Quality |
 | Current phase | 12 — Fork-Agent Swarm |
-| Current plan | 12-02 (Wave 2, depends on 12-01) |
-| Phase status | 1/3 plans executed (Wave 1 done) |
-| Overall progress | 0/4 phases (1/3 plans complete in current phase) |
+| Current plan | 12-03 (Wave 3, depends on 12-01 + 12-02) |
+| Phase status | 2/3 plans executed (Wave 1 + Wave 2 done) |
+| Overall progress | 0/4 phases (2/3 plans complete in current phase) |
 
 ## Phase Overview
 
@@ -110,19 +110,30 @@ None.
 
 ## Session Continuity
 
-**Last updated:** 2026-05-09 — Plan 12-01 executed (Wave 1 complete)
-**Stopped at:** 12-01 SUMMARY written; commits 83396b1 (swarm_mode field), c0db54e (max_swarm_* settings) on master
-**Next action:** Execute Plan 12-02 (Wave 2 — SwarmQueryPipeline core in `services/pipeline.py`)
+**Last updated:** 2026-05-09 — Plan 12-02 executed (Wave 2 complete)
+**Stopped at:** 12-02 SUMMARY written; 9 task commits + 1 metadata commit (9392761) on master. SwarmQueryPipeline class + _SubAgentResult + prompt constants + get_swarm_pipeline() factory live in services/pipeline.py. AgentQueryPipeline byte-identical (D-01).
+**Next action:** Execute Plan 12-03 (Wave 3 — `controllers/api.py` swarm routing + `tests/unit/test_swarm_pipeline.py` + `tests/integration/test_swarm_pipeline_e2e.py`)
 
 ### Phase 12 Plan Summary
 
 | Plan | Wave | Tasks | Files Modified | Depends On |
 |------|------|-------|----------------|------------|
 | 12-01 | 1 | 2 | `utils/models.py`, `config/settings.py` | — |
-| 12-02 | 2 | 9 | `services/pipeline.py` (append `SwarmQueryPipeline`) | 12-01 |
+| 12-02 | 2 | 9 | `services/pipeline.py` (append `SwarmQueryPipeline`) ✅ | 12-01 |
 | 12-03 | 3 | 3 | `controllers/api.py`, `tests/unit/test_swarm_pipeline.py`, `tests/integration/test_swarm_pipeline_e2e.py` | 12-01, 12-02 |
 
 **Plan-checker findings:** PASS, 3 cosmetic flags (no blockers).
 - Cosmetic typo in 12-03 Task 3 verify command (duplicate suffix; self-correcting)
 - `_execute_tool_call` copy-by-design per D-01 (drift risk if agent edits — accepted)
 - Coordinator silently degrades to N=1 if LLM returns single-element array (accepted per D-03)
+
+### Plan 12-02 Execution Notes (Wave 2)
+
+- **Duration:** ~12 min, 9/9 tasks, 9 task commits + 1 SUMMARY commit
+- **One-line edit to existing code**: `services/audit/audit_service` import line extended to include `AuditAction`, `AuditEvent` (Task 8 needs `log()` direct path because `log_query()` cannot carry swarm fields)
+- **AgentQueryPipeline body byte-identical** vs Plan 12-01 endpoint (3aa035e) — verified via awk-extracted-range diff
+- **`_execute_tool_call` verbatim copy** verified by `inspect.getsource` + token-equivalent normalized-string equality test
+- **Plan deviation (Rule 1)**: Plan example used `actor_id=user_id`; corrected to `user_id=user_id` (actual `AuditEvent` dataclass field name at audit_service.py:53). All 9 audit detail keys present: `swarm_n`, `per_agent_turns`, `per_agent_tool_calls`, `swarm_latency_ms`, `synthesis_latency_ms`, `latency_ms`, `sources_count`, `query_len`, `intent='swarm'`.
+- **mypy --strict drift**: pipeline.py errors went from 7 → 11. The 4 "new" errors are exact pattern-mirrors of pre-existing baseline (`get_query_pipeline()` untyped factory at line 716, `save_turn(intent=None)` at line 818, factory functions without return annotations at 894/900/906). All required by plan instructions ("Match the exact spacing/style of `_agent_pipeline = None` / `def get_agent_pipeline()`"). SCOPE BOUNDARY applies.
+- **Agent unit tests (`tests/unit/test_agent_pipeline_refactor.py`): 11 passed, 0 regressions.**
+- **Future-work flag**: any change to `AgentQueryPipeline._execute_tool_call` MUST be mirrored into `SwarmQueryPipeline._execute_tool_call` in lockstep (or extracted to module level — out of Phase 12 scope).
