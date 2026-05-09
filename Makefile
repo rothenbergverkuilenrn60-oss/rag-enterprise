@@ -4,7 +4,7 @@
 # 使用：make <target>
 # =============================================================================
 
-.PHONY: help build up down logs shell ingest eval clean coverage-diff coverage-combined
+.PHONY: help build up down logs shell ingest eval clean coverage-diff coverage-combined demo-agent demo-agent-record
 
 COMPOSE = docker compose
 SERVICE = rag-api
@@ -67,6 +67,15 @@ eval:  ## 运行 RAGAS 评测（一次性任务）
 
 eval-local:  ## 本地（非Docker）运行评测
 	conda run -n torch_env python -m eval.ragas_runner
+
+# ── Agent 演示 (Phase 19) ──────────────────────────────────────────────────────
+demo-agent:  ## 演示 Planner→Executor→Synthesizer 4 路并行 (Phase 19, AGENT-08)
+	APP_MODEL_DIR=$${APP_MODEL_DIR:-/tmp} .venv/bin/python -m services.agent._demo_runner
+
+demo-agent-record:  ## 录制 docs/demo.cast (维护任务，需要 asciinema)
+	@command -v asciinema >/dev/null 2>&1 || { echo "asciinema not installed; install via: pipx install asciinema"; exit 1; }
+	asciinema rec docs/demo.cast --overwrite \
+		--command "APP_MODEL_DIR=$${APP_MODEL_DIR:-/tmp} .venv/bin/python -m services.agent._demo_runner"
 
 # ── 健康检查 ──────────────────────────────────────────────────────────────────
 health:  ## 检查 rag-api 健康状态
