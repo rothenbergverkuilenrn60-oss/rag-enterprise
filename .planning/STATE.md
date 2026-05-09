@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Agent-First Architecture Inversion
-status: Phase 17 context gathered — ready for /gsd-plan-phase 17
-stopped_at: Phase 17 context session complete (4 gray areas resolved, D-01..D-12 captured)
-last_updated: "2026-05-09T18:50:00Z"
-last_activity: 2026-05-09 — Phase 17 context gathered
+status: Phase 17 plans created (TDD); ready for /gsd-execute-phase 17
+stopped_at: Phase 17 plan-check PASS (0 blockers; 3 non-blocking warnings)
+last_updated: "2026-05-09T19:30:00Z"
+last_activity: 2026-05-09 — Phase 17 plans created (Wave 1 TDD / Wave 2 TDD / Wave 3 execute; 20 tasks)
 progress:
   total_phases: 4
   completed_phases: 0
-  total_plans: 3
+  total_plans: 6
   completed_plans: 3
-  percent: 100
+  percent: 50
 ---
 
 # STATE — EnterpriseRAG (v1.4 planning)
@@ -25,25 +25,25 @@ See: .planning/PROJECT.md (updated 2026-05-09 after v1.4 open)
 
 ## Current Position
 
-Phase: 17 — Tool Abstraction + RetrieveTool (context gathered; ready for `/gsd-plan-phase 17`)
-Plan: —
-Status: Phase 17 context complete; Phase 16 verified (UAT pass), awaiting milestone-close ship
-Last activity: 2026-05-09 — Phase 17 discuss-phase complete
+Phase: 17 — Tool Abstraction + RetrieveTool (plans created TDD; awaiting `/gsd-execute-phase 17`)
+Plan: 17-01 (Wave 1 TDD), 17-02 (Wave 2 TDD), 17-03 (Wave 3 execute)
+Status: Phase 17 plans pass plan-check; ready for execution
+Last activity: 2026-05-09 — Phase 17 plans created + plan-checked
 
 | Field | Value |
 |-------|-------|
 | Milestone | v1.4 Agent-First Architecture Inversion |
-| Current phase | 17 — Tool Abstraction + RetrieveTool (context done, planning next) |
-| Current plan | — |
-| Phase status | Phase 16 verified; Phase 17 ready for plan |
-| Overall progress | 1/4 phases verified; 1/4 phases at context-gathered |
+| Current phase | 17 — Tool Abstraction + RetrieveTool (3/3 plans created, 0/3 executed) |
+| Current plan | 17-01 (next to execute) |
+| Phase status | Phase 16 verified; Phase 17 ready for execute |
+| Overall progress | 1/4 phases impl-complete; 1/4 phases at plans-created |
 
 ## Phase Overview
 
 | Phase | Name | REQ-IDs | Status |
 |-------|------|---------|--------|
 | 16 | Planner + Executor Extraction | AGENT-06, AGENT-09, NLU-03 | All 3 waves executed; awaiting /gsd-verify-work 16 |
-| 17 | Tool Abstraction + RetrieveTool | AGENT-07 | Context gathered (D-01..D-12); ready for /gsd-plan-phase 17 |
+| 17 | Tool Abstraction + RetrieveTool | AGENT-07 | 3 plans created (Wave 1+2 TDD, Wave 3 execute); plan-check PASS; ready for /gsd-execute-phase 17 |
 | 18 | SSE Planner Trace Event Stream | AGENT-04 | Not started |
 | 19 | Agent-First Docs + Demo + Release | AGENT-08 | Not started |
 
@@ -103,9 +103,9 @@ None.
 
 ## Session Continuity
 
-**Last updated:** 2026-05-09 — Phase 17 context gathered (4 gray areas resolved)
-**Stopped at:** Phase 17 ready for planning. Phase 16 verified via 16-UAT.md (6/6 tests pass).
-**Next action:** Run `/gsd-plan-phase 17` to generate the plan (research → plan → plan-check loop). Wave structure expected: Wave 1 builds BaseTool/ToolRegistry/ToolResult/ToolContext + tests; Wave 2 builds RetrieveTool + RefinedRetrieveTool + WebSearchTool placeholder + registry tests; Wave 3 swaps `Executor._dispatch_one` to registry + deletes `services/agent/tool_executor.py` + updates `_AGENT_TOOLS` literal callsite + writes `docs/agent-architecture.md` stub.
+**Last updated:** 2026-05-09 — Phase 17 plans created + plan-check PASS
+**Stopped at:** Phase 17 plans ready (17-01 Wave 1 TDD, 17-02 Wave 2 TDD, 17-03 Wave 3 execute; 20 tasks).
+**Next action:** Run `/gsd-execute-phase 17` to execute Wave 1 → Wave 2 → Wave 3. Wave 1 (TDD) builds BaseTool ABC + ToolRegistry + ToolResult/ToolContext + provider_name ClassVar on BaseLLMClient; Wave 2 (TDD) builds RetrieveTool + RefinedRetrieveTool + WebSearchTool placeholder; Wave 3 (execute) swaps Executor._dispatch_one to registry + deletes tool_executor.py + replaces _AGENT_TOOLS literal + writes docs/agent-architecture.md stub. Plan-check PASS with 3 non-blocking warnings (1: 17-01-T4 action-step minor mismatch, executor follows acceptance_criteria; 2: task-count 7/6/7 elevated by TDD RED/GREEN/REFACTOR splits; 3: RESEARCH.md "Open Questions" section missing `(RESOLVED)` suffix although both questions implemented in plans).
 
 ### Phase 16 Wave 3 Execution Notes
 
