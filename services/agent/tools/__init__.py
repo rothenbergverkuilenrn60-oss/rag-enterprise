@@ -10,8 +10,19 @@ from this registry.
 from services.agent.tools.base import BaseTool
 from services.agent.tools.registry import ToolRegistry, get_tool_registry
 
+# Side-effect imports trigger @get_tool_registry().register decorators at
+# package load time (RESEARCH §Decision 3 — explicit named imports).
+from services.agent.tools.retrieve import (  # noqa: F401
+    RefinedRetrieveTool,
+    RetrieveTool,
+    retrieve_impl,
+)
+
 __all__ = [
     "BaseTool",
     "ToolRegistry",
     "get_tool_registry",
+    "RetrieveTool",
+    "RefinedRetrieveTool",
+    "retrieve_impl",
 ]
