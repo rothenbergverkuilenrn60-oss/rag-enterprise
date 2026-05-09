@@ -15,13 +15,14 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import itertools
 import json
 import re
 import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, AsyncGenerator
+from typing import Any, AsyncGenerator, AsyncIterator
 
 import anthropic                                          # noqa: F401 — referenced in narrow except in AgentQueryPipeline.run
 import httpx                                              # noqa: F401 — referenced in narrow except in AgentQueryPipeline.run
@@ -72,15 +73,22 @@ from utils.metrics import (
     rule_trigger_total,
 )
 from utils.models import (
+    AgentEvent,
     DocType,
+    ExecutorParallelEvent,  # noqa: F401 — hoisted for Task 2b span_id pairing refactor
     GenerationRequest,
     GenerationResponse,
     IngestionRequest,
     IngestionResponse,
+    PlannerPlanEvent,
     RawDocument,
     RetrievedChunk,
+    SynthesizerFinalEvent,
     ToolPlan,
     ToolResult,
+    ToolSpanEndEvent,    # noqa: F401 — hoisted for Task 2b span_id pairing refactor
+    ToolSpanErrorEvent,  # noqa: F401 — hoisted for Task 2b span_id pairing refactor
+    ToolSpanStartEvent,  # noqa: F401 — hoisted for Task 2b span_id pairing refactor
 )
 from utils.observability import start_span
 
@@ -808,6 +816,137 @@ class AgentQueryPipeline:
             messages.append({"role": "user", "content": tool_results})
 
         return await self._persist_turn(req, answer, all_chunks, trace_id, t0, parallelism_factors)
+
+    # ── streaming entry point (Phase 18 AGENT-04) ───────────────────────────
+
+    async def run_streaming(
+        self,
+        req: GenerationRequest,
+    ) -> AsyncIterator[AgentEvent]:
+        """Streaming sibling of ``run`` — yields AgentEvent per planner/tool/synthesizer step.
+
+        Mirrors the ``run`` loop body verbatim except:
+          - Yields ``PlannerPlanEvent`` immediately after each successful
+            planner call (D-06).
+          - Replaces ``executor.execute_plan(...)`` with
+            ``executor.execute_plan_streaming(...)``, forwarding the events
+            it emits and collecting the bare ``ToolResult`` /
+            ``BaseException`` results.
+          - Yields ``SynthesizerFinalEvent`` after the iteration loop
+            finishes (D-07).
+          - Calls ``_persist_turn`` AFTER the synthesizer.final event so
+            audit / memory logging is unchanged (security_gate).
+
+        Existing ``run`` is byte-identical and remains for the legacy
+        non-streaming path (``/query?agent_mode=true``).
+        """
+        trace_id = uuid.uuid4().hex[:8]
+        seq_counter = itertools.count()
+
+        tenant_id, user_id = getattr(req, "tenant_id", ""), getattr(req, "user_id", "")
+        t0 = time.perf_counter()
+        tf = await self._build_tf(req, tenant_id)
+        mem_ctx = await self._memory.load_context(req.session_id, user_id, tenant_id, req.query)
+        messages = self._build_initial_messages(req, mem_ctx)
+        planner, executor = get_planner(), get_executor()
+        all_chunks: list[RetrievedChunk] = []
+        parallelism_factors: list[int] = []
+        answer = ""
+
+        for iteration in range(MAX_ITERATIONS):
+            try:
+                plan: ToolPlan = await planner.plan_from_messages(
+                    messages,
+                    tools=get_tool_registry().schemas_for(
+                        self._llm.provider_name,
+                        names=AGENT_TOOL_ALLOWLIST,
+                    ),
+                    system=self._AGENT_SYSTEM,
+                )
+            except NotImplementedError:
+                logger.warning(
+                    f"[Agent:stream] provider lacks call_agentic_turn — "
+                    f"provider={type(self._llm).__name__}"
+                )
+                answer = "智能助手在当前模型上不可用，请切换 provider 后重试。"
+                break
+            except (anthropic.APIError, openai.APIError, httpx.HTTPError, asyncio.TimeoutError) as exc:
+                logger.error(f"[Agent:stream] call_agentic_turn failed iter={iteration+1}: {exc!r}")
+                answer = "抱歉，智能助手在处理您的请求时遇到了错误，请稍后重试。"
+                break
+
+            if not plan.steps:  # terminal: plan.rationale IS the final answer (D-06)
+                answer = plan.rationale or answer
+                if plan.stop_reason == "max_tokens":
+                    logger.warning(
+                        f"[Agent:stream] iter={iteration+1} stop_reason=max_tokens "
+                        f"(response truncated)"
+                    )
+                break
+
+            # Emit planner.plan ONLY for plans that have steps
+            # (D-06: event mirrors planner-action boundary).
+            yield PlannerPlanEvent(
+                trace_id=trace_id,
+                seq=next(seq_counter),
+                ts_ms=int(time.time() * 1000),
+                plan=plan,
+            )
+
+            messages.append(plan.raw_assistant_msg)
+            parallelism = len(plan.steps)
+            parallelism_factors.append(parallelism)
+            logger.info(
+                f"[Agent:stream] iter={iteration+1} parallel_factor={parallelism} "
+                f"tools={[tc.name for tc in plan.steps]}"
+            )
+
+            # ──────────────────────────────────────────────────────────────
+            # Task 2a (GREEN minimal): in-order pairing.
+            # The executor (plan 18-02) yields the bare result IMMEDIATELY
+            # after the corresponding tool.span.end (or tool.span.error)
+            # event for that span. For single-step plans (the case Tests
+            # 1, 6, 7, 8, 9 exercise) the natural fill order coincides with
+            # plan.steps order. Multi-tool multi-group correctness is
+            # finished in Task 2b's refactor.
+            # ──────────────────────────────────────────────────────────────
+            raw_outputs: list[ToolResult | BaseException | None] = [None] * len(plan.steps)
+            next_slot = 0
+            async for item in executor.execute_plan_streaming(
+                plan, tf, req,
+                trace_id=trace_id,
+                seq_counter=seq_counter,
+            ):
+                if isinstance(item, AgentEvent):
+                    yield item
+                else:
+                    # Bare ToolResult or BaseException — fill plan.steps order.
+                    # Single-tool plans: trivially correct.
+                    # Multi-tool: refactored in Task 2b.
+                    if next_slot < len(raw_outputs):
+                        raw_outputs[next_slot] = item
+                        next_slot += 1
+
+            collected: list[ToolResult | BaseException] = [
+                r if r is not None else RuntimeError("missing executor result")
+                for r in raw_outputs
+            ]
+            tool_results = self._build_tool_results(plan, collected, all_chunks)
+            all_chunks = self._dedup_chunks(all_chunks)
+            messages.append({"role": "user", "content": tool_results})
+
+        # Synthesizer.final — emitted regardless of how loop ended
+        # (terminal-plan, error, max-iter).
+        yield SynthesizerFinalEvent(
+            trace_id=trace_id,
+            seq=next(seq_counter),
+            ts_ms=int(time.time() * 1000),
+            answer=answer,
+            sources_count=len(all_chunks),
+        )
+
+        # Audit log + memory persistence — unchanged shape (security_gate).
+        await self._persist_turn(req, answer, all_chunks, trace_id, t0, parallelism_factors)
 
 
 _ingest_pipeline = None
