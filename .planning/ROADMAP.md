@@ -48,7 +48,7 @@ See [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md) for full phase deta
 
 - [x] **Phase 12: Fork-Agent Swarm** — Coordinator decomposes multi-dimension queries; N sub-agents run isolated `call_agentic_turn` loops concurrently; synthesis LLM call produces final unified answer (completed 2026-05-09)
 - [x] **Phase 13: LLM Filter Fallback** — `FilterExtractor` gains a confidence-gated LLM fallback that activates only when regex returns empty; cached per query; fallback source traced in returned filter (Wave 1 complete; Wave 2 + 3 pending) (completed 2026-05-09)
-- [ ] **Phase 14: Frontend Split and DOM Modernization** — JS and CSS extracted from `static/ui.html` into `static/ui.js` / `static/ui.css`; inline event handlers replaced with `addEventListener`; StaticFiles config unchanged
+- [x] **Phase 14: Frontend Split and DOM Modernization** — JS and CSS extracted from `static/ui.html` into `static/ui.js` / `static/ui.css`; inline event handlers replaced with `addEventListener`; StaticFiles config unchanged (Plan 14-01 complete 2026-05-09; verification pending)
 - [ ] **Phase 15: Coverage Combine and 70% Floor** — CI wired to emit `.coverage.unit` + `.coverage.integration` and combine them; global floor raised from 46% to 70% backed by new unit tests on undercovered service modules
 
 ## Phase Details
@@ -92,7 +92,7 @@ See [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md) for full phase deta
   3. No `onclick=`, `onsubmit=`, or other inline event handlers remain in `ui.html`; all event wiring lives in `ui.js` via `addEventListener`
   4. The UI renders identically to the pre-split version for the document upload, query submission, and result display flows
 **Plans**: 1 plan
-  - [ ] 14-01-PLAN.md (Wave 1) — Extract inline <style> and <script> from static/ui.html into static/ui.css + static/ui.js (IIFE-wrapped, addEventListener wiring); add tests/unit/test_static_ui.py; update tests/integration/test_ui_static.py sentinel list. main.py and symlink UNCHANGED.
+  - [x] 14-01-PLAN.md (Wave 1) — Extract inline <style> and <script> from static/ui.html into static/ui.css + static/ui.js (IIFE-wrapped, addEventListener wiring); add tests/unit/test_static_ui.py; update tests/integration/test_ui_static.py sentinel list. main.py and symlink UNCHANGED. ✅ complete 2026-05-09 (commits 3b21ddc, 9be5475, f3a006b, add3024)
 **UI hint**: yes
 
 ### Phase 15: Coverage Combine and 70% Floor
@@ -125,7 +125,7 @@ See [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md) for full phase deta
 | 11. Provider-Agnostic Agentic Layer + Parallel Burst | v1.2 | 4/4 | Complete ✓ | 2026-05-08 |
 | 12. Fork-Agent Swarm | v1.3 | 3/3 | Complete    | 2026-05-09 |
 | 13. LLM Filter Fallback | v1.3 | 3/3 | Complete    | 2026-05-09 |
-| 14. Frontend Split and DOM Modernization | v1.3 | 0/TBD | Not started | — |
+| 14. Frontend Split and DOM Modernization | v1.3 | 1/1 | Complete    | 2026-05-09 |
 | 15. Coverage Combine and 70% Floor | v1.3 | 0/TBD | Not started | — |
 
 ## Coverage Validation
