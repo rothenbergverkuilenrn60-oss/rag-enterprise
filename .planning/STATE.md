@@ -41,7 +41,7 @@ Last activity: 2026-05-09 — Milestone v1.4 started
 
 | Phase | Name | REQ-IDs | Status |
 |-------|------|---------|--------|
-| 16 | Planner + Executor Extraction | AGENT-06, AGENT-09, NLU-03 | Plans created (3 plans, Waves 1→2→3, TDD on Wave 2) |
+| 16 | Planner + Executor Extraction | AGENT-06, AGENT-09, NLU-03 | Wave 1 + Wave 2 executed; Wave 3 pending (run body rewrite + delete delegates) |
 | 17 | Tool Abstraction + RetrieveTool | AGENT-07 | Not started |
 | 18 | SSE Planner Trace Event Stream | AGENT-04 | Not started |
 | 19 | Agent-First Docs + Demo + Release | AGENT-08 | Not started |
@@ -102,6 +102,13 @@ None.
 
 ## Session Continuity
 
-**Last updated:** 2026-05-09 — v1.4 Agent-First Architecture Inversion milestone opened
-**Stopped at:** Phase 16 context gathered
-**Next action:** Run `/gsd-plan-phase 16` to plan Phase 16 (Planner + Executor Extraction). Read the source design doc first; resolve Open Questions #1, #2, #5 in the phase discussion.
+**Last updated:** 2026-05-09 — Phase 16 Wave 2 complete (Planner + Executor + ToolPlan + parity tests)
+**Stopped at:** Phase 16 Wave 2 committed; Wave 3 pending (rewrite AgentQueryPipeline.run body to thin orchestrator + delete the two _execute_tool_call delegate methods + update test_agent_pipeline_refactor.py mock targets)
+**Next action:** New session — run `/gsd-execute-phase 16 --wave 3` to execute Plan 16-03. The seam swap rewires AgentQueryPipeline.run to call get_planner() + get_executor() and absorbs the v1.3 max_iterations=5 outer loop at orchestrator level (CONTEXT.md D-12). Wave 3 is the only plan in Phase 16 that changes AgentQueryPipeline.run body — Wave 1 was helper extraction with one-line delegates; Wave 2 built the new collaborators in isolation.
+
+### Phase 16 Wave 1 + 2 Execution Notes
+
+- **Wave 1 (commit 635790d, feat(16-01)):** services/agent/ package created. tool_executor.py contains the shared async free function (body verbatim from v1.3 services/pipeline.py:846-887). AgentQueryPipeline._execute_tool_call (line 847) and SwarmQueryPipeline._execute_tool_call (line 1078) replaced with one-line delegates. Two synthesized parity fixtures written under tests/unit/fixtures/agent_parity/ (single_step + parallel_multi_step) — synthesized from v1.3 fixture shape rather than captured from a real LLM run because PG was empty in the dev environment; downstream Wave 3 verification still relies on the existing 19 tests in test_agent_pipeline_refactor.py + test_swarm_pipeline.py for parity. Verification: 19/19 critical tests pass; ruff clean.
+- **Wave 2 (TDD on Plan 16-02):** Added ToolPlan to utils/models.py with 5 validators (empty groups, out-of-range index, duplicate index, missing index, empty inner group). New services/agent/planner.py with Planner + PlannerOutputError + get_planner singleton. New services/agent/executor.py with Executor + get_executor singleton; walks parallel_groups via asyncio.gather; preserves results in step-index order; BaseException scope per v1.3 D-01. services/agent/__init__.py re-exports the public surface. Three new test files: test_planner.py (19 tests: 12 ToolPlan validators + 7 Planner), test_executor.py (6 tests: dispatch order, two-wave ordering, exception propagation, id round-trip, empty plan, parallel coverage), test_agent_parity.py (2 parametrized tests over the fixtures). Verification: 55/55 critical tests pass (28 v1.3 baseline + 27 Wave 2 new); mypy --strict on services/agent/ clean; ruff clean.
+- **Planner API alignment fix:** initial Planner.plan_from_messages signature did not match BaseLLMClient.call_agentic_turn (which requires `system: str` and `tools: list[dict[str, Any]]` positional/keyword). Fixed by adding `system: str | None = None` parameter and defaulting to module-level `_PLANNER_SYSTEM` constant. Stub LLMs in tests accept `**_: Any` to absorb the kwarg.
+- **No new behavior in v1.3 surface:** AgentQueryPipeline.run body is BYTE-IDENTICAL to its state at the start of Phase 16 (modulo Wave 1's one-line _execute_tool_call delegate). Phase 16 Wave 3 is the seam swap.

@@ -288,6 +288,68 @@ class AgenticTurn(BaseModel):
     usage_output_tokens: int                                                  = 0
 
 
+class ToolPlan(BaseModel):
+    """Planner output: an ordered list of ToolCalls plus their parallel-group
+    assignment and a human-readable rationale (AGENT-06, Phase 16).
+
+    ``parallel_groups`` is the canonical execution shape: each inner list is
+    a wave of step indices that the Executor dispatches concurrently via
+    ``asyncio.gather``. Every step index in ``range(len(steps))`` MUST appear
+    in exactly one group; ``parallel_groups`` is never empty for a non-empty
+    plan. Phase 16 CONTEXT.md D-01, D-02 freeze this shape.
+
+    ``rationale`` is surfaced verbatim in the Phase 18 ``planner.plan`` SSE
+    trace event. Planner system prompt instructs the LLM to write
+    ``rationale`` in the same language as the user query (CONTEXT.md D-03).
+    """
+    model_config = ConfigDict(frozen=True)
+
+    steps:           list[ToolCall]    = Field(default_factory=list)
+    parallel_groups: list[list[int]]   = Field(default_factory=list)
+    rationale:       str               = ""
+
+    @field_validator("parallel_groups")
+    @classmethod
+    def _validate_parallel_groups(
+        cls,
+        v: list[list[int]],
+        info: Any,
+    ) -> list[list[int]]:
+        steps = info.data.get("steps", [])
+        n = len(steps)
+
+        if n == 0:
+            if v:
+                raise ValueError("parallel_groups must be empty when steps is empty")
+            return v
+
+        if not v:
+            raise ValueError("parallel_groups must not be empty when steps is non-empty")
+
+        seen: set[int] = set()
+        for group in v:
+            if not group:
+                raise ValueError("parallel_groups must not contain empty groups")
+            for idx in group:
+                if idx < 0 or idx >= n:
+                    raise ValueError(
+                        f"parallel_groups index {idx} out of range for {n} steps"
+                    )
+                if idx in seen:
+                    raise ValueError(
+                        f"parallel_groups index {idx} appears in multiple groups"
+                    )
+                seen.add(idx)
+
+        if seen != set(range(n)):
+            missing = sorted(set(range(n)) - seen)
+            raise ValueError(
+                f"parallel_groups missing step indices: {missing}"
+            )
+
+        return v
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # API 层通用模型
 # ══════════════════════════════════════════════════════════════════════════════
