@@ -1,0 +1,12 @@
+body{font-family:-apple-system,sans-serif;max-width:900px;margin:2rem auto;padding:0 1rem;color:#222;}
+h1{font-size:1.3rem;}
+textarea{width:100%;padding:.5rem;font-size:1rem;font-family:inherit;box-sizing:border-box;}
+.row{display:flex;gap:1rem;align-items:center;margin:.5rem 0;}
+button{padding:.5rem 1.2rem;background:#0a66c2;color:#fff;border:0;border-radius:4px;cursor:pointer;}
+button:disabled{background:#999;}
+.answer{background:#f4f6f8;padding:1rem;margin:1rem 0;border-left:4px solid #0a66c2;white-space:pre-wrap;}
+.source{border:1px solid #ddd;padding:.8rem;margin:.5rem 0;border-radius:4px;}
+.source img{max-width:100%;margin-top:.5rem;border:1px solid #ccc;display:block;}
+.meta{color:#666;font-size:.82rem;margin-bottom:.4rem;}
+.loading{color:#888;font-style:italic;}
+.err{color:#c00;}
