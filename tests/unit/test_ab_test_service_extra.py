@@ -72,7 +72,6 @@ async def test_record_result_writes_to_redis_list():
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_record_feedback_routes_to_record_result(monkeypatch):
-    from services.ab_test import ab_test_service as mod
     svc = _make_svc(MagicMock())
     captured: list = []
 

@@ -13,8 +13,6 @@ import os
 os.environ.setdefault("APP_MODEL_DIR", "/tmp")
 os.environ.setdefault("SECRET_KEY", "a-very-secure-key-for-testing-that-is-long-32c")
 
-from typing import AsyncGenerator
-from unittest.mock import AsyncMock
 
 import pytest
 
