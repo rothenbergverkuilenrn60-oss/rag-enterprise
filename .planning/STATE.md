@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Fork Swarm, NLU & Quality
-status: Phase 15 complete — both plans done (Wave 1 plumbing + Wave 2 backfill); ready for `/gsd-verify-work 15`
-stopped_at: Plan 15-02 executed inline (20 modules backfilled; combined coverage 53.2% → 71.9%; fail-under=70 gate exits 0)
-last_updated: "2026-05-09T17:30:00.000Z"
-last_activity: 2026-05-09 — Plan 15-02 executed (Wave 2 backfill: 20 new test files, ~262 tests, +18.7pp combined coverage)
+status: v1.3 SHIPPED — milestone archived 2026-05-09; ready for `/gsd-new-milestone` to define v1.4
+stopped_at: v1.3 milestone closed (4 phases, 9 plans, 5/5 requirements satisfied, 14 STRIDE threats verified, combined coverage 71.9%)
+last_updated: "2026-05-09T18:45:00.000Z"
+last_activity: 2026-05-09 — v1.3 milestone archived (ROADMAP/REQUIREMENTS/AUDIT moved to milestones/, MILESTONES.md updated, PROJECT.md evolution review applied)
 progress:
   total_phases: 4
   completed_phases: 4
@@ -14,20 +14,19 @@ progress:
   percent: 100
 ---
 
-# STATE — EnterpriseRAG v1.3 Fork Swarm, NLU & Quality
+# STATE — EnterpriseRAG (post-v1.3)
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-08)
+See: .planning/PROJECT.md (updated 2026-05-09 after v1.3 close)
 
 **Core value:** Every query returns a grounded, auditable answer — no hallucinations, no silent failures, no security gaps.
-**Current focus:** Phase 13 — LLM Filter Fallback (NLU-02)
+**Current focus:** v1.4 milestone definition pending (`/gsd-new-milestone`)
 
 ## Current Position
 
-Phase: 15
-Plan: 15-01 ✅ complete (Wave 1 plumbing); 15-02 ✅ complete (Wave 2 backfill)
-Status: Phase 15 done — ready for `/gsd-verify-work 15`
+Milestone: v1.3 ✅ SHIPPED 2026-05-09
+Next milestone: v1.4 (TBD — run `/gsd-new-milestone`)
 Last activity: 2026-05-09
 
 | Field | Value |
