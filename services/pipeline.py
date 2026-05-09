@@ -908,3 +908,27 @@ def get_agent_pipeline():
     if _agent_pipeline is None:
         _agent_pipeline = AgentQueryPipeline()
     return _agent_pipeline
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Swarm 查询流水线（Fork-Agent — AGENT-03）
+# ══════════════════════════════════════════════════════════════════════════════
+class SwarmQueryPipeline:
+    """Fork-Agent Swarm pipeline (AGENT-03).
+
+    Decomposes a multi-dimension query into N independent sub-questions
+    (D-02), runs each as an isolated AgentQueryPipeline-style sub-agent
+    with its own short tool loop (D-05), then synthesizes their answers
+    (D-04). N=1 short-circuits to AgentQueryPipeline (D-03). The agent
+    class is unmodified (D-01).
+    """
+
+    MAX_SWARM_AGENTS: int = int(getattr(settings, "max_swarm_agents", 5))
+    MAX_SWARM_TURNS_PER_AGENT: int = int(getattr(settings, "max_swarm_turns_per_agent", 5))
+
+    def __init__(self) -> None:
+        self._retriever  = get_retriever()
+        self._llm        = get_llm_client()
+        self._memory     = get_memory_service()
+        self._audit      = get_audit_service()
+        self._tenant_svc = get_tenant_service()
