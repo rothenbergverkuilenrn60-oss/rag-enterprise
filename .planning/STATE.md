@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Agent-First Architecture Inversion
-status: Phase 16 implementation complete — awaiting /gsd-verify-work 16
-stopped_at: Phase 16 Wave 3 executed — AgentQueryPipeline.run seam swap landed; AGENT-06/09/NLU-03 acceptance ready for verify
-last_updated: "2026-05-09T17:50:00Z"
-last_activity: 2026-05-09 — Phase 16 Wave 3 executed (Plan 16-03 complete)
+status: Phase 17 context gathered — ready for /gsd-plan-phase 17
+stopped_at: Phase 17 context session complete (4 gray areas resolved, D-01..D-12 captured)
+last_updated: "2026-05-09T18:50:00Z"
+last_activity: 2026-05-09 — Phase 17 context gathered
 progress:
   total_phases: 4
   completed_phases: 0
@@ -25,25 +25,25 @@ See: .planning/PROJECT.md (updated 2026-05-09 after v1.4 open)
 
 ## Current Position
 
-Phase: 16 — Planner + Executor Extraction (implementation complete; awaiting `/gsd-verify-work 16`)
-Plan: 16-03 (Wave 3, final)
-Status: Phase 16 implementation complete — awaiting verify
-Last activity: 2026-05-09 — Wave 3 executed (commits f69a4b0..c896b4b)
+Phase: 17 — Tool Abstraction + RetrieveTool (context gathered; ready for `/gsd-plan-phase 17`)
+Plan: —
+Status: Phase 17 context complete; Phase 16 verified (UAT pass), awaiting milestone-close ship
+Last activity: 2026-05-09 — Phase 17 discuss-phase complete
 
 | Field | Value |
 |-------|-------|
 | Milestone | v1.4 Agent-First Architecture Inversion |
-| Current phase | 16 — Planner + Executor Extraction (3/3 plans executed) |
-| Current plan | 16-03 (complete) |
-| Phase status | 1/4 phases implementation-complete (verify pending) |
-| Overall progress | Phase 16 = 100% plans executed; v1.4 = 25% phases at impl-complete |
+| Current phase | 17 — Tool Abstraction + RetrieveTool (context done, planning next) |
+| Current plan | — |
+| Phase status | Phase 16 verified; Phase 17 ready for plan |
+| Overall progress | 1/4 phases verified; 1/4 phases at context-gathered |
 
 ## Phase Overview
 
 | Phase | Name | REQ-IDs | Status |
 |-------|------|---------|--------|
 | 16 | Planner + Executor Extraction | AGENT-06, AGENT-09, NLU-03 | All 3 waves executed; awaiting /gsd-verify-work 16 |
-| 17 | Tool Abstraction + RetrieveTool | AGENT-07 | Not started |
+| 17 | Tool Abstraction + RetrieveTool | AGENT-07 | Context gathered (D-01..D-12); ready for /gsd-plan-phase 17 |
 | 18 | SSE Planner Trace Event Stream | AGENT-04 | Not started |
 | 19 | Agent-First Docs + Demo + Release | AGENT-08 | Not started |
 
@@ -103,9 +103,9 @@ None.
 
 ## Session Continuity
 
-**Last updated:** 2026-05-09 — Phase 16 Wave 3 executed (seam swap, _execute_tool_call delegates deleted)
-**Stopped at:** Phase 16 implementation complete — awaiting `/gsd-verify-work 16`
-**Next action:** Run `/gsd-verify-work 16` to confirm AGENT-06/09/NLU-03 acceptance against the codebase. After verify passes, `/gsd-ship` to advance to Phase 17 (Tool Abstraction + RetrieveTool, AGENT-07).
+**Last updated:** 2026-05-09 — Phase 17 context gathered (4 gray areas resolved)
+**Stopped at:** Phase 17 ready for planning. Phase 16 verified via 16-UAT.md (6/6 tests pass).
+**Next action:** Run `/gsd-plan-phase 17` to generate the plan (research → plan → plan-check loop). Wave structure expected: Wave 1 builds BaseTool/ToolRegistry/ToolResult/ToolContext + tests; Wave 2 builds RetrieveTool + RefinedRetrieveTool + WebSearchTool placeholder + registry tests; Wave 3 swaps `Executor._dispatch_one` to registry + deletes `services/agent/tool_executor.py` + updates `_AGENT_TOOLS` literal callsite + writes `docs/agent-architecture.md` stub.
 
 ### Phase 16 Wave 3 Execution Notes
 
