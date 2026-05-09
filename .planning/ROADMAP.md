@@ -76,7 +76,10 @@ See [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md) for full phase deta
   3. An LLM response that is invalid JSON or missing required fields is silently caught; the caller receives `None` (no filter), not an exception
   4. Submitting the same unmatched query N times results in exactly one LLM call; subsequent calls hit the cache
   5. Every returned `QueryFilter` carries a `fallback_source` field set to `"regex"`, `"llm"`, or `None`, visible in logs
-**Plans**: TBD
+**Plans**:
+  - [ ] 13-01-PLAN.md (Wave 1) — Add `FilterExtractor` class, `ExtractionResult` dataclass, `_FILTER_EXTRACT_SYSTEM` prompt, and `get_filter_extractor()` singleton to `services/nlu/filter_extractor.py`. Existing regex helper preserved (D-02).
+  - [ ] 13-02-PLAN.md (Wave 2) — Migrate 4 callsites in `services/pipeline.py` from sync `extract_filters(req.query)` to `await get_filter_extractor().extract(req.query)`.
+  - [ ] 13-03-PLAN.md (Wave 2, parallel with 13-02) — Wrap existing 7 regex tests + add 6 new unit tests for FilterExtractor + create live-LLM integration test.
 **UI hint**: no
 
 ### Phase 14: Frontend Split and DOM Modernization
@@ -120,7 +123,7 @@ See [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md) for full phase deta
 | 10. Coverage Gate on New Code | v1.1 | 1/1 | Complete ✓ | 2026-05-08 |
 | 11. Provider-Agnostic Agentic Layer + Parallel Burst | v1.2 | 4/4 | Complete ✓ | 2026-05-08 |
 | 12. Fork-Agent Swarm | v1.3 | 3/3 | Complete    | 2026-05-09 |
-| 13. LLM Filter Fallback | v1.3 | 0/TBD | Not started | — |
+| 13. LLM Filter Fallback | v1.3 | 0/3 | Planned | — |
 | 14. Frontend Split and DOM Modernization | v1.3 | 0/TBD | Not started | — |
 | 15. Coverage Combine and 70% Floor | v1.3 | 0/TBD | Not started | — |
 

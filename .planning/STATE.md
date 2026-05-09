@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Fork Swarm, NLU & Quality
-status: Phase 13 context gathered — ready for `/gsd-plan-phase 13`
-stopped_at: Phase 13 CONTEXT.md written (15 decisions D-01..D-15 locked across 8 categories)
-last_updated: "2026-05-09T11:30:00.000Z"
-last_activity: 2026-05-09 — Phase 13 discuss-phase complete (NLU-02 design decisions locked)
+status: Phase 13 plans written — ready for `/gsd-execute-phase 13`
+stopped_at: Phase 13 plans written (3 waves, plan-checker PASS, all 5 NLU-02 ACs covered)
+last_updated: "2026-05-09T12:30:00.000Z"
+last_activity: 2026-05-09 — Phase 13 plans written + verified (PASS, no blockers)
 progress:
   total_phases: 4
   completed_phases: 2
@@ -25,25 +25,40 @@ See: .planning/PROJECT.md (updated 2026-05-08)
 
 ## Current Position
 
-Phase: 13 (context gathered, plans pending)
-Plan: —
-Status: Ready for `/gsd-plan-phase 13`
-Last activity: 2026-05-09 — discuss-phase complete; 15 decisions locked
+Phase: 13 (plans written, ready for execute)
+Plan: 13-01, 13-02, 13-03 (3 waves; 13-02 ∥ 13-03 after 13-01)
+Status: Ready for `/gsd-execute-phase 13`
+Last activity: 2026-05-09 — Phase 13 plans written + plan-checker PASS
 
 | Field | Value |
 |-------|-------|
 | Milestone | v1.3 Fork Swarm, NLU & Quality |
 | Current phase | 13 — LLM Filter Fallback |
-| Current plan | — |
-| Phase status | Context gathered (D-01..D-15 locked); plans pending |
-| Overall progress | 1/4 phases (Phase 12 closed; Phase 13 ready to plan) |
+| Current plan | 13-01 (Wave 1, depends on []) |
+| Phase status | Plans ready (3/3 plans, plan-checker PASS, 0 blockers) |
+| Overall progress | 1/4 phases (Phase 12 closed; Phase 13 plans ready) |
+
+### Phase 13 Plan Summary
+
+| Plan | Wave | Tasks | Files Modified | Depends On |
+|------|------|-------|----------------|------------|
+| 13-01 | 1 | 2 | `services/nlu/filter_extractor.py` (add FilterExtractor class) | — |
+| 13-02 | 2 | 1 | `services/pipeline.py` (4 callsites → await) | 13-01 |
+| 13-03 | 2-parallel | 2 | `tests/unit/test_filter_extractor.py` (extend), `tests/integration/test_filter_extractor_llm.py` (new) | 13-01 |
+
+13-02 and 13-03 run in parallel after 13-01 completes.
+
+**Plan-checker findings:** PASS, 5 cosmetic flags (no blockers).
+- 13-03 cache-hit test uses in-memory dict (not real Redis) — TTL covered by utils/cache.py own tests
+- 13-02 explicitly skips per-callsite logger.info(fallback_source) — AC#4 satisfied via dataclass field
+- Minor shell-escape oddity in 13-01 frozen-test acceptance — harmless
 
 ## Phase Overview
 
 | Phase | Name | REQ-IDs | Status |
 |-------|------|---------|--------|
 | 12 | Fork-Agent Swarm | AGENT-03 | Executed (verification pending) |
-| 13 | LLM Filter Fallback | NLU-02 | Context gathered |
+| 13 | LLM Filter Fallback | NLU-02 | Plans ready |
 | 14 | Frontend Split and DOM Modernization | UI-02 | Not started |
 | 15 | Coverage Combine and 70% Floor | TEST-04, TEST-06 | Not started |
 
