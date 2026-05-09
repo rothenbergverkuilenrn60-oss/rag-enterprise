@@ -8,7 +8,7 @@ from __future__ import annotations
 import time
 import uuid
 from enum import Enum
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -518,3 +518,115 @@ class AnnotationStats(BaseModel):
     skipped:           int   = 0
     avg_faithfulness:  float | None = None
     avg_answer_quality: float | None = None
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# STAGE 7 — SSE Trace Events (AGENT-04, Phase 18)
+# ══════════════════════════════════════════════════════════════════════════════
+#
+# AgentEvent + 6 concrete subclasses serialized to SSE
+# ``event: <type>\ndata: <json>\n\n`` named-event lines by
+# ``controllers/api.py::/agent/v1/run/stream`` (Phase 18 D-01, D-10).
+#
+# Frozen Pydantic V2 models — match Phase 16/17 D-01 placement convention.
+# ``event_type: ClassVar[str]`` is the discriminator; ClassVar fields are
+# excluded from ``model_dump()`` / ``model_dump_json()`` automatically
+# (Pydantic V2 default behavior). The base class declares no ``event_type``
+# so concrete subclasses each carry their own canonical wire-name.
+
+class AgentEvent(BaseModel):
+    """Abstract-by-convention base for all Phase 18 SSE event payloads.
+
+    Concrete subclasses each declare a unique ``event_type: ClassVar[str]``
+    discriminator and add their own payload fields. Common fields live here.
+
+    Frozen — emitters never mutate; SSE serialization is one-way.
+    """
+    model_config = ConfigDict(frozen=True)
+
+    trace_id: str
+    seq:      int
+    ts_ms:    int
+
+
+class PlannerPlanEvent(AgentEvent):
+    """Emitted once per planner turn — carries the full ToolPlan the planner
+    just produced (D-09)."""
+    event_type: ClassVar[str] = "planner.plan"
+    model_config = ConfigDict(frozen=True)
+
+    plan: ToolPlan
+
+
+class ToolSpanStartEvent(AgentEvent):
+    """Emitted ONCE per tool dispatch BEFORE the coroutine awaits (D-05).
+
+    ``args`` is verbatim from ``ToolCall.arguments`` — the model performs no
+    scrubbing (D-11). Multi-tenant safety is preserved by JWT + RLS at the
+    route layer; this model is a structural carrier only.
+    """
+    event_type: ClassVar[str] = "tool.span.start"
+    model_config = ConfigDict(frozen=True)
+
+    span_id: str
+    name:    str
+    args:    dict[str, Any] = Field(default_factory=dict)
+
+
+class ToolSpanEndEvent(AgentEvent):
+    """Emitted when a tool dispatch resolves to a ``ToolResult`` (D-09).
+
+    ``content_preview`` is first 200 chars of ``ToolResult.content`` — the
+    emitter truncates. ``chunk_count`` and ``latency_ms`` come from
+    ``ToolResult.metadata`` per Phase 17 D-02 (with ``len(result.chunks)``
+    fallback for ``chunk_count``).
+    """
+    event_type: ClassVar[str] = "tool.span.end"
+    model_config = ConfigDict(frozen=True)
+
+    span_id:         str
+    latency_ms:      int
+    chunk_count:     int
+    is_error:        bool
+    content_preview: str
+
+
+class ToolSpanErrorEvent(AgentEvent):
+    """Emitted INSTEAD OF ``tool.span.end`` when a tool dispatch raises
+    ``BaseException`` (D-12).
+
+    ``error_message`` is ``str(exc)[:200]`` — the emitter truncates. Full
+    traceback is logged at ``logger.error`` only; not in the stream.
+    """
+    event_type: ClassVar[str] = "tool.span.error"
+    model_config = ConfigDict(frozen=True)
+
+    span_id:       str
+    latency_ms:    int
+    error_type:    str
+    error_message: str
+
+
+class ExecutorParallelEvent(AgentEvent):
+    """Emitted ONCE per parallel group — at group END with both ``fan_out``
+    and ``group_latency_ms`` populated (D-09).
+
+    Plan 18-01 ``planner_decision`` (D-09 / D-15 reconciliation, option c):
+    emit at group END (not start) so ``group_latency_ms`` is always populated.
+    Plan 18-03's smoke test (D-15) updates the expected sequence accordingly.
+    """
+    event_type: ClassVar[str] = "executor.parallel"
+    model_config = ConfigDict(frozen=True)
+
+    fan_out:          int
+    group_latency_ms: int
+
+
+class SynthesizerFinalEvent(AgentEvent):
+    """Emitted ONCE at end of stream — carries the synthesizer's final answer
+    text verbatim (D-07)."""
+    event_type: ClassVar[str] = "synthesizer.final"
+    model_config = ConfigDict(frozen=True)
+
+    answer:        str
+    sources_count: int
