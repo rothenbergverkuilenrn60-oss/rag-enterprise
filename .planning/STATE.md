@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Agent-First Architecture Inversion
-status: Phase 17 plans pass plan-check; ready for execution
-stopped_at: Completed 17-03-PLAN.md — Wave 3 seam swap, AGENT-07 closed
-last_updated: "2026-05-09T12:11:12.517Z"
-last_activity: 2026-05-09 — Phase 17 plans created + plan-checked
+status: Phase 17 implementation complete — awaiting /gsd-verify-work 17
+stopped_at: Phase 17 all 3 waves executed; AGENT-07 closed (729 tests pass; coverage 72.6%; tool_executor.py deleted)
+last_updated: "2026-05-09T20:30:00Z"
+last_activity: 2026-05-09 — Phase 17 Wave 3 executed (Plan 17-03 complete)
 progress:
   total_phases: 4
   completed_phases: 1
@@ -25,25 +25,25 @@ See: .planning/PROJECT.md (updated 2026-05-09 after v1.4 open)
 
 ## Current Position
 
-Phase: 17 — Tool Abstraction + RetrieveTool (plans created TDD; awaiting `/gsd-execute-phase 17`)
-Plan: 17-01 (Wave 1 TDD), 17-02 (Wave 2 TDD), 17-03 (Wave 3 execute)
-Status: Phase 17 plans pass plan-check; ready for execution
-Last activity: 2026-05-09 — Phase 17 plans created + plan-checked
+Phase: 17 — Tool Abstraction + RetrieveTool (implementation complete; awaiting `/gsd-verify-work 17`)
+Plan: 17-03 (Wave 3, final)
+Status: Phase 17 implementation complete — awaiting verify
+Last activity: 2026-05-09 — Wave 3 executed (commits ac23340..f19e8d5)
 
 | Field | Value |
 |-------|-------|
 | Milestone | v1.4 Agent-First Architecture Inversion |
-| Current phase | 17 — Tool Abstraction + RetrieveTool (3/3 plans created, 0/3 executed) |
-| Current plan | 17-01 (next to execute) |
-| Phase status | Phase 16 verified; Phase 17 ready for execute |
-| Overall progress | 1/4 phases impl-complete; 1/4 phases at plans-created |
+| Current phase | 17 — Tool Abstraction + RetrieveTool (3/3 plans executed) |
+| Current plan | 17-03 (complete) |
+| Phase status | 2/4 phases implementation-complete (verify pending on both 16 + 17) |
+| Overall progress | Phase 17 = 100% plans executed; v1.4 = 50% phases at impl-complete |
 
 ## Phase Overview
 
 | Phase | Name | REQ-IDs | Status |
 |-------|------|---------|--------|
 | 16 | Planner + Executor Extraction | AGENT-06, AGENT-09, NLU-03 | All 3 waves executed; awaiting /gsd-verify-work 16 |
-| 17 | Tool Abstraction + RetrieveTool | AGENT-07 | 3 plans created (Wave 1+2 TDD, Wave 3 execute); plan-check PASS; ready for /gsd-execute-phase 17 |
+| 17 | Tool Abstraction + RetrieveTool | AGENT-07 | All 3 waves executed; awaiting /gsd-verify-work 17 |
 | 18 | SSE Planner Trace Event Stream | AGENT-04 | Not started |
 | 19 | Agent-First Docs + Demo + Release | AGENT-08 | Not started |
 
@@ -103,9 +103,23 @@ None.
 
 ## Session Continuity
 
-**Last updated:** 2026-05-09 — Phase 17 plans created + plan-check PASS
-**Stopped at:** Completed 17-03-PLAN.md — Wave 3 seam swap, AGENT-07 closed
-**Next action:** Run `/gsd-execute-phase 17` to execute Wave 1 → Wave 2 → Wave 3. Wave 1 (TDD) builds BaseTool ABC + ToolRegistry + ToolResult/ToolContext + provider_name ClassVar on BaseLLMClient; Wave 2 (TDD) builds RetrieveTool + RefinedRetrieveTool + WebSearchTool placeholder; Wave 3 (execute) swaps Executor._dispatch_one to registry + deletes tool_executor.py + replaces _AGENT_TOOLS literal + writes docs/agent-architecture.md stub. Plan-check PASS with 3 non-blocking warnings (1: 17-01-T4 action-step minor mismatch, executor follows acceptance_criteria; 2: task-count 7/6/7 elevated by TDD RED/GREEN/REFACTOR splits; 3: RESEARCH.md "Open Questions" section missing `(RESOLVED)` suffix although both questions implemented in plans).
+**Last updated:** 2026-05-09 — Phase 17 implementation complete (3 waves, 22 commits)
+**Stopped at:** Phase 17 implementation complete — awaiting `/gsd-verify-work 17`. Phases 16+17 both at impl-complete; ship as one v1.4 milestone PR after Phase 18+19 close.
+**Next action:** Run `/gsd-verify-work 17` to confirm AGENT-07 acceptance against codebase. Then advance to `/gsd-discuss-phase 18` (SSE Planner Trace Event Stream, AGENT-04). Phase 18 consumes Phase 17's `ToolResult.metadata` shape for `tool.span` events — forward-compat verified during Phase 17 research (RESEARCH §"Phase 18 SSE Forward-Compat").
+
+### Phase 17 Wave 1 Execution Notes
+
+- **Wave 1 (commits 60742c4 → 2fdb765, feat(17-01-T1..T6) + summary):** Built BaseTool ABC at `services/agent/tools/base.py` with `__init_subclass__` ClassVar guard (RESEARCH Pitfall 2 — silent AttributeError prevention). Built ToolRegistry class at `services/agent/tools/registry.py` with `register/get/list/schemas_for(provider, names=None)` + `get_tool_registry()` singleton. Added ToolResult + ToolContext Pydantic V2 frozen models to `utils/models.py` (ToolContext sets `arbitrary_types_allowed=True` per Pitfall 3). Added `provider_name: ClassVar[str]` to BaseLLMClient + 3 subclasses (Anthropic="anthropic", OpenAI="openai", Ollama="openai"). 28 new TDD tests (11 base + 17 registry incl. byte-identical-to-_AGENT_TOOLS parity test). Verification: 684 passed (was 656); coverage 72.4%; ruff clean; mypy 0 new errors.
+
+### Phase 17 Wave 2 Execution Notes
+
+- **Wave 2 (commits d9d3fc3 → c07a526, feat(17-02-T1..T6) + summary):** Built `_retrieve_impl` (private) + `retrieve_impl` (public swarm-compat shim alias) at `services/agent/tools/retrieve.py` — body verbatim from `services/agent/tool_executor.py::execute_tool_call:38-66` with XML format string immutable (Pitfall 5). Built RetrieveTool (search_knowledge_base) + RefinedRetrieveTool (refine_search) — both subclass BaseTool, share `_retrieve_impl`, parameters_schema byte-identical to deleted `_AGENT_TOOLS` entries. Built WebSearchTool placeholder at `services/agent/tools/web_search.py` returning canned `ToolResult(content="[WebSearchTool placeholder — v1.5+]", metadata={"placeholder": True, ...})`. Tools registered via `@get_tool_registry().register` decorator at module top + explicit imports in `services/agent/tools/__init__.py` (RESEARCH Decision 3). 45 new TDD tests (30 retrieve + 15 web_search). Verification: 729 passed; coverage 93% on services/agent/tools/; ruff clean; mypy 0 new errors.
+
+### Phase 17 Wave 3 Execution Notes
+
+- **Wave 3 (commits ac23340 → f19e8d5, feat(17-03-T1..T7) + T5b + summary):** Swapped `Executor._dispatch_one` to call `get_tool_registry().get(tc.name).run(args=tc.arguments or {}, ctx=ToolContext(req=req, tf=tf, retriever=self._retriever, llm=self._llm))`. Deleted `services/agent/tool_executor.py` entirely. Deleted `_AGENT_TOOLS` literal at services/pipeline.py:602-641; added `AGENT_TOOL_ALLOWLIST: list[str] = ["search_knowledge_base", "refine_search"]` module constant; replaced `tools=self._AGENT_TOOLS` callsites with `tools=get_tool_registry().schemas_for(self._llm.provider_name, names=AGENT_TOOL_ALLOWLIST)`. Extended `services/agent/__init__.py` to re-export BaseTool/ToolRegistry/get_tool_registry. Created `docs/agent-architecture.md#authoring-tools` stub (97 lines, ROADMAP SC5). Three deviations auto-fixed (Rules 1+3): (1) SwarmQueryPipeline _AGENT_TOOLS reference also switched to registry instead of shim alias — cleaner; (2) 2 test fixtures missing `_llm.provider_name` — added; (3) test_agent_parity.py patched deleted `execute_tool_call` — updated to registry mock. Verification: 729 passed; coverage 72.6%; ruff clean; mypy 0 new errors. AGENT-07 closed.
+
+
 
 ### Phase 16 Wave 3 Execution Notes
 
