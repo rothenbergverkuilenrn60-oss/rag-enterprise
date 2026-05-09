@@ -126,7 +126,7 @@ class TestBaseToolABC:
         assert isinstance(tool, BaseTool)
         req = GenerationRequest(query="q")
         ctx = ToolContext(req=req, tf={}, retriever=object(), llm=object())
-        result = asyncio.get_event_loop().run_until_complete(tool.run({}, ctx))
+        result = asyncio.run(tool.run({}, ctx))
         assert result.content == "fake-result"
 
 
