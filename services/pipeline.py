@@ -29,7 +29,7 @@ import openai                                             # noqa: F401 — refer
 from loguru import logger
 
 from config.settings import settings
-from services.audit.audit_service import AuditResult, get_audit_service
+from services.audit.audit_service import AuditAction, AuditEvent, AuditResult, get_audit_service
 from services.doc_processor.chunker import get_doc_processor
 from services.events.event_bus import get_event_bus
 from services.extractor.extractor import get_extractor
@@ -1146,3 +1146,111 @@ class SwarmQueryPipeline:
             ctx_text = "未找到相关内容"
 
         return chunks, ctx_text
+
+    async def run(self, req: GenerationRequest) -> GenerationResponse:
+        """Top-level swarm execution (AGENT-03).
+
+        Sequence:
+          1. Decompose query into sub-questions (D-02).
+          2. N=1 → delegate to AgentQueryPipeline (D-03).
+          3. Fan out N sub-agents concurrently (D-05).
+          4. Collect results; replace exceptions with error markers (Pitfall 2).
+          5. Synthesize final answer (D-04).
+          6. Persist memory + audit; return response.
+        """
+        trace_id  = str(uuid.uuid4())[:8]
+        tenant_id = getattr(req, "tenant_id", "")
+        user_id   = getattr(req, "user_id",   "")
+        t0        = time.perf_counter()
+
+        extraction = extract_filters(req.query)
+        tf = self._tenant_svc.get_tenant_filter(tenant_id)
+        if req.filters:
+            tf = {**(tf or {}), **req.filters}
+        if extraction.filters:
+            tf = {**(tf or {}), **extraction.filters}
+
+        sub_questions = await self._decompose(req.query)
+
+        # D-03: N=1 short-circuit — delegate to AgentQueryPipeline.
+        if len(sub_questions) <= 1:
+            logger.info(
+                f"[Swarm] N=1 fallback (sub_questions={sub_questions!r}); delegating to AgentQueryPipeline. trace_id={trace_id}"
+            )
+            return await get_agent_pipeline().run(req)
+
+        # D-05: fan out concurrently; isolate failures.
+        swarm_t0 = time.perf_counter()
+        sub_coros = [
+            self._run_sub_agent(i, q, tf or {}, req)
+            for i, q in enumerate(sub_questions)
+        ]
+        raw_results = await asyncio.gather(*sub_coros, return_exceptions=True)
+        swarm_latency_ms = round((time.perf_counter() - swarm_t0) * 1000, 1)
+
+        answers: list[str] = []
+        per_agent_turns: list[int] = []
+        per_agent_tool_calls: list[int] = []
+        all_swarm_chunks: list[RetrievedChunk] = []
+        for i, res in enumerate(raw_results):
+            # Pitfall 2: BaseException (covers asyncio.CancelledError, TimeoutError),
+            # NOT Exception.
+            if isinstance(res, BaseException):
+                logger.error(f"[Swarm] sub-agent {i} raised: {res!r}")
+                answers.append(f"[Sub-agent {i} failed: {res!r}]")
+                per_agent_turns.append(0)
+                per_agent_tool_calls.append(0)
+                continue
+            # res is _SubAgentResult
+            answers.append(res.answer)
+            per_agent_turns.append(res.turns)
+            per_agent_tool_calls.append(res.tool_calls_count)
+            all_swarm_chunks.extend(res.chunks)
+
+        synth_t0 = time.perf_counter()
+        final_answer = await self._synthesize(req.query, sub_questions, answers)
+        synthesis_latency_ms = round((time.perf_counter() - synth_t0) * 1000, 1)
+
+        total_ms = round((time.perf_counter() - t0) * 1000, 1)
+
+        # Persist memory turn (mirrors AgentQueryPipeline pattern).
+        await self._memory.save_turn(
+            session_id=req.session_id,
+            user_id=user_id,
+            tenant_id=tenant_id,
+            user_turn=ConversationTurn(role="user", content=req.query),
+            ai_turn=ConversationTurn(role="assistant", content=final_answer),
+            intent=None,
+        )
+
+        # CRITICAL: audit via log() directly with AuditEvent — log_query has a
+        # FIXED signature and cannot accept swarm_n/per_agent_*/etc.
+        await self._audit.log(AuditEvent(
+            action=AuditAction.QUERY,
+            user_id=user_id,
+            tenant_id=tenant_id,
+            resource_id=hashlib.sha256(req.query.encode()).hexdigest()[:16],
+            result=AuditResult.SUCCESS,
+            detail={
+                "latency_ms":           total_ms,
+                "sources_count":        len(all_swarm_chunks),
+                "query_len":            len(req.query),
+                "intent":               "swarm",
+                "swarm_n":              len(sub_questions),
+                "per_agent_turns":      per_agent_turns,
+                "per_agent_tool_calls": per_agent_tool_calls,
+                "swarm_latency_ms":     swarm_latency_ms,
+                "synthesis_latency_ms": synthesis_latency_ms,
+            },
+            trace_id=trace_id,
+        ))
+
+        return GenerationResponse(
+            answer=final_answer,
+            sources=all_swarm_chunks[:req.top_k],
+            session_id=req.session_id,
+            query=req.query,
+            latency_ms=total_ms,
+            trace_id=trace_id,
+            model=settings.active_model,
+        )
