@@ -1068,3 +1068,38 @@ class SwarmQueryPipeline:
             tool_calls_count=tool_calls_count,
             chunks=all_chunks,
         )
+
+    async def _synthesize(
+        self,
+        original_query: str,
+        sub_questions: list[str],
+        answers: list[str],
+    ) -> str:
+        """Synthesize sub-agent answers into final response (D-04, Pitfall 5).
+
+        Short-circuits to graceful-degradation string when all sub-agents failed,
+        avoiding a wasted LLM call (Pitfall 5).
+        """
+        # Pitfall 5: skip LLM if every sub-agent failed.
+        if answers and all(
+            a.startswith("[Sub-agent ") and " failed:" in a
+            for a in answers
+        ):
+            logger.error("[Swarm] all sub-agents failed; returning graceful degradation string without synthesis call")
+            return "抱歉，所有子代理处理失败，无法生成答案。"
+
+        # Format: numbered (sub_question, answer) pairs for the synthesizer.
+        sections: list[str] = [f"原始查询：{original_query}", ""]
+        for idx, (q, a) in enumerate(zip(sub_questions, answers), start=1):
+            sections.append(f"=== 子问题 {idx} ===")
+            sections.append(f"问：{q}")
+            sections.append(f"答：{a}")
+            sections.append("")
+        formatted = "\n".join(sections).rstrip()
+
+        return await self._llm.chat(
+            system=_SYNTHESIS_SYSTEM,
+            user=formatted,
+            temperature=0.1,
+            task_type="generate",
+        )
