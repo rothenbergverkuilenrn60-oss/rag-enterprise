@@ -17,6 +17,7 @@ from services.agent.tools.retrieve import (  # noqa: F401
     RetrieveTool,
     retrieve_impl,
 )
+from services.agent.tools.web_search import WebSearchTool  # noqa: F401
 
 __all__ = [
     "BaseTool",
@@ -24,5 +25,6 @@ __all__ = [
     "get_tool_registry",
     "RetrieveTool",
     "RefinedRetrieveTool",
+    "WebSearchTool",
     "retrieve_impl",
 ]
