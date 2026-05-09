@@ -21,7 +21,7 @@ Out of scope:
 
 ### Coverage Configuration
 - **D-01:** Coverage config lives in `pyproject.toml` `[tool.coverage.run]` and `[tool.coverage.report]` blocks. NO `.coveragerc` file (would conflict precedence). Matches uv-managed project pattern; one config file for everything.
-- **D-08:** `[tool.coverage.report]` sets `fail_under = 70` (up from 46). `show_missing = true` and `precision = 1` for per-module breakdown (TEST-06 AC#5). `[tool.coverage.run]` sets `source = ["services", "utils"]` and `parallel = true` to make `combine` work cleanly across multiple `.coverage.*` data files.
+- **D-08:** `[tool.coverage.report]` sets `fail_under = 70` (up from 46). `show_missing = true` and `precision = 1` for per-module breakdown (TEST-06 AC#5). `[tool.coverage.run]` sets `source = ["services", "utils"]` and `parallel = false`. **Revised 2026-05-09 post-research:** original draft set `parallel = true`, but researcher empirically verified that combination with `COVERAGE_FILE=.coverage.unit` env var (D-10) appends `.host.pid.rand` suffix, breaking the `path: .coverage.unit` artifact upload. Explicit `COVERAGE_FILE` already provides per-job uniqueness; `parallel = true` is unnecessary.
 
 ### CI Job Topology
 - **D-02:** Three jobs in ci.yml:
@@ -103,7 +103,7 @@ Out of scope:
 ```toml
 [tool.coverage.run]
 source = ["services", "utils"]
-parallel = true
+parallel = false  # explicit COVERAGE_FILE per-job; parallel suffix breaks artifact path upload (D-08 revised)
 branch = false  # line coverage only; branch coverage is v1.4+ candidate
 omit = [
     "*/__init__.py",

@@ -105,7 +105,9 @@ See [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md) for full phase deta
   3. The per-file diff-cover gate (TEST-03, ≥ 80% on touched files) continues to run independently on the same combined `.coverage` without regression
   4. Service modules that were below 70% threshold at v1.2 close have new unit tests covering their primary execution paths
   5. CI artifacts include a per-module coverage breakdown making remaining gaps immediately visible
-**Plans**: TBD
+**Plans**: 2 plans
+  - [ ] 15-01-PLAN.md (Wave 1) — Plumbing: pyproject.toml [tool.coverage.*] blocks; ci.yml 3-job topology refactor (drop --cov-fail-under=46, add COVERAGE_FILE per job, new coverage-combine job with combine + report --fail-under=70 + diff-cover migration); README §Coverage rewrite; Makefile coverage-combined target
+  - [ ] 15-02-PLAN.md (Wave 2) — Backfill: measure-then-plan workflow (Task 1 produces /tmp/coverage-baseline-15-02.txt; Tasks 2..N add unit tests for services/ modules below 70% identified at execute time); ends when coverage report --fail-under=70 exits 0
 **UI hint**: no
 
 ## Progress
