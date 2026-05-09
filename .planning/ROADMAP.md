@@ -6,7 +6,7 @@
 - ✅ **v1.1 Retrieval Depth & Frontend** — Phases 7–10 (shipped 2026-05-08) — [archive](milestones/v1.1-ROADMAP.md)
 - ✅ **v1.2 Agentic Layer + Swarm** — Phase 11 (shipped 2026-05-08) — [archive](milestones/v1.2-ROADMAP.md)
 - ✅ **v1.3 Fork Swarm, NLU & Quality** — Phases 12–15 (shipped 2026-05-09) — [archive](milestones/v1.3-ROADMAP.md)
-- 📋 **v1.4 (TBD)** — run `/gsd-new-milestone` to define
+- 📋 **v1.4 Agent-First Architecture Inversion** — Phases 16–19 (in planning, opened 2026-05-09)
 
 ## Phases
 
@@ -57,9 +57,37 @@ See [milestones/v1.3-ROADMAP.md](milestones/v1.3-ROADMAP.md) for full phase deta
 
 </details>
 
-### 📋 v1.4 (TBD)
+### 📋 v1.4 Agent-First Architecture Inversion (Phases 16–19) — IN PLANNING (opened 2026-05-09)
 
-(No phases planned yet — run `/gsd-new-milestone` to define v1.4 scope.)
+**Goal:** Invert the architecture so the agent runtime is the project's core (planner + executor + tool registry), and agentic RAG becomes one tool the agent calls. Source design doc: `~/.gstack/projects/rothenbergverkuilenrn60-oss-rag-enterprise/ubuntu-gsd-v1.3-milestone-design-20260509-163809.md` (Approach A — incremental refactor).
+
+- [ ] **Phase 16: Planner + Executor Extraction** (REQ-IDs: AGENT-06, AGENT-09, NLU-03)
+  - Refactor `services/pipeline.py::AgentQueryPipeline` into `Planner` + `Executor` + `Synthesizer` collaborators
+  - Extract `_execute_tool_call` to a single shared helper used by both `SwarmQueryPipeline` and the new `Executor` (eliminates v1.3-accepted duplication)
+  - Subsume NLU-03 into the planner output (intent = `ToolPlan` shape, no separate router)
+  - Behavioral parity vs v1.3 baseline asserted by tests before any new behavior lands
+  - Success criteria: parity tests green; coverage ≥ 70% combined; no v1.3 invariant regressed (multi-tenancy, JWT, audit)
+
+- [ ] **Phase 17: Tool Abstraction + RetrieveTool** (REQ-IDs: AGENT-07)
+  - Define `Tool` Protocol (or `BaseTool` ABC, decided in plan)
+  - Wrap `QueryPipeline.run()` as `RetrieveTool` — hybrid + RRF + rerank stays internal
+  - Register ≥ 1 additional skeletal tool (`WebSearchTool` or `SQLTool` placeholder) to prove pluggability
+  - Static class registry; abstraction clean enough that MCP can replace it later
+  - Success criteria: `Executor` dispatches via the registry only; multi-tool integration test green; tool authoring guide stub exists
+
+- [ ] **Phase 18: SSE Planner Trace Event Stream** (REQ-IDs: AGENT-04)
+  - Emit `planner.plan` / `tool.span` (start/end/error w/ timing) / `executor.parallel` / `synthesizer.final` on `/query/stream` (and/or new `/agent/v1/run/stream`)
+  - Document event schemas in `docs/agent-architecture.md`
+  - Latency assertion: agentic queries with N parallel tools bounded by `max(tool_latency)`, not sum
+  - Success criteria: streaming smoke test asserts each event type fires once; multi-hop demo query produces visible parallel fan-out in the timeline
+
+- [ ] **Phase 19: Agent-First Docs + Demo + Release** (REQ-IDs: AGENT-08)
+  - README rewrite: lead with agent-first architecture; agentic RAG framed as one tool
+  - `docs/agent-architecture.md`: planner/executor model + tool authoring + SSE event schema reference
+  - `make demo-agent` target: spins up stack and runs multi-hop demo query end-to-end
+  - Recorded asciinema/gif of parallel fan-out embedded in README
+  - Tag v1.4 release on `main`
+  - Success criteria: `make demo-agent` exits 0 from clean checkout; README screenshots/gif render correctly on GitHub; release tag pushed
 
 ## Progress
 
@@ -80,3 +108,7 @@ See [milestones/v1.3-ROADMAP.md](milestones/v1.3-ROADMAP.md) for full phase deta
 | 13. LLM Filter Fallback | v1.3 | 3/3 | Complete ✓ | 2026-05-09 |
 | 14. Frontend Split and DOM Modernization | v1.3 | 1/1 | Complete ✓ | 2026-05-09 |
 | 15. Coverage Combine and 70% Floor | v1.3 | 2/2 | Complete ✓ | 2026-05-09 |
+| 16. Planner + Executor Extraction | v1.4 | 0/0 | Pending | — |
+| 17. Tool Abstraction + RetrieveTool | v1.4 | 0/0 | Pending | — |
+| 18. SSE Planner Trace Event Stream | v1.4 | 0/0 | Pending | — |
+| 19. Agent-First Docs + Demo + Release | v1.4 | 0/0 | Pending | — |

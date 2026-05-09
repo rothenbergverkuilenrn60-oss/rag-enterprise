@@ -17,19 +17,26 @@ v1.2 Agentic Layer + Swarm shipped: `agent_mode=True` now executes the real tool
 - ✅ **v1.2 Agentic Layer + Swarm** shipped 2026-05-08 — [archive](milestones/v1.2-ROADMAP.md)
 - ✅ **v1.3 Fork Swarm, NLU & Quality** shipped 2026-05-09 — [archive](milestones/v1.3-ROADMAP.md)
 
-## Next Milestone: v1.4 (TBD)
+## Current Milestone: v1.4 Agent-First Architecture Inversion
 
-Run `/gsd-new-milestone` to define the next milestone (questioning → research → requirements → roadmap).
+**Goal:** Invert the architecture so the agent runtime is the project's core (planner + executor + tool registry), and agentic RAG becomes one tool the agent calls. Today's v1.3 layout is "RAG-first, agent-as-mode" — four parallel pipelines with `AgentQueryPipeline` as one option. v1.4 makes the agent loop primary and wraps `QueryPipeline.run()` as `RetrieveTool`.
 
-**Documented v1.4 follow-up items** (from v1.3 close):
-- AGENT-04: Streaming SSE for agentic + swarm responses (real-time sub-agent progress events)
-- AGENT-05: Inter-agent coordination and result sharing
-- NLU-03: Query intent classification (auto-route Query/Agent/Swarm)
-- UI-03: Full React/Vue migration (if mid-modernization proves insufficient)
-- TEST-07: Mutation testing
-- Lift 5 large modules (pipeline, llm_client, vector_store, retriever, extractor) above per-module 70% via deep mocking or live-service integration tests
-- Extract `_execute_tool_call` to shared helper between SwarmQueryPipeline + AgentQueryPipeline
-- Browser smoke test for UI-02 visual regression at first deploy
+**Target features:**
+- Planner + Executor extraction inside the existing `AgentQueryPipeline` (no greenfield rewrite, no framework lock-in)
+- Tool abstraction with `RetrieveTool` (wraps hybrid retrieval + RRF + rerank) + ≥1 additional skeletal tool to prove pluggability
+- SSE planner trace event stream (`planner.plan` / `tool.span` / `executor.parallel`) on the streaming endpoint, with documented event schemas
+- Agent-first README rewrite, architecture doc, and reproducible multi-hop demo (`make demo-agent`)
+
+**Carry-forwards merged into main line:**
+- AGENT-04 (SSE for agentic + swarm) → folded into the planner-trace event stream
+- NLU-03 (query intent auto-route) → subsumed by the planner (intent classification becomes planner output)
+- `_execute_tool_call` shared-helper extraction → done as part of the Phase 16 refactor
+
+**Deferred to v1.5+:**
+- AGENT-05 (multi-agent debate / sub-agent verify) — 10x roadmap #2
+- UI-03 (React/Vue full migration), TEST-07 (mutation testing), per-module 70% lift on 5 large modules, UI-02 first-deploy browser smoke test
+
+Source design doc: `~/.gstack/projects/rothenbergverkuilenrn60-oss-rag-enterprise/ubuntu-gsd-v1.3-milestone-design-20260509-163809.md` (Approach A — incremental refactor, recommended).
 
 ## Core Value
 
@@ -93,17 +100,24 @@ Every query returns a grounded, auditable answer — no hallucinations, no silen
 
 ### Active
 
-(None — v1.3 closed; run `/gsd-new-milestone` to define v1.4 active requirements.)
+**v1.4 Agent-First Architecture Inversion**
+- [ ] **AGENT-06**: Refactor `AgentQueryPipeline` into `Planner` + `Executor` + `Synthesizer` collaborators; preserve v1.2/v1.3 multi-tenant, audit, JWT, RLS invariants — Phase 16
+- [ ] **AGENT-09**: Extract `_execute_tool_call` to shared helper used by both `SwarmQueryPipeline` and the new `Executor` — Phase 16
+- [ ] **NLU-03**: Query intent classification subsumed by the planner output (no separate router); planner decides whether to fan out, single-hop retrieve, or short-circuit — Phase 16
+- [ ] **AGENT-07**: Define `Tool` protocol; wrap `QueryPipeline.run()` as `RetrieveTool` (hybrid + RRF + rerank stays internal); register ≥1 additional skeletal tool (`WebSearchTool` or `SQLTool`) to prove pluggability via static registry — Phase 17
+- [ ] **AGENT-04**: SSE planner trace event stream on `/query/stream` (and/or new `/agent/v1/run/stream`): `planner.plan`, `tool.span` (start/end/error with timing), `executor.parallel` marker, `synthesizer.final`; schemas documented in `docs/agent-architecture.md` — Phase 18
+- [ ] **AGENT-08**: Agent-first README rewrite (architecture lead with agent, RAG framed as one tool); `docs/agent-architecture.md` covering planner/executor model + tool authoring + SSE event schema; `make demo-agent` target running multi-hop demo end-to-end; recorded asciinema/gif of parallel fan-out — Phase 19
 
-**Carried over (not milestone-scoped, still tracked):**
+**Carried over (not v1.4-scoped, still tracked):**
 - [ ] asyncpg pool + RLS: verify `app.current_tenant` per-connection in production pool
 - [ ] PyMuPDF AGPL license: resolve commercial licensing for on-premise deployments
 - [ ] Phase 9/14 visual diff vs v1.0 + Docker live build (deferred to first deploy)
 - [ ] Phase 10/15 live PR through CI confirms `coverage-combine` job + HTML artifact (natural confirmation on first PR)
 - [ ] Push tags `v1.1`, `v1.2`, `v1.3` to origin (currently local-only)
 - [ ] PR #1 + PR #2 + PR #3 (v1.3) review + merge
-- [ ] v1.4 follow-up: extract `_execute_tool_call` shared helper between SwarmQueryPipeline + AgentQueryPipeline
-- [ ] v1.4 follow-up: lift 5 large modules above per-module 70% (pipeline, llm_client, vector_store, retriever, extractor)
+- [ ] v1.5+ follow-up: lift 5 large modules above per-module 70% (pipeline, llm_client, vector_store, retriever, extractor)
+- [ ] v1.5+ follow-up: AGENT-05 multi-agent debate / sub-agent verify (10x roadmap #2)
+- [ ] v1.5+ follow-up: UI-03 React/Vue full migration; TEST-07 mutation testing; UI-02 first-deploy browser smoke test
 
 ### Out of Scope
 
@@ -199,4 +213,4 @@ Every query returns a grounded, auditable answer — no hallucinations, no silen
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-09 — v1.3 Fork Swarm, NLU & Quality milestone shipped*
+*Last updated: 2026-05-09 — v1.4 Agent-First Architecture Inversion milestone opened*
