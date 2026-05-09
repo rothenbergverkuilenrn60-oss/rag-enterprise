@@ -46,7 +46,7 @@ def test_event_type_class_vars_match_d09() -> None:
 def test_planner_plan_event_is_frozen() -> None:
     evt = PlannerPlanEvent(trace_id="t1", seq=0, ts_ms=1, plan=_sample_plan())
     with pytest.raises(ValidationError):
-        evt.seq = 99  # type: ignore[misc]
+        evt.seq = 99
 
 
 def test_tool_span_start_event_is_frozen() -> None:
@@ -55,7 +55,7 @@ def test_tool_span_start_event_is_frozen() -> None:
         span_id="s1", name="search_knowledge_base", args={"q": "x"},
     )
     with pytest.raises(ValidationError):
-        evt.span_id = "s2"  # type: ignore[misc]
+        evt.span_id = "s2"
 
 
 def test_tool_span_end_event_is_frozen() -> None:
@@ -65,7 +65,7 @@ def test_tool_span_end_event_is_frozen() -> None:
         is_error=False, content_preview="hello",
     )
     with pytest.raises(ValidationError):
-        evt.latency_ms = 0  # type: ignore[misc]
+        evt.latency_ms = 0
 
 
 def test_tool_span_error_event_is_frozen() -> None:
@@ -75,7 +75,7 @@ def test_tool_span_error_event_is_frozen() -> None:
         error_type="RuntimeError", error_message="boom",
     )
     with pytest.raises(ValidationError):
-        evt.error_message = "tampered"  # type: ignore[misc]
+        evt.error_message = "tampered"
 
 
 def test_executor_parallel_event_is_frozen() -> None:
@@ -83,7 +83,7 @@ def test_executor_parallel_event_is_frozen() -> None:
         trace_id="t1", seq=0, ts_ms=1, fan_out=3, group_latency_ms=500,
     )
     with pytest.raises(ValidationError):
-        evt.fan_out = 1  # type: ignore[misc]
+        evt.fan_out = 1
 
 
 def test_synthesizer_final_event_is_frozen() -> None:
@@ -91,7 +91,7 @@ def test_synthesizer_final_event_is_frozen() -> None:
         trace_id="t1", seq=0, ts_ms=1, answer="hi", sources_count=0,
     )
     with pytest.raises(ValidationError):
-        evt.answer = "tampered"  # type: ignore[misc]
+        evt.answer = "tampered"
 
 
 # 3. JSON round-trip (D-10)
