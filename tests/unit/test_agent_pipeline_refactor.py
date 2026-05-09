@@ -93,6 +93,7 @@ def mock_pipeline(monkeypatch):
 
     pipe = AgentQueryPipeline.__new__(AgentQueryPipeline)
     pipe._llm = MagicMock()
+    pipe._llm.provider_name = "anthropic"  # required for schemas_for() in run()
     pipe._llm.call_agentic_turn = AsyncMock()
     pipe._retriever = MagicMock()
     pipe._retriever.retrieve = AsyncMock(return_value=([], {}))

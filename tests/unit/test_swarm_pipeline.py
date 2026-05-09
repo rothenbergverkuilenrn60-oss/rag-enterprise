@@ -82,6 +82,7 @@ def mock_pipeline() -> SwarmQueryPipeline:
 
     pipe = SwarmQueryPipeline.__new__(SwarmQueryPipeline)
     pipe._llm = MagicMock()
+    pipe._llm.provider_name = "anthropic"         # required for schemas_for() in _run_sub_agent
     pipe._llm.call_agentic_turn = AsyncMock()
     pipe._llm.chat = AsyncMock()                  # coordinator + synthesis
     pipe._retriever = MagicMock()
