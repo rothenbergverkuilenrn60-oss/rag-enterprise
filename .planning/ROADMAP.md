@@ -47,7 +47,7 @@ See [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md) for full phase deta
 ### v1.3 Fork Swarm, NLU & Quality
 
 - [x] **Phase 12: Fork-Agent Swarm** — Coordinator decomposes multi-dimension queries; N sub-agents run isolated `call_agentic_turn` loops concurrently; synthesis LLM call produces final unified answer (completed 2026-05-09)
-- [ ] **Phase 13: LLM Filter Fallback** — `FilterExtractor` gains a confidence-gated LLM fallback that activates only when regex returns empty; cached per query; fallback source traced in returned filter
+- [ ] **Phase 13: LLM Filter Fallback** — `FilterExtractor` gains a confidence-gated LLM fallback that activates only when regex returns empty; cached per query; fallback source traced in returned filter (Wave 1 complete; Wave 2 + 3 pending)
 - [ ] **Phase 14: Frontend Split and DOM Modernization** — JS and CSS extracted from `static/ui.html` into `static/ui.js` / `static/ui.css`; inline event handlers replaced with `addEventListener`; StaticFiles config unchanged
 - [ ] **Phase 15: Coverage Combine and 70% Floor** — CI wired to emit `.coverage.unit` + `.coverage.integration` and combine them; global floor raised from 46% to 70% backed by new unit tests on undercovered service modules
 
@@ -77,7 +77,7 @@ See [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md) for full phase deta
   4. Submitting the same unmatched query N times results in exactly one LLM call; subsequent calls hit the cache
   5. Every returned `QueryFilter` carries a `fallback_source` field set to `"regex"`, `"llm"`, or `None`, visible in logs
 **Plans**:
-  - [ ] 13-01-PLAN.md (Wave 1) — Add `FilterExtractor` class, `ExtractionResult` dataclass, `_FILTER_EXTRACT_SYSTEM` prompt, and `get_filter_extractor()` singleton to `services/nlu/filter_extractor.py`. Existing regex helper preserved (D-02).
+  - [x] 13-01-PLAN.md (Wave 1) — Add `FilterExtractor` class, `ExtractionResult` dataclass, `_FILTER_EXTRACT_SYSTEM` prompt, and `get_filter_extractor()` singleton to `services/nlu/filter_extractor.py`. Existing regex helper preserved (D-02). ✅ complete 2026-05-09 (commits 7ef9135, 660023b)
   - [ ] 13-02-PLAN.md (Wave 2) — Migrate 4 callsites in `services/pipeline.py` from sync `extract_filters(req.query)` to `await get_filter_extractor().extract(req.query)`.
   - [ ] 13-03-PLAN.md (Wave 2, parallel with 13-02) — Wrap existing 7 regex tests + add 6 new unit tests for FilterExtractor + create live-LLM integration test.
 **UI hint**: no

@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Fork Swarm, NLU & Quality
-status: Phase 13 plans written — ready for `/gsd-execute-phase 13`
-stopped_at: Phase 13 plans written (3 waves, plan-checker PASS, all 5 NLU-02 ACs covered)
-last_updated: "2026-05-09T12:30:00.000Z"
-last_activity: 2026-05-09 — Phase 13 plans written + verified (PASS, no blockers)
+status: Phase 13 Wave 1 (13-01) executed — Wave 2 (13-02) + Wave 3 (13-03) unblocked
+stopped_at: 13-01 SUMMARY written (3 commits on master); FilterExtractor + ExtractionResult + get_filter_extractor exported; D-02 freeze preserved byte-identical
+last_updated: "2026-05-09T03:19:30.000Z"
+last_activity: 2026-05-09 — Plan 13-01 executed (Wave 1, 2/2 tasks committed: 7ef9135, 660023b)
 progress:
   total_phases: 4
   completed_phases: 2
   total_plans: 3
-  completed_plans: 3
+  completed_plans: 4
   percent: 50
 ---
 
@@ -25,18 +25,18 @@ See: .planning/PROJECT.md (updated 2026-05-08)
 
 ## Current Position
 
-Phase: 13 (plans written, ready for execute)
-Plan: 13-01, 13-02, 13-03 (3 waves; 13-02 ∥ 13-03 after 13-01)
-Status: Ready for `/gsd-execute-phase 13`
-Last activity: 2026-05-09 — Phase 13 plans written + plan-checker PASS
+Phase: 13 (Wave 1 done, Wave 2 + Wave 3 unblocked — runnable in parallel)
+Plan: 13-02 + 13-03 (Wave 2 ∥ Wave 3, both depend only on 13-01)
+Status: Wave 1 (13-01) executed; ready for `/gsd-execute-phase 13` to run remaining waves
+Last activity: 2026-05-09 — Plan 13-01 executed (2/2 tasks; 357 unit tests pass; D-02 freeze preserved)
 
 | Field | Value |
 |-------|-------|
 | Milestone | v1.3 Fork Swarm, NLU & Quality |
 | Current phase | 13 — LLM Filter Fallback |
-| Current plan | 13-01 (Wave 1, depends on []) |
-| Phase status | Plans ready (3/3 plans, plan-checker PASS, 0 blockers) |
-| Overall progress | 1/4 phases (Phase 12 closed; Phase 13 plans ready) |
+| Current plan | 13-01 ✅ (Wave 1) → next 13-02 + 13-03 (Wave 2 + 3 in parallel) |
+| Phase status | Wave 1 complete (1/3 plans done; 13-02 + 13-03 ready) |
+| Overall progress | 1/4 phases + 1/3 Phase-13 plans (Phase 12 closed; 13-01 done) |
 
 ### Phase 13 Plan Summary
 
@@ -126,9 +126,18 @@ None.
 
 ## Session Continuity
 
-**Last updated:** 2026-05-09 — Plan 12-03 executed (Wave 3 complete; Phase 12 done)
-**Stopped at:** 12-03 SUMMARY written; 3 task commits (35799d4, f3bf267, 5252acc) on master. /query routes swarm_mode → SwarmQueryPipeline; 8 unit tests pass; integration test gated by pytest.mark.integration. AGENT-03 fully traceable.
-**Next action:** Run `/gsd-verify-work 12` to validate AGENT-03 completion, then `/gsd-ship` to commit phase advance.
+**Last updated:** 2026-05-09 — Plan 13-01 executed (Wave 1 complete; FilterExtractor class + ExtractionResult + singleton factory in place)
+**Stopped at:** 13-01 SUMMARY written; 3 commits (7ef9135 Task 1, 660023b Task 2, plus SUMMARY commit) on master. services/nlu/filter_extractor.py grew 91 → 254 lines; 5 new module-level constructs added (prompt constant, ExtractionResult dataclass, FilterExtractor class, _filter_extractor singleton, get_filter_extractor factory). D-02 freeze preserved byte-identical for FilterExtractionResult, extract_filters, frozen regex patterns. 357 unit tests pass; ruff clean; 0 new mypy errors.
+**Next action:** Run `/gsd-execute-phase 13` to dispatch Wave 2 (plan 13-02 — pipeline migration) and Wave 3 (plan 13-03 — test coverage) in parallel.
+
+### Plan 13-01 Execution Notes (Wave 1)
+
+- **Duration:** ~4 min, 2/2 tasks, 2 task commits + 1 SUMMARY commit
+- **Edits:** Single file (`services/nlu/filter_extractor.py`) modified in two passes — Task 1 (imports + prompt + `ExtractionResult`), Task 2 (`FilterExtractor` class + singleton)
+- **D-02 freeze verification:** `git show ae06fb1:services/nlu/filter_extractor.py` extracted via 3 awk-boundary blocks (regex patterns / `FilterExtractionResult` / `extract_filters` body) — all `Files are identical`
+- **Plan deviation (Rule 1):** mypy `union-attr` false positive on `m.group(0)` (re.search returning Optional[Match]) suppressed with inline `# type: ignore[union-attr]` comment. The `AttributeError` is intentional control flow per D-13 parse-domain narrow tuple. Matches project convention at `services/generator/llm_client.py:615`. No other deviations.
+- **Acceptance criteria:** All 22 grep checks pass; 7 existing regex tests pass; full unit suite 357 passed/0 failed; ruff clean; 0 new mypy errors in modified file (pre-existing baseline in cache.py / llm_client.py / settings.py is out of scope per SCOPE BOUNDARY rule)
+- **Wave 2 / Wave 3 readiness:** Module shape stable. Public exports `ExtractionResult`, `FilterExtractor`, `get_filter_extractor` ready for pipeline callsite migration (13-02) and test coverage (13-03)
 
 ### Phase 12 Plan Summary
 
