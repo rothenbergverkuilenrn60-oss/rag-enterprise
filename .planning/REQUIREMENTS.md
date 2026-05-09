@@ -24,7 +24,7 @@ Six checkable requirements. Each maps to exactly one roadmap phase. v1.3 invaria
 - [x] **AGENT-07
 **: Define a provider-neutral `Tool` Protocol (or `BaseTool` ABC, decided in Phase 17 plan). Wrap `QueryPipeline.run()` as `RetrieveTool` — hybrid retrieval + RRF fusion + reranker logic stays inside the tool, unchanged. Register at minimum one additional skeletal tool (`WebSearchTool` placeholder OR `SQLTool` placeholder) to prove pluggability. Static class registry in v1.4; abstraction clean enough that MCP plug-in discovery (10x roadmap #3) can replace it later without callsite changes.
 
-- [ ] **AGENT-04**: Emit a planner trace event stream on `/query/stream` (and/or new `/agent/v1/run/stream`) with at minimum these event types: `planner.plan` (the `ToolPlan` the planner just emitted), `tool.span` with start / end / error variants and per-call timing/inputs/outputs, `executor.parallel` marker showing fan-out factor, `synthesizer.final` carrying the composed answer. Event schemas documented in `docs/agent-architecture.md`. Supersedes the original AGENT-04 carry-forward note "streaming SSE for agentic + swarm responses."
+- [x] **AGENT-04**: Emit a planner trace event stream on `/query/stream` (and/or new `/agent/v1/run/stream`) with at minimum these event types: `planner.plan` (the `ToolPlan` the planner just emitted), `tool.span` with start / end / error variants and per-call timing/inputs/outputs, `executor.parallel` marker showing fan-out factor, `synthesizer.final` carrying the composed answer. Event schemas documented in `docs/agent-architecture.md`. Supersedes the original AGENT-04 carry-forward note "streaming SSE for agentic + swarm responses."
 
 ### Documentation, Demo, Distribution (AGENT)
 
@@ -73,7 +73,7 @@ Six checkable requirements. Each maps to exactly one roadmap phase. v1.3 invaria
 | AGENT-09 | Phase 16 | Pending |
 | NLU-03   | Phase 16 | Pending |
 | AGENT-07 | Phase 17 | Pending |
-| AGENT-04 | Phase 18 | Pending |
+| AGENT-04 | Phase 18 | Complete |
 | AGENT-08 | Phase 19 | Pending |
 
 **Coverage:**
