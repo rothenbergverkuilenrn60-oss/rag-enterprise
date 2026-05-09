@@ -254,6 +254,47 @@ async def query_stream(request: Request, req: GenerationRequest) -> StreamingRes
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# Agent SSE (Phase 18, AGENT-04) — named-event stream over the agentic loop
+# ══════════════════════════════════════════════════════════════════════════════
+@router.post("/agent/v1/run/stream", tags=["agent"])
+@_limiter.limit(f"{settings.rate_limit_query_rpm}/minute")
+async def agent_run_stream(request: Request, req: GenerationRequest) -> StreamingResponse:
+    """SSE event stream for agentic queries (AGENT-04, Phase 18).
+
+    Emits typed AgentEvent payloads as named SSE frames:
+
+        event: <event_type>\\ndata: <model_dump_json>\\n\\n
+
+    Terminal event is ``synthesizer.final`` — no ``[DONE]`` sentinel (D-01).
+    Auth + rate limit + multi-tenant RLS inherit from the existing ``/query``
+    stack (D-01, D-03). Body shape is ``GenerationRequest`` unchanged; the
+    route invokes ``AgentQueryPipeline.run_streaming`` regardless of
+    ``req.agent_mode`` — this URL IS the agent surface.
+    """
+    pipeline = get_agent_pipeline()
+
+    async def _sse():
+        try:
+            async for evt in pipeline.run_streaming(req):
+                # D-10 named-event format: event: + data: + blank line.
+                # model_dump_json() is one-way Pydantic V2 serialization —
+                # no client-controlled deserialization (T-18-17).
+                yield f"event: {evt.event_type}\ndata: {evt.model_dump_json()}\n\n"
+        except (asyncpg.PostgresError, httpx.HTTPError, openai.APIError, ValueError) as exc:
+            logger.error(f"[API:agent_stream] error={exc}")
+            # Named-event error frame — keep wire shape consistent with the
+            # rest of the stream so frontend EventSource handlers stay simple.
+            # Generic message only; full traceback at logger.error (T-18-15).
+            yield 'event: error\ndata: {"message": "服务暂时不可用，请稍后重试"}\n\n'
+
+    return StreamingResponse(
+        _sse(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # Admin
 # ══════════════════════════════════════════════════════════════════════════════
 @router.delete("/cache", tags=["admin"])    # 清除所有缓存。用 DELETE 方法语义上表示「删除资源」
