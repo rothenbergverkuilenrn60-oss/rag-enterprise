@@ -2,16 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Agent-First Architecture Inversion
-status: planning
-stopped_at: v1.3 milestone closed (2026-05-09); v1.4 milestone opened — requirements + roadmap defined, no phase started yet
-last_updated: "2026-05-09T16:38:09.000Z"
-last_activity: 2026-05-09 — v1.4 Agent-First Architecture Inversion milestone opened (PROJECT.md updated, REQUIREMENTS.md created, ROADMAP.md extended, design doc referenced)
+status: Defining requirements / awaiting first phase plan
+stopped_at: Phase 16 context gathered
+last_updated: "2026-05-09T09:00:52.632Z"
+last_activity: 2026-05-09 — Milestone v1.4 started
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
-  percent: 0
 ---
 
 # STATE — EnterpriseRAG (v1.4 planning)
@@ -104,5 +103,5 @@ None.
 ## Session Continuity
 
 **Last updated:** 2026-05-09 — v1.4 Agent-First Architecture Inversion milestone opened
-**Stopped at:** v1.4 PROJECT.md / STATE.md / ROADMAP.md / REQUIREMENTS.md written; no phase plan yet
+**Stopped at:** Phase 16 context gathered
 **Next action:** Run `/gsd-plan-phase 16` to plan Phase 16 (Planner + Executor Extraction). Read the source design doc first; resolve Open Questions #1, #2, #5 in the phase discussion.
