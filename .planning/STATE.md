@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Fork Swarm, NLU & Quality
-status: Ready for `/gsd-plan-phase 12`
-stopped_at: Phase 12 context gathered
-last_updated: "2026-05-08T14:42:39.743Z"
-last_activity: 2026-05-08 — v1.3 roadmap created
+status: Ready for `/gsd-execute-phase 12`
+stopped_at: Phase 12 plans written (3 waves, plan-checker PASS)
+last_updated: "2026-05-09T09:45:00.000Z"
+last_activity: 2026-05-09 — Phase 12 plans written + verified (PASS)
 progress:
   total_phases: 4
   completed_phases: 0
-  total_plans: 0
+  total_plans: 3
   completed_plans: 0
 ---
 
@@ -24,24 +24,24 @@ See: .planning/PROJECT.md (updated 2026-05-08)
 
 ## Current Position
 
-Phase: 12 (not started — roadmap ready)
-Plan: —
-Status: Ready for `/gsd-plan-phase 12`
-Last activity: 2026-05-08 — v1.3 roadmap created
+Phase: 12 (plans written, ready for execute)
+Plan: 12-01, 12-02, 12-03 (3 waves)
+Status: Ready for `/gsd-execute-phase 12`
+Last activity: 2026-05-09 — Phase 12 plans written + plan-checker PASS
 
 | Field | Value |
 |-------|-------|
 | Milestone | v1.3 Fork Swarm, NLU & Quality |
 | Current phase | 12 — Fork-Agent Swarm |
-| Current plan | — |
-| Phase status | Not started |
-| Overall progress | 0/4 phases |
+| Current plan | 12-01 (Wave 1, depends on []) |
+| Phase status | Plans ready (3/3 plans, plan-checker PASS) |
+| Overall progress | 0/4 phases (3/3 plans pending execute) |
 
 ## Phase Overview
 
 | Phase | Name | REQ-IDs | Status |
 |-------|------|---------|--------|
-| 12 | Fork-Agent Swarm | AGENT-03 | Not started |
+| 12 | Fork-Agent Swarm | AGENT-03 | Plans ready |
 | 13 | LLM Filter Fallback | NLU-02 | Not started |
 | 14 | Frontend Split and DOM Modernization | UI-02 | Not started |
 | 15 | Coverage Combine and 70% Floor | TEST-04, TEST-06 | Not started |
@@ -110,6 +110,19 @@ None.
 
 ## Session Continuity
 
-**Last updated:** 2026-05-08 — v1.3 roadmap created (4 phases: 12–15)
-**Stopped at:** Phase 12 context gathered
-**Next action:** `/gsd-plan-phase 12` (Fork-Agent Swarm)
+**Last updated:** 2026-05-09 — Phase 12 plans written + plan-checker PASS
+**Stopped at:** 3 plans on disk (12-01 data model, 12-02 SwarmQueryPipeline core, 12-03 routing+tests)
+**Next action:** `/gsd-execute-phase 12` (start with Wave 1 = 12-01-PLAN.md)
+
+### Phase 12 Plan Summary
+
+| Plan | Wave | Tasks | Files Modified | Depends On |
+|------|------|-------|----------------|------------|
+| 12-01 | 1 | 2 | `utils/models.py`, `config/settings.py` | — |
+| 12-02 | 2 | 9 | `services/pipeline.py` (append `SwarmQueryPipeline`) | 12-01 |
+| 12-03 | 3 | 3 | `controllers/api.py`, `tests/unit/test_swarm_pipeline.py`, `tests/integration/test_swarm_pipeline_e2e.py` | 12-01, 12-02 |
+
+**Plan-checker findings:** PASS, 3 cosmetic flags (no blockers).
+- Cosmetic typo in 12-03 Task 3 verify command (duplicate suffix; self-correcting)
+- `_execute_tool_call` copy-by-design per D-01 (drift risk if agent edits — accepted)
+- Coordinator silently degrades to N=1 if LLM returns single-element array (accepted per D-03)
