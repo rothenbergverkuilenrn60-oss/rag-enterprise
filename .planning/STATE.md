@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Agent-First Architecture Inversion
 status: Phase 17 plans pass plan-check; ready for execution
-stopped_at: Completed 17-02-PLAN.md — RetrieveTool+RefinedRetrieveTool+WebSearchTool Wave 2 TDD
-last_updated: "2026-05-09T11:56:10.174Z"
+stopped_at: Completed 17-03-PLAN.md — Wave 3 seam swap, AGENT-07 closed
+last_updated: "2026-05-09T12:11:12.517Z"
 last_activity: 2026-05-09 — Phase 17 plans created + plan-checked
 progress:
   total_phases: 4
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 6
-  completed_plans: 3
-  percent: 50
+  completed_plans: 4
+  percent: 67
 ---
 
 # STATE — EnterpriseRAG (v1.4 planning)
@@ -104,7 +104,7 @@ None.
 ## Session Continuity
 
 **Last updated:** 2026-05-09 — Phase 17 plans created + plan-check PASS
-**Stopped at:** Completed 17-02-PLAN.md — RetrieveTool+RefinedRetrieveTool+WebSearchTool Wave 2 TDD
+**Stopped at:** Completed 17-03-PLAN.md — Wave 3 seam swap, AGENT-07 closed
 **Next action:** Run `/gsd-execute-phase 17` to execute Wave 1 → Wave 2 → Wave 3. Wave 1 (TDD) builds BaseTool ABC + ToolRegistry + ToolResult/ToolContext + provider_name ClassVar on BaseLLMClient; Wave 2 (TDD) builds RetrieveTool + RefinedRetrieveTool + WebSearchTool placeholder; Wave 3 (execute) swaps Executor._dispatch_one to registry + deletes tool_executor.py + replaces _AGENT_TOOLS literal + writes docs/agent-architecture.md stub. Plan-check PASS with 3 non-blocking warnings (1: 17-01-T4 action-step minor mismatch, executor follows acceptance_criteria; 2: task-count 7/6/7 elevated by TDD RED/GREEN/REFACTOR splits; 3: RESEARCH.md "Open Questions" section missing `(RESOLVED)` suffix although both questions implemented in plans).
 
 ### Phase 16 Wave 3 Execution Notes
