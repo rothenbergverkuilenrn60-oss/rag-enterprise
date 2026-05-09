@@ -1254,3 +1254,11 @@ class SwarmQueryPipeline:
             trace_id=trace_id,
             model=settings.active_model,
         )
+
+
+_swarm_pipeline = None
+def get_swarm_pipeline():
+    global _swarm_pipeline
+    if _swarm_pipeline is None:
+        _swarm_pipeline = SwarmQueryPipeline()
+    return _swarm_pipeline
