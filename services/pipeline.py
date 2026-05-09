@@ -41,7 +41,7 @@ from services.memory.memory_service import (
     ConversationTurn,
     get_memory_service,
 )
-from services.nlu.filter_extractor import extract_filters
+from services.nlu.filter_extractor import get_filter_extractor
 
 # Core services
 from services.nlu.nlu_service import QueryIntent, get_nlu_service
@@ -314,7 +314,7 @@ class QueryPipeline:
         # `effective_query` feeds NLU + cache_key + embedding text; `extraction.filters`
         # merges into tf below with highest precedence (tenant < req.filters < extracted).
         # `req.query` (raw) is preserved for `original_query=` audit and memory turn save.
-        extraction = extract_filters(req.query)
+        extraction = await get_filter_extractor().extract(req.query)
         effective_query = extraction.semantic_query
 
         nlu = await self._nlu.analyze(
@@ -475,7 +475,7 @@ class QueryPipeline:
         # QUERY-01 mirror of _run_query: extract filters → tf merge (extracted wins)
         # → NLU runs against the stripped semantic query so rewritten_queries don't
         # carry "第63页"-style literals into the embedder.
-        extraction = extract_filters(req.query)
+        extraction = await get_filter_extractor().extract(req.query)
         effective_query = extraction.semantic_query
 
         tf           = self._tenant_svc.get_tenant_filter(tenant_id)
@@ -671,7 +671,7 @@ class AgentQueryPipeline:
         # v1.1 QUERY-01 carry-forward: extract filters from raw query so every
         # tool-driven retrieve() call inherits page/section scope via `tf`.
         # Agent does not run NLU.analyze; req.query stays as raw user input.
-        extraction = extract_filters(req.query)
+        extraction = await get_filter_extractor().extract(req.query)
 
         tf = self._tenant_svc.get_tenant_filter(tenant_id)
         if req.filters:
@@ -1163,7 +1163,7 @@ class SwarmQueryPipeline:
         user_id   = getattr(req, "user_id",   "")
         t0        = time.perf_counter()
 
-        extraction = extract_filters(req.query)
+        extraction = await get_filter_extractor().extract(req.query)
         tf = self._tenant_svc.get_tenant_filter(tenant_id)
         if req.filters:
             tf = {**(tf or {}), **req.filters}
