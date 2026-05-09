@@ -78,7 +78,7 @@ See [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md) for full phase deta
   5. Every returned `QueryFilter` carries a `fallback_source` field set to `"regex"`, `"llm"`, or `None`, visible in logs
 **Plans**:
   - [x] 13-01-PLAN.md (Wave 1) — Add `FilterExtractor` class, `ExtractionResult` dataclass, `_FILTER_EXTRACT_SYSTEM` prompt, and `get_filter_extractor()` singleton to `services/nlu/filter_extractor.py`. Existing regex helper preserved (D-02). ✅ complete 2026-05-09 (commits 7ef9135, 660023b)
-  - [ ] 13-02-PLAN.md (Wave 2) — Migrate 4 callsites in `services/pipeline.py` from sync `extract_filters(req.query)` to `await get_filter_extractor().extract(req.query)`.
+  - [x] 13-02-PLAN.md (Wave 2) — Migrate 4 callsites in `services/pipeline.py` from sync `extract_filters(req.query)` to `await get_filter_extractor().extract(req.query)`. ✅ complete 2026-05-09 (commit ade413f)
   - [ ] 13-03-PLAN.md (Wave 2, parallel with 13-02) — Wrap existing 7 regex tests + add 6 new unit tests for FilterExtractor + create live-LLM integration test.
 **UI hint**: no
 

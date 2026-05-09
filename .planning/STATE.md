@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Fork Swarm, NLU & Quality
-status: Phase 13 Wave 1 (13-01) executed — Wave 2 (13-02) + Wave 3 (13-03) unblocked
-stopped_at: 13-01 SUMMARY written (3 commits on master); FilterExtractor + ExtractionResult + get_filter_extractor exported; D-02 freeze preserved byte-identical
-last_updated: "2026-05-09T03:19:30.000Z"
-last_activity: 2026-05-09 — Plan 13-01 executed (Wave 1, 2/2 tasks committed: 7ef9135, 660023b)
+status: Phase 13 Wave 1 + Wave 2 (13-02) executed — Wave 3 (13-03) unblocked
+stopped_at: 13-02 SUMMARY written; pipeline.py 4 callsites migrated to async FilterExtractor (commit ade413f); existing tests pass with zero regression; mypy/ruff baseline preserved
+last_updated: "2026-05-09T03:28:00.000Z"
+last_activity: 2026-05-09 — Plan 13-02 executed (Wave 2, 1/1 task committed: ade413f)
 progress:
   total_phases: 4
   completed_phases: 2
   total_plans: 3
-  completed_plans: 4
-  percent: 50
+  completed_plans: 5
+  percent: 55
 ---
 
 # STATE — EnterpriseRAG v1.3 Fork Swarm, NLU & Quality
@@ -25,28 +25,28 @@ See: .planning/PROJECT.md (updated 2026-05-08)
 
 ## Current Position
 
-Phase: 13 (Wave 1 done, Wave 2 + Wave 3 unblocked — runnable in parallel)
-Plan: 13-02 + 13-03 (Wave 2 ∥ Wave 3, both depend only on 13-01)
-Status: Wave 1 (13-01) executed; ready for `/gsd-execute-phase 13` to run remaining waves
-Last activity: 2026-05-09 — Plan 13-01 executed (2/2 tasks; 357 unit tests pass; D-02 freeze preserved)
+Phase: 13 (Wave 1 + Wave 2 done; Wave 3 unblocked)
+Plan: 13-03 (Wave 3 — test coverage extension)
+Status: Wave 1 (13-01) + Wave 2 (13-02) executed; ready for `/gsd-execute-phase 13` to run Wave 3
+Last activity: 2026-05-09 — Plan 13-02 executed (1/1 task; 349 unit tests pass; 0 regressions; mypy/ruff baseline preserved)
 
 | Field | Value |
 |-------|-------|
 | Milestone | v1.3 Fork Swarm, NLU & Quality |
 | Current phase | 13 — LLM Filter Fallback |
-| Current plan | 13-01 ✅ (Wave 1) → next 13-02 + 13-03 (Wave 2 + 3 in parallel) |
-| Phase status | Wave 1 complete (1/3 plans done; 13-02 + 13-03 ready) |
-| Overall progress | 1/4 phases + 1/3 Phase-13 plans (Phase 12 closed; 13-01 done) |
+| Current plan | 13-01 ✅ (Wave 1) + 13-02 ✅ (Wave 2) → next 13-03 (Wave 3) |
+| Phase status | Waves 1 + 2 complete (2/3 plans done; 13-03 ready) |
+| Overall progress | 1/4 phases + 2/3 Phase-13 plans (Phase 12 closed; 13-01 + 13-02 done) |
 
 ### Phase 13 Plan Summary
 
 | Plan | Wave | Tasks | Files Modified | Depends On |
 |------|------|-------|----------------|------------|
-| 13-01 | 1 | 2 | `services/nlu/filter_extractor.py` (add FilterExtractor class) | — |
-| 13-02 | 2 | 1 | `services/pipeline.py` (4 callsites → await) | 13-01 |
+| 13-01 ✅ | 1 | 2 | `services/nlu/filter_extractor.py` (add FilterExtractor class) | — |
+| 13-02 ✅ | 2 | 1 | `services/pipeline.py` (4 callsites → await) | 13-01 |
 | 13-03 | 2-parallel | 2 | `tests/unit/test_filter_extractor.py` (extend), `tests/integration/test_filter_extractor_llm.py` (new) | 13-01 |
 
-13-02 and 13-03 run in parallel after 13-01 completes.
+13-02 complete; 13-03 unblocked.
 
 **Plan-checker findings:** PASS, 5 cosmetic flags (no blockers).
 - 13-03 cache-hit test uses in-memory dict (not real Redis) — TTL covered by utils/cache.py own tests
@@ -126,9 +126,19 @@ None.
 
 ## Session Continuity
 
-**Last updated:** 2026-05-09 — Plan 13-01 executed (Wave 1 complete; FilterExtractor class + ExtractionResult + singleton factory in place)
-**Stopped at:** 13-01 SUMMARY written; 3 commits (7ef9135 Task 1, 660023b Task 2, plus SUMMARY commit) on master. services/nlu/filter_extractor.py grew 91 → 254 lines; 5 new module-level constructs added (prompt constant, ExtractionResult dataclass, FilterExtractor class, _filter_extractor singleton, get_filter_extractor factory). D-02 freeze preserved byte-identical for FilterExtractionResult, extract_filters, frozen regex patterns. 357 unit tests pass; ruff clean; 0 new mypy errors.
-**Next action:** Run `/gsd-execute-phase 13` to dispatch Wave 2 (plan 13-02 — pipeline migration) and Wave 3 (plan 13-03 — test coverage) in parallel.
+**Last updated:** 2026-05-09 — Plan 13-02 executed (Wave 2 complete; pipeline.py 4 callsites migrated to async FilterExtractor)
+**Stopped at:** 13-02 SUMMARY written; 1 task commit (ade413f) on master. services/pipeline.py: 5 line changes (1 import + 4 callsites). 349 unit tests pass; 26 pipeline-relevant tests pass; ruff clean; 0 new mypy errors (11 ↔ 11 baseline parity); zero regressions.
+**Next action:** Run `/gsd-execute-phase 13` to dispatch Wave 3 (plan 13-03 — test coverage extension).
+
+### Plan 13-02 Execution Notes (Wave 2)
+
+- **Duration:** ~5 min, 1/1 task, 1 task commit + SUMMARY commit
+- **Edits:** Single file (`services/pipeline.py`) — 5 line changes total: 1 import line (44) + 4 callsite lines (317, 478, 674, 1166)
+- **D-07 implementation:** All 4 callsites migrated to `await get_filter_extractor().extract(req.query)` — AST-verified each enclosing function is `async def`; no `asyncio.run` wrappers, no `try/except`, no `logger.info` per-callsite (AC#4 satisfied via Wave 1 dataclass field)
+- **D-04 truthiness compat preserved:** `extraction.filters` and `extraction.semantic_query` access patterns unchanged — `ExtractionResult` exposes both fields with same names/types as `FilterExtractionResult`
+- **No deviations:** Every "Do NOT" item in plan honored (no asyncio.run, no try/except, no fallback_source logging at callsites, no cache_key extension, no extract_filters re-import, no caching of get_filter_extractor() result, no semantic_query rewrite)
+- **Verification:** All 11 acceptance criteria pass; 26 pipeline tests pass (test_swarm_pipeline.py, test_agent_pipeline_refactor.py, test_filter_extractor.py); full unit suite 349 passed/0 failed; ruff clean; mypy --strict baseline preserved (11 errors ↔ 11 errors via git-stash comparison)
+- **Wave 3 readiness:** Pipeline fully wired to async FilterExtractor; Plan 13-03 can monkeypatch the singleton to exercise LLM-fallback path end-to-end through any of the 4 production query paths
 
 ### Plan 13-01 Execution Notes (Wave 1)
 
