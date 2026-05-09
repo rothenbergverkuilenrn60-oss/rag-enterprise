@@ -212,6 +212,7 @@ class GenerationRequest(BaseModel):
     temperature:  float                         = Field(default=0.1, ge=0.0, le=2.0)
     stream:       bool                          = False
     agent_mode:   bool                          = False   # True 时使用 Agentic 工具循环
+    swarm_mode:   bool                          = False   # True 时使用 Fork-Agent Swarm（AGENT-03）
     include_images: bool                        = False   # True 时响应保留 image_b64（默认剥离以减小响应体）
     # 多租户 & 用户身份
     tenant_id:    str                           = ""
