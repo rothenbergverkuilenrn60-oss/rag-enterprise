@@ -1,13 +1,17 @@
 """Executor — runs a ToolPlan via asyncio.gather (AGENT-06).
 
 Walks ``ToolPlan.parallel_groups`` and dispatches each group concurrently
-through ``services.agent.tool_executor.execute_tool_call``. Uses
-``BaseException`` for ``asyncio.gather`` isolation (v1.3 Phase 12 D-01) so
-``CancelledError`` / ``TimeoutError`` propagation does NOT crash siblings.
+through the ``ToolRegistry``. Uses ``BaseException`` for
+``asyncio.gather`` isolation (v1.3 Phase 12 D-01) so ``CancelledError`` /
+``TimeoutError`` propagation does NOT crash siblings.
 
 The Executor runs exactly one ToolPlan per call — outer-loop iteration
 (``MAX_ITERATIONS``) is the orchestrator's responsibility per Phase 16
 CONTEXT.md D-12.
+
+Phase 17 (v1.4 AGENT-07): ``_dispatch_one`` now routes through
+``get_tool_registry().get(name).run(args, ctx)``; ``execute_tool_call``
+from the deleted ``tool_executor.py`` is no longer referenced here.
 """
 
 from __future__ import annotations
@@ -18,10 +22,10 @@ from typing import Any
 
 from loguru import logger
 
-from services.agent.tool_executor import execute_tool_call
+from services.agent.tools import get_tool_registry
 from services.generator.llm_client import get_llm_client
 from services.retriever.retriever import get_retriever
-from utils.models import GenerationRequest, RetrievedChunk, ToolCall, ToolPlan
+from utils.models import GenerationRequest, ToolCall, ToolContext, ToolPlan, ToolResult
 
 
 class Executor:
@@ -40,7 +44,7 @@ class Executor:
         plan: ToolPlan,
         tf: dict[str, Any],
         req: GenerationRequest,
-    ) -> list[tuple[list[RetrievedChunk], str] | BaseException]:
+    ) -> list[ToolResult | BaseException]:
         """Run every step in plan.parallel_groups order.
 
         Returns a list in step-index order (NOT group order — caller can
@@ -57,7 +61,7 @@ class Executor:
         if not plan.steps:
             return []
 
-        results: list[tuple[list[RetrievedChunk], str] | BaseException | None] = [
+        results: list[ToolResult | BaseException | None] = [
             None
         ] * len(plan.steps)
 
@@ -67,7 +71,7 @@ class Executor:
                 self._dispatch_one(plan.steps[idx], tf, req)
                 for idx in group
             ]
-            group_results: list[tuple[list[RetrievedChunk], str] | BaseException] = (
+            group_results: list[ToolResult | BaseException] = (
                 await asyncio.gather(*coros, return_exceptions=True)
             )
             for idx, res in zip(group, group_results):
@@ -90,8 +94,15 @@ class Executor:
         tc: ToolCall,
         tf: dict[str, Any],
         req: GenerationRequest,
-    ) -> tuple[list[RetrievedChunk], str]:
-        return await execute_tool_call(tc, tf, req, self._retriever, self._llm)
+    ) -> ToolResult:
+        ctx = ToolContext(
+            req=req,
+            tf=tf,
+            retriever=self._retriever,
+            llm=self._llm,
+        )
+        tool = get_tool_registry().get(tc.name)
+        return await tool.run(args=tc.arguments or {}, ctx=ctx)
 
 
 _executor_instance: Executor | None = None
