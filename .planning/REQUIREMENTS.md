@@ -15,9 +15,11 @@ Six checkable requirements. Each maps to exactly one roadmap phase. v1.3 invaria
 
 ### Agent Architecture (AGENT)
 
-- [ ] **AGENT-06**: Refactor `services/pipeline.py::AgentQueryPipeline` into three explicit collaborators — `Planner` (first LLM call returns a `ToolPlan`: list of `ToolCall` objects with declared parallelism), `Executor` (runs `ToolPlan` via `asyncio.gather`, yields `tool.span` events), and `Synthesizer` (final LLM call composes the response from accumulated tool outputs). Behavioral parity vs the v1.3 baseline `AgentQueryPipeline` is asserted by tests before any new behavior lands. Multi-tenancy / audit / JWT / RLS untouched.
+- [x] **AGENT-06
+**: Refactor `services/pipeline.py::AgentQueryPipeline` into three explicit collaborators — `Planner` (first LLM call returns a `ToolPlan`: list of `ToolCall` objects with declared parallelism), `Executor` (runs `ToolPlan` via `asyncio.gather`, yields `tool.span` events), and `Synthesizer` (final LLM call composes the response from accumulated tool outputs). Behavioral parity vs the v1.3 baseline `AgentQueryPipeline` is asserted by tests before any new behavior lands. Multi-tenancy / audit / JWT / RLS untouched.
 
-- [ ] **AGENT-09**: Extract `_execute_tool_call` to a single shared helper used by both `SwarmQueryPipeline` and the new `Executor`. Eliminates the verbatim duplication accepted at v1.3 close (decision row 176 in PROJECT.md Key Decisions). `inspect.getsource` token-equivalent normalized comparison is no longer required after this lands — replaced by direct identity (`is` check) on the helper function reference.
+- [x] **AGENT-09
+**: Extract `_execute_tool_call` to a single shared helper used by both `SwarmQueryPipeline` and the new `Executor`. Eliminates the verbatim duplication accepted at v1.3 close (decision row 176 in PROJECT.md Key Decisions). `inspect.getsource` token-equivalent normalized comparison is no longer required after this lands — replaced by direct identity (`is` check) on the helper function reference.
 
 - [ ] **AGENT-07**: Define a provider-neutral `Tool` Protocol (or `BaseTool` ABC, decided in Phase 17 plan). Wrap `QueryPipeline.run()` as `RetrieveTool` — hybrid retrieval + RRF fusion + reranker logic stays inside the tool, unchanged. Register at minimum one additional skeletal tool (`WebSearchTool` placeholder OR `SQLTool` placeholder) to prove pluggability. Static class registry in v1.4; abstraction clean enough that MCP plug-in discovery (10x roadmap #3) can replace it later without callsite changes.
 
@@ -29,7 +31,8 @@ Six checkable requirements. Each maps to exactly one roadmap phase. v1.3 invaria
 
 ### NLU (subsumed)
 
-- [ ] **NLU-03**: Query intent classification absorbed into the planner's first call — no separate router. The planner emits a `ToolPlan` whose shape is the intent (single-hop retrieve, parallel multi-tool, short-circuit answer). NLU-03 is satisfied implicitly when AGENT-06 lands; the only explicit deliverable is a documented mapping between historical intent labels (`Query` / `Agent` / `Swarm`) and `ToolPlan` shapes for migration clarity.
+- [x] **NLU-03**: Query intent classification absorbed into the planner's first call — no separate router. The planner emits a `ToolPlan` whose shape is the intent (single-hop retrieve, parallel multi-tool, short-circuit answer). NLU-03 is satisfied implicitly when AGENT-06
+ lands; the only explicit deliverable is a documented mapping between historical intent labels (`Query` / `Agent` / `Swarm`) and `ToolPlan` shapes for migration clarity.
 
 ---
 

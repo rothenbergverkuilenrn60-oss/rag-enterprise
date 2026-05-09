@@ -3,14 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Agent-First Architecture Inversion
 status: Defining requirements / awaiting first phase plan
-stopped_at: Phase 16 context gathered
-last_updated: "2026-05-09T09:00:52.632Z"
+stopped_at: Completed 16-03-PLAN.md — AgentQueryPipeline.run seam swap, AGENT-06/09/NLU-03 closed
+last_updated: "2026-05-09T09:49:46.759Z"
 last_activity: 2026-05-09 — Milestone v1.4 started
 progress:
   total_phases: 4
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 3
+  completed_plans: 1
+  percent: 33
 ---
 
 # STATE — EnterpriseRAG (v1.4 planning)
@@ -103,7 +104,7 @@ None.
 ## Session Continuity
 
 **Last updated:** 2026-05-09 — Phase 16 Wave 2 complete (Planner + Executor + ToolPlan + parity tests)
-**Stopped at:** Phase 16 Wave 2 committed; Wave 3 pending (rewrite AgentQueryPipeline.run body to thin orchestrator + delete the two _execute_tool_call delegate methods + update test_agent_pipeline_refactor.py mock targets)
+**Stopped at:** Completed 16-03-PLAN.md — AgentQueryPipeline.run seam swap, AGENT-06/09/NLU-03 closed
 **Next action:** New session — run `/gsd-execute-phase 16 --wave 3` to execute Plan 16-03. The seam swap rewires AgentQueryPipeline.run to call get_planner() + get_executor() and absorbs the v1.3 max_iterations=5 outer loop at orchestrator level (CONTEXT.md D-12). Wave 3 is the only plan in Phase 16 that changes AgentQueryPipeline.run body — Wave 1 was helper extraction with one-line delegates; Wave 2 built the new collaborators in isolation.
 
 ### Phase 16 Wave 1 + 2 Execution Notes
