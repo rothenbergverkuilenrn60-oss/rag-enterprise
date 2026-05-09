@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Fork Swarm, NLU & Quality
-status: ready_to_plan
-stopped_at: Plan 14-01 complete (4/4 tasks; UI split shipped; main.py + symlink + requirements.txt UNCHANGED)
-last_updated: "2026-05-09T04:16:19Z"
-last_activity: 2026-05-09 — Plan 14-01 executed (4 task commits; 4 new unit tests pass; full default suite 359 passed/0 failed)
+status: Phase 15 context gathered — ready for `/gsd-plan-phase 15`
+stopped_at: Phase 15 CONTEXT.md written (12 decisions D-01..D-12 locked across 6 categories)
+last_updated: "2026-05-09T14:00:00.000Z"
+last_activity: 2026-05-09 — Phase 15 discuss-phase complete (TEST-04+TEST-06 design decisions locked)
 progress:
   total_phases: 4
   completed_phases: 4
