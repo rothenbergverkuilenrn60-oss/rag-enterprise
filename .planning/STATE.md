@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Agent-First Architecture Inversion
-status: Phase 18 context gathered — ready for /gsd-plan-phase 18
-stopped_at: Phase 18 context session complete (4 gray areas resolved, D-01..D-18 captured)
-last_updated: "2026-05-09T21:30:00Z"
-last_activity: 2026-05-09 — Phase 18 context gathered
+status: executing
+stopped_at: Phase 17 implementation complete — awaiting `/gsd-verify-work 17`. Phases 16+17 both at impl-complete; ship as one v1.4 milestone PR after Phase 18+19 close.
+last_updated: "2026-05-09T13:10:26.969Z"
+last_activity: 2026-05-09 -- Phase 18 execution started
 progress:
   total_phases: 4
   completed_phases: 1
-  total_plans: 6
+  total_plans: 11
   completed_plans: 4
-  percent: 67
+  percent: 36
 ---
 
 # STATE — EnterpriseRAG (v1.4 planning)
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-09 after v1.4 open)
 
 **Core value:** Every query returns a grounded, auditable answer — no hallucinations, no silent failures, no security gaps.
-**Current focus:** v1.4 Agent-First Architecture Inversion — invert the architecture so the agent runtime is the project core; agentic RAG becomes one tool the agent calls.
+**Current focus:** Phase 18 — sse-planner-trace-event-stream
 
 ## Current Position
 
-Phase: 17 — Tool Abstraction + RetrieveTool (implementation complete; awaiting `/gsd-verify-work 17`)
-Plan: 17-03 (Wave 3, final)
-Status: Phase 17 implementation complete — awaiting verify
-Last activity: 2026-05-09 — Wave 3 executed (commits ac23340..f19e8d5)
+Phase: 18 (sse-planner-trace-event-stream) — EXECUTING
+Plan: 1 of 5
+Status: Executing Phase 18
+Last activity: 2026-05-09 -- Phase 18 execution started
 
 | Field | Value |
 |-------|-------|
@@ -118,8 +118,6 @@ None.
 ### Phase 17 Wave 3 Execution Notes
 
 - **Wave 3 (commits ac23340 → f19e8d5, feat(17-03-T1..T7) + T5b + summary):** Swapped `Executor._dispatch_one` to call `get_tool_registry().get(tc.name).run(args=tc.arguments or {}, ctx=ToolContext(req=req, tf=tf, retriever=self._retriever, llm=self._llm))`. Deleted `services/agent/tool_executor.py` entirely. Deleted `_AGENT_TOOLS` literal at services/pipeline.py:602-641; added `AGENT_TOOL_ALLOWLIST: list[str] = ["search_knowledge_base", "refine_search"]` module constant; replaced `tools=self._AGENT_TOOLS` callsites with `tools=get_tool_registry().schemas_for(self._llm.provider_name, names=AGENT_TOOL_ALLOWLIST)`. Extended `services/agent/__init__.py` to re-export BaseTool/ToolRegistry/get_tool_registry. Created `docs/agent-architecture.md#authoring-tools` stub (97 lines, ROADMAP SC5). Three deviations auto-fixed (Rules 1+3): (1) SwarmQueryPipeline _AGENT_TOOLS reference also switched to registry instead of shim alias — cleaner; (2) 2 test fixtures missing `_llm.provider_name` — added; (3) test_agent_parity.py patched deleted `execute_tool_call` — updated to registry mock. Verification: 729 passed; coverage 72.6%; ruff clean; mypy 0 new errors. AGENT-07 closed.
-
-
 
 ### Phase 16 Wave 3 Execution Notes
 
