@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Fork Swarm, NLU & Quality
-status: Phase 15 plans written — ready for `/gsd-execute-phase 15`
-stopped_at: Phase 15 plans written (2 plans, plan-checker PASS, all 10 ACs covered, D-08 revised parallel=false)
-last_updated: "2026-05-09T14:30:00.000Z"
-last_activity: 2026-05-09 — Phase 15 plans written + verified (PASS, no blockers)
+status: Phase 15 Wave 1 (15-01) complete — Wave 2 (15-02 backfill) pending
+stopped_at: Plan 15-01 executed (3/3 tasks, 3 task commits + SUMMARY commit; CI plumbing in place; Wave 2 measure-then-plan ready)
+last_updated: "2026-05-09T05:13:00.000Z"
+last_activity: 2026-05-09 — Plan 15-01 executed (Wave 1 plumbing: pyproject coverage config + ci.yml 3-job topology + README + Makefile)
 progress:
   total_phases: 4
-  completed_phases: 4
-  total_plans: 7
-  completed_plans: 7
-  percent: 100
+  completed_phases: 3
+  total_plans: 9
+  completed_plans: 8
+  percent: 89
 ---
 
 # STATE — EnterpriseRAG v1.3 Fork Swarm, NLU & Quality
@@ -26,17 +26,17 @@ See: .planning/PROJECT.md (updated 2026-05-08)
 ## Current Position
 
 Phase: 15
-Plan: Not started
-Status: Ready to plan
+Plan: 15-01 ✅ complete (Wave 1 plumbing); 15-02 pending (Wave 2 backfill)
+Status: Wave 1 done — ready for `/gsd-execute-phase 15` Wave 2 OR `/gsd-verify-work 15` after Wave 2
 Last activity: 2026-05-09
 
 | Field | Value |
 |-------|-------|
 | Milestone | v1.3 Fork Swarm, NLU & Quality |
-| Current phase | 14 — Frontend Split and DOM Modernization (complete; pending verify) |
-| Current plan | 14-01 ✅ — single plan, 4/4 tasks complete |
-| Phase status | All 1 plan complete; ready for `/gsd-verify-work 14` |
-| Overall progress | 3/4 phases (12, 13, 14 ready for verify); Phase 15 (TEST-04 + TEST-06) is the only remaining v1.3 phase |
+| Current phase | 15 — Coverage Combine and 70% Floor (Wave 1 complete; Wave 2 pending) |
+| Current plan | 15-01 ✅ — 3/3 tasks complete (commits 8fb1722, 72672a0, 5cd93d2) |
+| Phase status | 1/2 plans complete; 15-02 (backfill) is next |
+| Overall progress | 8/9 plans across phases 12-15; Wave 2 of Phase 15 is the only remaining v1.3 work |
 
 ### Phase 13 Plan Summary
 
@@ -127,9 +127,27 @@ None.
 
 ## Session Continuity
 
-**Last updated:** 2026-05-09 — Plan 14-01 executed (Phase 14 single plan complete; UI extraction shipped)
-**Stopped at:** Completed 14-01-PLAN.md (4/4 tasks; 4 task commits + SUMMARY commit; main.py and static/index.html symlink UNCHANGED)
-**Next action:** Run `/gsd-verify-work 14` to verify UI-02 acceptance criteria coverage; then `/gsd-plan-phase 15` for the final v1.3 phase.
+**Last updated:** 2026-05-09 — Plan 15-01 executed (Wave 1 plumbing for combined coverage + 70% floor)
+**Stopped at:** Completed 15-01-PLAN.md (3/3 tasks; 3 task commits + SUMMARY commit; pyproject + ci.yml + README + Makefile modified; no production code touched)
+**Next action:** Run `/gsd-execute-phase 15` (Wave 2 — 15-02 backfill: measure-then-plan against combined data, add unit tests for services/ modules <70% until coverage report --fail-under=70 exits 0). Then `/gsd-verify-work 15` for the final v1.3 phase.
+
+### Plan 15-01 Execution Notes (Wave 1 — Phase 15)
+
+- **Duration:** ~14 min, 3/3 tasks, 3 task commits + SUMMARY commit
+- **Edits:** 4 files modified (pyproject.toml +33 lines [tool.coverage.* blocks at lines 95-126]; .github/workflows/ci.yml +99/-29 lines [3-job topology refactor + new coverage-combine job]; README.md +21/-16 [Coverage promoted to standalone ## H2, lines 245-281, supersedes Phase 10 D-03 via D-05]; Makefile +17/-1 [.PHONY extend + coverage-combined target at line 114])
+- **No production code touched:** services/, utils/, controllers/, tests/ all UNCHANGED
+- **D-08 revised honored:** parallel = false (NOT true) — empirically verified Pitfall 1 (parallel=true + COVERAGE_FILE breaks artifact path)
+- **D-06 enforced:** --cov-fail-under=46 dropped from unit-tests pytest; floor enforced ONCE in combine job via `coverage report --fail-under=70`
+- **D-05 implemented:** diff-cover step migrated from unit-tests to coverage-combine job; combined coverage.xml is source of truth
+- **D-03 preserved:** integration-tests retains continue-on-error: true; combine job runs if: always() with continue-on-error on integration download
+- **Pitfall 2 (--keep) honored:** coverage combine --keep preserves .coverage.unit / .coverage.integration in final coverage-report artifact for debugging
+- **Pitfall 4 (fetch-depth) honored:** combine-job checkout sets fetch-depth: 0 for diff-cover merge-base
+- **Combine-job step ordering verified:** download → combine --keep → report → report --fail-under=70 → xml → fetch v1.0 → diff-cover → upload (matches plan exactly)
+- **No deviations:** 0 Rule 1/2/3 auto-fixes. Two plan-internal contradictions (README ## Coverage H2 missing in canonical-replacement-target vs actual structure; AC strict-grep ban on '46%' vs canonical "raised from 46%" historical reference) resolved in favor of <action> literal text
+- **Verification:** TOML parses (tomllib.load OK); YAML parses (yaml.safe_load OK, 9 jobs total = was 8 + new coverage-combine); all 16 must_haves.truths from PLAN frontmatter satisfied (16/16 ✓ table in SUMMARY); make -n + coverage CLI not available in execution env (validated structurally via Python AST checks; CI will exercise on next push)
+- **TEST-04 ACs satisfied:** AC#1 (separate .coverage.unit/.coverage.integration via COVERAGE_FILE) ✓; AC#2 (combine produces .coverage; report+xml on combined) ✓; AC#3 (combined report = source of truth) ✓; AC#4 (artifact bundles all 5 files) ✓; AC#5 (diff-cover gate preserved on combined) ✓
+- **TEST-06 ACs satisfied:** AC#1 (fail_under=70 in pyproject) ✓; AC#2 (coverage report --fail-under=70 in CI on combined) ✓; AC#3 (diff-cover gate independent and preserved) ✓; AC#5 (per-module breakdown via show_missing=true + precision=1) ✓; AC#4 deferred to Wave 2 per D-04 measure-then-plan (services/ <70% backfill)
+- **Wave 2 readiness:** plumbing substrate in place. 15-02 can run `coverage combine .coverage.unit .coverage.integration && coverage report` locally to identify modules <70%, sort by impact, backfill targeted unit tests until floor passes
 
 ### Plan 14-01 Execution Notes (Wave 1 — Phase 14)
 

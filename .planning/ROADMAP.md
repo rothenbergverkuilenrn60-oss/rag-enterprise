@@ -106,7 +106,7 @@ See [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md) for full phase deta
   4. Service modules that were below 70% threshold at v1.2 close have new unit tests covering their primary execution paths
   5. CI artifacts include a per-module coverage breakdown making remaining gaps immediately visible
 **Plans**: 2 plans
-  - [ ] 15-01-PLAN.md (Wave 1) — Plumbing: pyproject.toml [tool.coverage.*] blocks; ci.yml 3-job topology refactor (drop --cov-fail-under=46, add COVERAGE_FILE per job, new coverage-combine job with combine + report --fail-under=70 + diff-cover migration); README §Coverage rewrite; Makefile coverage-combined target
+  - [x] 15-01-PLAN.md (Wave 1) — Plumbing: pyproject.toml [tool.coverage.*] blocks; ci.yml 3-job topology refactor (drop --cov-fail-under=46, add COVERAGE_FILE per job, new coverage-combine job with combine + report --fail-under=70 + diff-cover migration); README §Coverage rewrite; Makefile coverage-combined target ✅ complete 2026-05-09 (commits 8fb1722, 72672a0, 5cd93d2)
   - [ ] 15-02-PLAN.md (Wave 2) — Backfill: measure-then-plan workflow (Task 1 produces /tmp/coverage-baseline-15-02.txt; Tasks 2..N add unit tests for services/ modules below 70% identified at execute time); ends when coverage report --fail-under=70 exits 0
 **UI hint**: no
 
@@ -128,7 +128,7 @@ See [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md) for full phase deta
 | 12. Fork-Agent Swarm | v1.3 | 3/3 | Complete    | 2026-05-09 |
 | 13. LLM Filter Fallback | v1.3 | 3/3 | Complete    | 2026-05-09 |
 | 14. Frontend Split and DOM Modernization | v1.3 | 1/1 | Complete    | 2026-05-09 |
-| 15. Coverage Combine and 70% Floor | v1.3 | 0/TBD | Not started | — |
+| 15. Coverage Combine and 70% Floor | v1.3 | 1/2 | In progress | — |
 
 ## Coverage Validation
 
