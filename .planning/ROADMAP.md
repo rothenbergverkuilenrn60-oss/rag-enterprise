@@ -120,6 +120,16 @@ Plans:
 3. `make demo-agent` target spins up the Docker stack and runs the multi-hop demo query end-to-end from a clean checkout; exits 0; produces SSE event log to stdout.
 4. Asciinema (or gif) recording of the parallel fan-out demo embedded in README; renders correctly on GitHub.
 5. v1.4 release tag created on `main` after merge; release notes link to design doc + the four phase summaries.
+**Plans:** 8 plans (Wave 1 → 2 → 3 → 4 → 5 → 6; TDD on Waves 1-2)
+Plans:
+- [ ] 19-01-PLAN.md — Wave 1 (TDD): services/agent/_demo_stubs.py — DemoStubPlanner + make_fake_retrieve_tool + build_demo_registry + DEMO_QUERY (4-tool fan-out fixture promoted from Phase 18 SSE tests)
+- [ ] 19-02-PLAN.md — Wave 2 (TDD): services/agent/_demo_runner.py + tests/integration/test_demo_agent.py — in-process + subprocess demo correctness gate (11-event sequence + max-not-sum latency bound)
+- [ ] 19-03-PLAN.md — Wave 3 (execute): Makefile demo-agent + demo-agent-record targets (bilingual help, asciinema-guarded record path)
+- [ ] 19-04-PLAN.md — Wave 3 (execute): docs/agent-architecture.md insert ## Planner / Executor Model section before ## Authoring Tools (D-09); closes ROADMAP SC2
+- [ ] 19-05-PLAN.md — Wave 4 (execute, autonomous: false): record docs/demo.cast via make demo-agent-record; redaction gates; visual playback verification
+- [ ] 19-06-PLAN.md — Wave 5 (execute): full README.md rewrite per D-02 section order — agent-first framing; v1.3 technical content preserved under ## Platform features
+- [ ] 19-07-PLAN.md — Wave 1 (execute, parallel with 19-01): CHANGELOG.md (keep-a-changelog v1.0..v1.4) + docs/v1.4-design.md (verbatim copy of gstack milestone-design)
+- [ ] 19-08-PLAN.md — Wave 6 (execute, autonomous: false): draft v1.4 release-notes-v1.4.md + release-tag-commands.md; user runs the ceremony post-PR-merge per D-12
 
 ## Progress
 
@@ -143,4 +153,4 @@ Plans:
 | 16. Planner + Executor Extraction | v1.4 | 2/3 | Wave 1 + 2 executed; Wave 3 pending | — |
 | 17. Tool Abstraction + RetrieveTool | v1.4 | 0/0 | Pending | — |
 | 18. SSE Planner Trace Event Stream | v1.4 | 0/0 | Pending | — |
-| 19. Agent-First Docs + Demo + Release | v1.4 | 0/0 | Pending | — |
+| 19. Agent-First Docs + Demo + Release | v1.4 | 0/8 | Planned (8 plans, 6 waves) | — |
