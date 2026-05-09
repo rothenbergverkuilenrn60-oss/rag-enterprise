@@ -126,7 +126,7 @@
 
 | REQ-ID | Track | Phase | Status |
 |--------|-------|-------|--------|
-| AGENT-03 (E-3) | E — Agentic Layer | Phase 12 | Pending |
+| AGENT-03 (E-3) | E — Agentic Layer | Phase 12 | Implemented (verification pending) |
 | NLU-02 | NLU — Query Understanding | Phase 13 | Pending |
 | UI-02 | UI — Frontend | Phase 14 | Pending |
 | TEST-04 | TEST — Coverage | Phase 15 | Pending |

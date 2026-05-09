@@ -2,15 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Fork Swarm, NLU & Quality
-status: Phase 12 Wave 2 complete — ready for Wave 3 (Plan 12-03)
-stopped_at: Plan 12-02 executed (SwarmQueryPipeline core on master)
-last_updated: "2026-05-09T02:10:00.000Z"
-last_activity: 2026-05-09 — Plan 12-02 complete (SwarmQueryPipeline + factory + audit emission)
+status: Phase 12 complete — ready for /gsd-verify-work 12
+stopped_at: 12-03 SUMMARY written; 3 task commits (35799d4, f3bf267, 5252acc) on master. /query swarm routing live; 8 unit tests pass; integration test gated by pytest.mark.integration.
+last_updated: "2026-05-09T02:30:00.000Z"
+last_activity: 2026-05-09 — Plan 12-03 complete (commits 35799d4, f3bf267, 5252acc); AGENT-03 acceptance criteria 1–7 closed
 progress:
   total_phases: 4
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 3
-  completed_plans: 2
+  completed_plans: 3
+  percent: 100
 ---
 
 # STATE — EnterpriseRAG v1.3 Fork Swarm, NLU & Quality
@@ -24,24 +25,24 @@ See: .planning/PROJECT.md (updated 2026-05-08)
 
 ## Current Position
 
-Phase: 12 (Wave 2 complete, Wave 3 next)
-Plan: 12-03 (Wave 3, depends on 12-01 + 12-02)
-Status: 12-02 executed and committed; ready for Plan 12-03 (routing + tests)
-Last activity: 2026-05-09 — Plan 12-02 complete (commits 435f7e4, fd7a54d, 97790d0, c873ba0, f712606, cb90e38, 1664c42, fe605d3, e8e8f64, 9392761)
+Phase: 12 (Wave 3 complete — phase done; verification pending)
+Plan: 12-03 (Wave 3) executed
+Status: All 3 plans executed; ready for /gsd-verify-work 12
+Last activity: 2026-05-09 — Plan 12-03 complete (commits 35799d4, f3bf267, 5252acc)
 
 | Field | Value |
 |-------|-------|
 | Milestone | v1.3 Fork Swarm, NLU & Quality |
 | Current phase | 12 — Fork-Agent Swarm |
-| Current plan | 12-03 (Wave 3, depends on 12-01 + 12-02) |
-| Phase status | 2/3 plans executed (Wave 1 + Wave 2 done) |
-| Overall progress | 0/4 phases (2/3 plans complete in current phase) |
+| Current plan | 12-03 (Wave 3 — executed; verification pending) |
+| Phase status | 3/3 plans executed (Wave 1 + Wave 2 + Wave 3 done) |
+| Overall progress | 1/4 phases (3/3 plans complete in Phase 12) |
 
 ## Phase Overview
 
 | Phase | Name | REQ-IDs | Status |
 |-------|------|---------|--------|
-| 12 | Fork-Agent Swarm | AGENT-03 | Plans ready |
+| 12 | Fork-Agent Swarm | AGENT-03 | Executed (verification pending) |
 | 13 | LLM Filter Fallback | NLU-02 | Not started |
 | 14 | Frontend Split and DOM Modernization | UI-02 | Not started |
 | 15 | Coverage Combine and 70% Floor | TEST-04, TEST-06 | Not started |
@@ -110,9 +111,9 @@ None.
 
 ## Session Continuity
 
-**Last updated:** 2026-05-09 — Plan 12-02 executed (Wave 2 complete)
-**Stopped at:** 12-02 SUMMARY written; 9 task commits + 1 metadata commit (9392761) on master. SwarmQueryPipeline class + _SubAgentResult + prompt constants + get_swarm_pipeline() factory live in services/pipeline.py. AgentQueryPipeline byte-identical (D-01).
-**Next action:** Execute Plan 12-03 (Wave 3 — `controllers/api.py` swarm routing + `tests/unit/test_swarm_pipeline.py` + `tests/integration/test_swarm_pipeline_e2e.py`)
+**Last updated:** 2026-05-09 — Plan 12-03 executed (Wave 3 complete; Phase 12 done)
+**Stopped at:** 12-03 SUMMARY written; 3 task commits (35799d4, f3bf267, 5252acc) on master. /query routes swarm_mode → SwarmQueryPipeline; 8 unit tests pass; integration test gated by pytest.mark.integration. AGENT-03 fully traceable.
+**Next action:** Run `/gsd-verify-work 12` to validate AGENT-03 completion, then `/gsd-ship` to commit phase advance.
 
 ### Phase 12 Plan Summary
 
@@ -120,9 +121,10 @@ None.
 |------|------|-------|----------------|------------|
 | 12-01 | 1 | 2 | `utils/models.py`, `config/settings.py` | — |
 | 12-02 | 2 | 9 | `services/pipeline.py` (append `SwarmQueryPipeline`) ✅ | 12-01 |
-| 12-03 | 3 | 3 | `controllers/api.py`, `tests/unit/test_swarm_pipeline.py`, `tests/integration/test_swarm_pipeline_e2e.py` | 12-01, 12-02 |
+| 12-03 | 3 | 3 | `controllers/api.py`, `tests/unit/test_swarm_pipeline.py`, `tests/integration/test_swarm_pipeline_e2e.py` ✅ | 12-01, 12-02 |
 
 **Plan-checker findings:** PASS, 3 cosmetic flags (no blockers).
+
 - Cosmetic typo in 12-03 Task 3 verify command (duplicate suffix; self-correcting)
 - `_execute_tool_call` copy-by-design per D-01 (drift risk if agent edits — accepted)
 - Coordinator silently degrades to N=1 if LLM returns single-element array (accepted per D-03)
@@ -137,3 +139,13 @@ None.
 - **mypy --strict drift**: pipeline.py errors went from 7 → 11. The 4 "new" errors are exact pattern-mirrors of pre-existing baseline (`get_query_pipeline()` untyped factory at line 716, `save_turn(intent=None)` at line 818, factory functions without return annotations at 894/900/906). All required by plan instructions ("Match the exact spacing/style of `_agent_pipeline = None` / `def get_agent_pipeline()`"). SCOPE BOUNDARY applies.
 - **Agent unit tests (`tests/unit/test_agent_pipeline_refactor.py`): 11 passed, 0 regressions.**
 - **Future-work flag**: any change to `AgentQueryPipeline._execute_tool_call` MUST be mirrored into `SwarmQueryPipeline._execute_tool_call` in lockstep (or extracted to module level — out of Phase 12 scope).
+
+### Plan 12-03 Execution Notes (Wave 3)
+
+- **Duration:** ~8 min, 3/3 tasks, 3 task commits.
+- **Routing edit (Task 1):** controllers/api.py — added `get_swarm_pipeline` to import block (line 25) + replaced ternary one-liner at former line 208 with explicit `if/elif/else` (8 lines, swarm > agent > default). Source-order acceptance test confirms `req.swarm_mode` precedes `req.agent_mode` (T-12-03-01).
+- **Unit tests (Task 2):** 8/8 pass on first run. Mirrors fixture/helpers verbatim from `tests/unit/test_agent_pipeline_refactor.py` — diverging structure would create maintenance drift. Concurrency test uses `asyncio.Event + counter` pattern (analog lines 185–224).
+- **Integration test (Task 3):** 1 test, gated by `pytestmark = [pytest.mark.integration]`. Provider override matches analog exactly: `monkeypatch.setenv("LLM_PROVIDER", "openai")` (NOT ANTHROPIC_API_KEY skipif — D-05/W-6 unconditional-run policy). Resets both `_llm_instance` and `_swarm_pipeline` singletons.
+- **No regressions:** `tests/unit/test_agent_pipeline_refactor.py` 11 passed; full default suite (361 passed when excluding pre-existing pgvector + ragas failures).
+- **Pre-existing flake noted (NOT introduced):** `tests/unit/test_ingest_status.py::test_async_ingest_returns_task_id` 200ms latency budget — reproduces with `git stash` (no Plan 12-03 changes), out of scope.
+- **AGENT-03 closure:** every acceptance criterion 1–7 maps to a unit test; integration smoke gates real-LLM verification. Phase 12 ready for `/gsd-verify-work 12`.

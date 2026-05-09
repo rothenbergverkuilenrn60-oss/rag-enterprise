@@ -119,7 +119,7 @@ See [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md) for full phase deta
 | 9. Frontend Extraction | v1.1 | 1/1 | Complete ✓ | 2026-05-08 |
 | 10. Coverage Gate on New Code | v1.1 | 1/1 | Complete ✓ | 2026-05-08 |
 | 11. Provider-Agnostic Agentic Layer + Parallel Burst | v1.2 | 4/4 | Complete ✓ | 2026-05-08 |
-| 12. Fork-Agent Swarm | v1.3 | 0/TBD | Not started | — |
+| 12. Fork-Agent Swarm | v1.3 | 3/3 | Executed (verification pending) | 2026-05-09 |
 | 13. LLM Filter Fallback | v1.3 | 0/TBD | Not started | — |
 | 14. Frontend Split and DOM Modernization | v1.3 | 0/TBD | Not started | — |
 | 15. Coverage Combine and 70% Floor | v1.3 | 0/TBD | Not started | — |
