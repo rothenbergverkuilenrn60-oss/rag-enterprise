@@ -1,8 +1,154 @@
 # Agent Architecture
 
-*Status: Phase 18 (v1.4) — Tool abstraction + SSE event schemas shipped. This
-document is the tool-author quick-start AND the SSE event-schema reference.
-Historical intent mapping (Phase 19) extends this file later.*
+*Status: Phase 19 (v1.4) — Concept + tool-authoring + SSE event-schema trilogy
+complete. Read top-to-bottom: the Planner / Executor mental model, then how to
+add a tool the planner can pick, then the wire format the executor emits.*
+
+## Planner / Executor Model
+
+The agent runtime is three explicit collaborators: a **Planner** that turns
+a conversation into a `ToolPlan`, an **Executor** that dispatches the plan's
+parallel groups concurrently, and a **Synthesizer** that composes the final
+answer from the accumulated tool results. Each collaborator is a single-purpose
+object behind a stable Pydantic V2 contract. The orchestrator (`AgentQueryPipeline`)
+is a thin loop over these three.
+
+The Planner is stateless: `(messages, tools) → ToolPlan`. It issues one LLM
+call via the provider-neutral `BaseLLMClient.call_agentic_turn` (Phase 11) and
+normalizes the assistant turn into a `ToolPlan`. The Executor consumes that
+plan and walks `parallel_groups` — each inner list is a wave of step indices
+dispatched concurrently via `asyncio.as_completed`, with v1.3 D-01
+`BaseException` isolation so a failing sibling does not cancel the rest.
+The Synthesizer is the LLM's terminal `call_agentic_turn` after results
+return — it sees the tool-result messages and emits the final text-only
+plan whose `rationale` IS the answer.
+
+Add tools the planner can pick: see [Authoring Tools](#authoring-tools).
+
+### Flow
+
+```
+Request ──▶ AgentQueryPipeline ──▶ Planner.plan_from_messages
+                                      │
+                                      ▼
+                                   ToolPlan ──▶ Executor.execute_plan_streaming
+                                                    │
+                                                    ▼
+                                              parallel groups
+                                              (asyncio.as_completed,
+                                               BaseException isolation)
+                                                    │
+                                                    ▼
+                                               ToolResult[]
+                                                    │
+                                                    ▼
+                                          Synthesizer (call_agentic_turn) ──▶ Response
+```
+
+Each arrow is a single function call. The pipeline issues at most
+`MAX_ITERATIONS = 5` planner turns (Phase 16 D-12); each turn either yields
+a non-terminal `ToolPlan` (with steps to dispatch) or a terminal one (no
+steps, `rationale` is the answer).
+
+### Pydantic V2 Signatures
+
+Planner output is a frozen `ToolPlan`:
+
+```python
+class ToolCall(BaseModel):
+    """A single tool invocation requested by the LLM in one assistant turn."""
+    model_config = ConfigDict(frozen=True)
+
+    id:        str
+    name:      str
+    arguments: dict[str, Any] = Field(default_factory=dict)
+
+
+class ToolPlan(BaseModel):
+    """Planner output: an ordered list of ToolCalls plus their parallel-group assignment."""
+    model_config = ConfigDict(frozen=True)
+
+    steps:             list[ToolCall]  = Field(default_factory=list)
+    parallel_groups:   list[list[int]] = Field(default_factory=list)
+    rationale:         str             = ""
+    raw_assistant_msg: dict[str, Any]  = Field(default_factory=dict)
+    stop_reason:       str             = "text_only"
+```
+
+`parallel_groups` is the canonical execution shape: every step index in
+`range(len(steps))` MUST appear in exactly one group. A non-empty plan
+always has a non-empty `parallel_groups`. `stop_reason` mirrors the upstream
+LLM stop reason (`text_only` / `tool_use` / `max_tokens` / `error`).
+
+### Method Signatures
+
+The Planner exposes one async method:
+
+```python
+async def plan_from_messages(
+    self,
+    messages: list[dict[str, Any]],
+    tools: list[dict[str, Any]] | None = None,
+    system: str | None = None,
+) -> ToolPlan: ...
+```
+
+The Executor exposes the streaming dispatcher consumed by `AgentQueryPipeline.run_streaming`:
+
+```python
+async def execute_plan_streaming(
+    self,
+    plan: ToolPlan,
+    tf: dict[str, Any],
+    req: GenerationRequest,
+    *,
+    trace_id: str,
+    seq_counter: Iterator[int],
+) -> AsyncIterator[AgentEvent | ToolResult | BaseException]: ...
+```
+
+The streaming variant yields events at lifecycle boundaries (`tool.span.start`,
+`tool.span.end` / `tool.span.error`, `executor.parallel`) interleaved with
+the bare results — see [Event Schema Reference](#event-schema-reference)
+for the wire format.
+
+### Runnable Example
+
+Drive the full Planner → Executor → Synthesizer loop and print every event:
+
+```python
+import asyncio
+from services.pipeline import AgentQueryPipeline
+from utils.models import GenerationRequest
+
+async def main() -> None:
+    pipeline = AgentQueryPipeline()
+    req = GenerationRequest(
+        query=(
+            "Across our compliance, finance, engineering, and HR knowledge "
+            "bases, where do we mention 'data retention'?"
+        ),
+        session_id="demo-session",
+        tenant_id="demo-tenant",
+        user_id="demo-user",
+        top_k=5,
+    )
+    async for evt in pipeline.run_streaming(req):
+        print(
+            f"{evt.event_type:>22}  seq={evt.seq:>3}  "
+            f"ts={evt.ts_ms}  payload={evt.model_dump_json()}"
+        )
+
+asyncio.run(main())
+```
+
+This is the same query `make demo-agent` runs; the only difference is that
+`make demo-agent` (Phase 19) wires stub Planner + stub `RetrieveTool` so the
+snippet is offline-runnable from a clean checkout. To run it against real
+LLM + real retrieval, point `LLM_PROVIDER` and `PG_DSN` at live services
+and remove the stubs (see `services/agent/_demo_runner.py` for the patch list).
+
+Decode the events on the wire: see [Event Schema Reference](#event-schema-reference).
 
 ## Authoring Tools
 
