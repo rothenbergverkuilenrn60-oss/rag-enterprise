@@ -72,7 +72,14 @@ def _tool_call(call_id: str, name: str = "search_knowledge_base", **args: Any) -
 
 @pytest.fixture
 def mock_pipeline() -> SwarmQueryPipeline:
-    """Build a SwarmQueryPipeline with all collaborators replaced by AsyncMock."""
+    """Build a SwarmQueryPipeline with all collaborators replaced by AsyncMock.
+
+    Phase 16 Wave-3 update: ``_filter_extractor`` is now a stored instance
+    attribute (same change applied to AgentQueryPipeline) so tests do not
+    require a live LLM for filter extraction.
+    """
+    from services.nlu.filter_extractor import ExtractionResult
+
     pipe = SwarmQueryPipeline.__new__(SwarmQueryPipeline)
     pipe._llm = MagicMock()
     pipe._llm.call_agentic_turn = AsyncMock()
@@ -96,6 +103,10 @@ def mock_pipeline() -> SwarmQueryPipeline:
     pipe._audit.log = AsyncMock()                 # swarm calls log() directly
     pipe._tenant_svc = MagicMock()
     pipe._tenant_svc.get_tenant_filter = MagicMock(return_value={})
+    pipe._filter_extractor = MagicMock()
+    pipe._filter_extractor.extract = AsyncMock(
+        return_value=ExtractionResult(filters={}, semantic_query="")
+    )
     return pipe
 
 

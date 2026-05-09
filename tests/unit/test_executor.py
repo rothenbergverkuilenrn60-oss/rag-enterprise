@@ -106,10 +106,17 @@ async def test_execute_plan_two_waves_in_order(
 
 
 @pytest.mark.asyncio
-async def test_execute_plan_propagates_exceptions(
+async def test_execute_plan_returns_exception_as_value(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """asyncio.gather BaseException scope: exception in one step propagates out."""
+    """return_exceptions=True: failed step returns BaseException, siblings unaffected.
+
+    Phase 16 Wave-3 change: Executor uses asyncio.gather(return_exceptions=True)
+    so individual step failures are returned as BaseException entries rather than
+    raised. The orchestrator (AgentQueryPipeline.run) is responsible for building
+    is_error=True tool_results from those entries (v1.3 Phase 12 D-01 isolation
+    guarantee maintained end-to-end).
+    """
 
     async def fake_exec(tc: ToolCall, tf: dict[str, Any], req: GenerationRequest,
                         retriever: Any, llm: Any) -> tuple[list[RetrievedChunk], str]:
@@ -125,8 +132,12 @@ async def test_execute_plan_propagates_exceptions(
     )
     executor = Executor(retriever=object(), llm=object())
 
-    with pytest.raises(RuntimeError, match="tool failure"):
-        await executor.execute_plan(plan, {}, _req())
+    results = await executor.execute_plan(plan, {}, _req())
+    # step 0 ("a") succeeds; step 1 ("bad") fails → BaseException entry
+    assert len(results) == 2
+    assert results[0] == ([], "ok")
+    assert isinstance(results[1], RuntimeError)
+    assert "tool failure" in str(results[1])
 
 
 @pytest.mark.asyncio
