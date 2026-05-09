@@ -8,19 +8,25 @@ matches the fixture's expected sequence byte-for-byte.
 
 The full outer-loop / synthesizer behavior is exercised in Plan 16-03
 (Wave 3) — this file only covers Planner + Executor in isolation.
+
+Phase 17 Wave-3 update: mock target changed from
+``services.agent.executor.execute_tool_call`` (deleted) to
+``services.agent.executor.get_tool_registry`` (consumer-path convention).
 """
 
 from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
 
 from services.agent.executor import Executor
 from services.agent.planner import Planner
-from utils.models import AgenticTurn, GenerationRequest, RetrievedChunk, ToolCall
+from services.agent.tools.base import BaseTool
+from services.agent.tools.registry import ToolRegistry
+from utils.models import AgenticTurn, GenerationRequest, ToolCall, ToolContext, ToolResult
 
 FIXTURES = Path(__file__).parent / "fixtures" / "agent_parity"
 
@@ -86,20 +92,41 @@ async def test_agent_parity(
         f"  actual:   {actual_seq}"
     )
 
-    # Now Executor must dispatch them in the right shape
+    # Now Executor must dispatch them in the right shape.
+    # Phase 17 Wave-3: mock get_tool_registry at consumer path (not execute_tool_call).
     dispatched: list[str] = []
 
-    async def fake_exec(
-        tc: ToolCall,
-        tf: dict[str, Any],
-        req: GenerationRequest,
-        retriever: Any,
-        llm_arg: Any,
-    ) -> tuple[list[RetrievedChunk], str]:
-        dispatched.append(tc.id)
-        return ([], f"result_{tc.id}")
+    def _make_fake_tool_cls(tool_name: str) -> type[BaseTool]:
+        """Return a concrete BaseTool subclass registered under tool_name."""
+        _name = tool_name
+        _dispatched = dispatched
 
-    monkeypatch.setattr("services.agent.executor.execute_tool_call", fake_exec)
+        class _FakeTool(BaseTool):
+            name: ClassVar[str] = _name
+            description: ClassVar[str] = "parity"
+            parameters_schema: ClassVar[dict[str, Any]] = {"type": "object"}
+
+            async def run(self, args: dict[str, Any], ctx: ToolContext) -> ToolResult:
+                _dispatched.append(self.name)
+                return ToolResult(content=f"result_{self.name}", chunks=[], metadata={})
+
+        _FakeTool.__name__ = f"FakeTool_{tool_name}"
+        _FakeTool.__qualname__ = f"FakeTool_{tool_name}"
+        return _FakeTool
+
+    def _make_registry() -> ToolRegistry:
+        reg = ToolRegistry()
+        seen: set[str] = set()
+        for step in plan.steps:
+            if step.name not in seen:
+                seen.add(step.name)
+                reg.register(_make_fake_tool_cls(step.name))
+        return reg
+
+    monkeypatch.setattr(
+        "services.agent.executor.get_tool_registry",
+        _make_registry,
+    )
 
     executor = Executor(retriever=object(), llm=object())
     req = GenerationRequest(query="parity-test")
@@ -107,5 +134,7 @@ async def test_agent_parity(
 
     assert len(results) == len(plan.steps)
     # All expected tool call IDs were dispatched (order may vary within waves
-    # due to asyncio.gather scheduling, but set membership is byte-stable)
-    assert set(dispatched) == {tc["id"] for tc in expected_seq}
+    # due to asyncio.gather scheduling, but set membership is byte-stable).
+    # Phase 17: results are ToolResult instances, not tuples.
+    assert all(isinstance(r, ToolResult) for r in results)
+    assert len(dispatched) == len(expected_seq)
