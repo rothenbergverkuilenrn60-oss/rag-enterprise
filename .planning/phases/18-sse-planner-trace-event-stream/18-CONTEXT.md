@@ -55,7 +55,7 @@ Add a structured SSE event stream surface (`POST /agent/v1/run/stream`) that emi
 
 - **D-14:** Latency assertion (ROADMAP SC4): test mocks 4 tools each with `asyncio.sleep(0.5)`; asserts total elapsed ms is `450 < elapsed_ms < 700` (max(500) + overhead) — NOT `~2000ms` (sum). Test asserts `tool.span.start` count == 4 AND `tool.span.end` count == 4 AND `executor.parallel.fan_out == 4`.
 
-- **D-15:** Smoke test (ROADMAP SC3): given a fixture `ToolPlan` with 2 parallel groups (one 1-step, one 3-step), assert exact event sequence: 1 × `planner.plan` → 1 × `executor.parallel` (group 1, fan_out=1) → 1 × `tool.span.start` → 1 × `tool.span.end` → 1 × `executor.parallel` (group 2, fan_out=3) → 3 × `tool.span.start` → 3 × `tool.span.end` → 1 × `synthesizer.final`. Total = 11 events.
+- **D-15:** Smoke test (ROADMAP SC3): given a fixture `ToolPlan` with 2 parallel groups (one 1-step, one 3-step), assert exact event sequence: 1 × `planner.plan` → 1 × `executor.parallel` (group 1, fan_out=1) → 1 × `tool.span.start` → 1 × `tool.span.end` → 1 × `executor.parallel` (group 2, fan_out=3) → 3 × `tool.span.start` → 3 × `tool.span.end` → 1 × `synthesizer.final`. Total = 12 events. (Planner reconciliation: ordering of `executor.parallel` was relocated to group END to match D-09 `group_latency_ms` semantics — see plan 18-01 `<planner_decision>`. Count enumeration above sums to 12, not 11.)
 
 - **D-16:** No mock at registry; tests inject a stub `BaseTool` subclass via `monkeypatch.setattr("services.agent.executor.get_tool_registry", lambda: stub_registry)` per Phase 13/15 + Phase 17 consumer-path convention.
 
