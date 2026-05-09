@@ -58,7 +58,7 @@ class Planner:
         per CONTEXT.md.
         """
         turn: AgenticTurn = await self._llm.call_agentic_turn(
-            messages,
+            messages=messages,
             tools=tools or [],
             system=system or _PLANNER_SYSTEM,
         )
@@ -71,20 +71,39 @@ class Planner:
         v1.2 ``parallel_tool_calls=True`` semantics. If the LLM returns text
         in addition to tool_calls and that text parses as a JSON ToolPlan
         with explicit ``parallel_groups``, that explicit shape wins.
+
+        ``raw_assistant_msg`` and ``stop_reason`` are threaded through so the
+        orchestrator can append the assistant turn to messages before tool
+        results and log max_tokens warnings (Phase 16 Wave-3 requirement).
         """
         if not turn.tool_calls:
             # No tool calls — empty plan with the LLM's text as rationale.
-            return ToolPlan(steps=[], parallel_groups=[], rationale=turn.text or "")
+            return ToolPlan(
+                steps=[],
+                parallel_groups=[],
+                rationale=turn.text or "",
+                raw_assistant_msg=turn.raw_assistant_msg,
+                stop_reason=turn.stop_reason,
+            )
 
         steps = list(turn.tool_calls)
         explicit = self._extract_explicit_plan(turn.text, steps)
         if explicit is not None:
-            return explicit
+            # Backfill fields that _extract_explicit_plan can't set
+            return ToolPlan(
+                steps=explicit.steps,
+                parallel_groups=explicit.parallel_groups,
+                rationale=explicit.rationale,
+                raw_assistant_msg=turn.raw_assistant_msg,
+                stop_reason=turn.stop_reason,
+            )
 
         return ToolPlan(
             steps=steps,
             parallel_groups=[list(range(len(steps)))],
             rationale=turn.text or "",
+            raw_assistant_msg=turn.raw_assistant_msg,
+            stop_reason=turn.stop_reason,
         )
 
     def _extract_explicit_plan(

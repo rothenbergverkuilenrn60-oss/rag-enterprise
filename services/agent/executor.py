@@ -40,17 +40,26 @@ class Executor:
         plan: ToolPlan,
         tf: dict[str, Any],
         req: GenerationRequest,
-    ) -> list[tuple[list[RetrievedChunk], str]]:
+    ) -> list[tuple[list[RetrievedChunk], str] | BaseException]:
         """Run every step in plan.parallel_groups order.
 
-        Returns a list of (chunks, ctx_text) tuples in step-index order
-        (NOT group order — caller can re-correlate via plan.steps[i].id).
-        Length equals len(plan.steps).
+        Returns a list in step-index order (NOT group order — caller can
+        re-correlate via plan.steps[i].id). Length equals len(plan.steps).
+
+        Per-tool errors are returned as ``BaseException`` entries rather than
+        raised; this mirrors the v1.3 ``asyncio.gather(return_exceptions=True)``
+        pattern and preserves the orchestrator's ``is_error=True`` tool-result
+        construction for resilient multi-tool turns (Phase 16 Wave-3, test 4).
+        CancelledError / TimeoutError are **not** re-raised here; the
+        orchestrator receives them as error entries and builds an error
+        tool_result (v1.3 Phase 12 D-01 isolation guarantee maintained).
         """
         if not plan.steps:
             return []
 
-        results: list[tuple[list[RetrievedChunk], str] | None] = [None] * len(plan.steps)
+        results: list[tuple[list[RetrievedChunk], str] | BaseException | None] = [
+            None
+        ] * len(plan.steps)
 
         for group in plan.parallel_groups:
             t0 = time.perf_counter()
@@ -58,17 +67,15 @@ class Executor:
                 self._dispatch_one(plan.steps[idx], tf, req)
                 for idx in group
             ]
-            try:
-                group_results = await asyncio.gather(*coros)
-            except BaseException as exc:
-                # v1.3 Phase 12 D-01: BaseException scope catches
-                # CancelledError / TimeoutError without crashing siblings
-                # already dispatched. Re-raise so the orchestrator can
-                # decide on recovery (audit, retry, abort).
-                logger.error(f"[Executor] gather failed in group {group}: {exc!r}")
-                raise
-
+            group_results: list[tuple[list[RetrievedChunk], str] | BaseException] = (
+                await asyncio.gather(*coros, return_exceptions=True)
+            )
             for idx, res in zip(group, group_results):
+                if isinstance(res, BaseException):
+                    logger.error(
+                        f"[Executor] step_idx={idx} name={plan.steps[idx].name} "
+                        f"failed: {res!r}"
+                    )
                 results[idx] = res
 
             logger.info(

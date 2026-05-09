@@ -304,9 +304,15 @@ class ToolPlan(BaseModel):
     """
     model_config = ConfigDict(frozen=True)
 
-    steps:           list[ToolCall]    = Field(default_factory=list)
-    parallel_groups: list[list[int]]   = Field(default_factory=list)
-    rationale:       str               = ""
+    steps:             list[ToolCall]  = Field(default_factory=list)
+    parallel_groups:   list[list[int]] = Field(default_factory=list)
+    rationale:         str             = ""
+    # Carried from AgenticTurn so the orchestrator can append it to messages
+    # before appending tool_results (provider wire-format requirement).
+    raw_assistant_msg: dict[str, Any]  = Field(default_factory=dict)
+    # Mirrored from AgenticTurn.stop_reason so the orchestrator can log
+    # max_tokens warnings without a second LLM call.
+    stop_reason:       str             = "text_only"
 
     @field_validator("parallel_groups")
     @classmethod

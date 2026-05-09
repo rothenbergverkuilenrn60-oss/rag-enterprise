@@ -29,7 +29,7 @@ import openai                                             # noqa: F401 — refer
 from loguru import logger
 
 from config.settings import settings
-from services.agent.tool_executor import execute_tool_call as _shared_execute_tool_call
+from services.agent import execute_tool_call as _shared_execute_tool_call, get_executor, get_planner
 from services.audit.audit_service import AuditAction, AuditEvent, AuditResult, get_audit_service
 from services.doc_processor.chunker import get_doc_processor
 from services.events.event_bus import get_event_bus
@@ -79,6 +79,7 @@ from utils.models import (
     RawDocument,
     RetrievedChunk,
     ToolCall,
+    ToolPlan,
 )
 from utils.observability import start_span
 
@@ -578,6 +579,11 @@ _SYNTHESIS_SYSTEM: str = """\
 5. 不得编造未在子答案中出现的信息。
 """
 
+# Module-level constant (AGENT-06 / CONTEXT.md D-12).
+# The cap is enforced by the orchestrator outer loop; Executor runs exactly
+# one ToolPlan per call and does NOT enforce this limit internally.
+MAX_ITERATIONS: int = 5
+
 
 class AgentQueryPipeline:
     """
@@ -594,8 +600,6 @@ class AgentQueryPipeline:
       3. 收到检索结果后继续推理
       4. 直到 stop_reason == "end_turn"（Claude 认为信息充足）
     """
-
-    MAX_ITERATIONS = 5
 
     _AGENT_TOOLS = [
         {
@@ -657,158 +661,101 @@ class AgentQueryPipeline:
 """
 
     def __init__(self) -> None:
-        self._retriever  = get_retriever()
-        self._llm        = get_llm_client()
-        self._memory     = get_memory_service()
-        self._audit      = get_audit_service()
-        self._tenant_svc = get_tenant_service()
+        self._retriever        = get_retriever()
+        self._llm              = get_llm_client()
+        self._memory           = get_memory_service()
+        self._audit            = get_audit_service()
+        self._tenant_svc       = get_tenant_service()
+        self._filter_extractor = get_filter_extractor()
 
-    async def run(self, req: GenerationRequest) -> GenerationResponse:
-        trace_id  = str(uuid.uuid4())[:8]
-        tenant_id = getattr(req, "tenant_id", "")
-        user_id   = getattr(req, "user_id",   "")
-        t0        = time.perf_counter()
+    # ── helpers ──────────────────────────────────────────────────────────────
 
-        # v1.1 QUERY-01 carry-forward: extract filters from raw query so every
-        # tool-driven retrieve() call inherits page/section scope via `tf`.
-        # Agent does not run NLU.analyze; req.query stays as raw user input.
-        extraction = await get_filter_extractor().extract(req.query)
-
-        tf = self._tenant_svc.get_tenant_filter(tenant_id)
-        if req.filters:
-            tf = {**(tf or {}), **req.filters}
-        if extraction.filters:
-            tf = {**(tf or {}), **extraction.filters}
-
-        # 短期对话历史
-        mem_ctx = await self._memory.load_context(req.session_id, user_id, tenant_id, req.query)
+    def _build_initial_messages(
+        self,
+        req: GenerationRequest,
+        mem_ctx: Any,
+    ) -> list[dict[str, Any]]:
+        """Build the opening messages list from chat history + user query."""
         _MAX_TURN_CHARS = 2000
-        chat_history = [
+        messages: list[dict[str, Any]] = [
             {"role": t.role, "content": t.content[:_MAX_TURN_CHARS]}
             for t in mem_ctx.short_term[-6:]
         ]
-
-        messages: list[dict[str, Any]] = []
-        for turn_msg in chat_history:
-            messages.append({"role": turn_msg["role"], "content": turn_msg["content"]})
         messages.append({"role": "user", "content": req.query})
+        return messages
 
-        all_chunks: list[RetrievedChunk] = []
-        answer = ""
-        parallelism_factors: list[int] = []   # one entry per turn that issued tool calls
+    @staticmethod
+    def _build_tool_results(
+        plan: ToolPlan,
+        raw_outputs: list[tuple[list[RetrievedChunk], str] | BaseException],
+        all_chunks: list[RetrievedChunk],
+    ) -> list[dict[str, Any]]:
+        """Convert Executor output to provider tool_result dicts.
 
-        for iteration in range(self.MAX_ITERATIONS):
-            try:
-                turn: AgenticTurn = await self._llm.call_agentic_turn(
-                    messages=messages,
-                    tools=self._AGENT_TOOLS,
-                    system=self._AGENT_SYSTEM,
-                    max_tokens=settings.llm_max_tokens,
-                    parallel_tool_calls=True,
+        Appends successfully retrieved chunks to ``all_chunks`` in-place.
+        Returns the tool_results list for the next user message.
+        """
+        tool_results: list[dict[str, Any]] = []
+        for tc, output in zip(plan.steps, raw_outputs):
+            if isinstance(output, BaseException):
+                logger.error(
+                    f"[Agent] tool_call_id={tc.id} name={tc.name} failed: {output!r}"
                 )
-            except NotImplementedError:
-                # D-03: provider doesn't support agent_mode (e.g. Ollama in v1.2).
-                # Fall back to fixed pipeline; preserves user-visible behavior of
-                # the deleted Anthropic-only gate without Anthropic-specific code.
-                logger.warning(
-                    f"[Agent] provider lacks call_agentic_turn — falling back: "
-                    f"provider={type(self._llm).__name__}"
-                )
-                return await get_query_pipeline().run(req)
-            except (
-                anthropic.APIError,
-                openai.APIError,
-                httpx.HTTPError,
-                asyncio.TimeoutError,
-            ) as exc:
-                # B-1: NARROW provider-error tuple per project ERR-01 rule
-                # (CLAUDE.md). Catches provider rate-limit/API errors,
-                # transport-level HTTP failures, and async timeouts. Does NOT
-                # catch generic Exception — internal bugs (KeyError, etc.) bubble.
-                logger.error(f"[Agent] call_agentic_turn failed iter={iteration+1}: {exc!r}")
-                answer = "抱歉，智能助手在处理您的请求时遇到了错误，请稍后重试。"
-                break
+                tool_results.append({
+                    "type":        "tool_result",
+                    "tool_use_id": tc.id,
+                    "content":     f"工具执行失败:{type(output).__name__}: {output}",
+                    "is_error":    True,
+                })
+            else:
+                chunks, ctx_text = output
+                all_chunks.extend(chunks)
+                tool_results.append({
+                    "type":        "tool_result",
+                    "tool_use_id": tc.id,
+                    "content":     ctx_text,
+                })
+        return tool_results
 
-            # Terminal: text_only / max_tokens / error → take whatever text we have
-            if turn.stop_reason in ("text_only", "max_tokens", "error"):
-                answer = turn.text or answer
-                if turn.stop_reason == "max_tokens":
-                    logger.warning(
-                        f"[Agent] iter={iteration+1} stop_reason=max_tokens (response truncated)"
-                    )
-                break
+    @staticmethod
+    def _dedup_chunks(
+        all_chunks: list[RetrievedChunk],
+    ) -> list[RetrievedChunk]:
+        """Dedup by chunk_id (ONCE per turn, post-gather — gotcha #1)."""
+        seen: set[str] = set()
+        deduped: list[RetrievedChunk] = []
+        for c in all_chunks:
+            if c.chunk_id not in seen:
+                seen.add(c.chunk_id)
+                deduped.append(c)
+        return deduped[:20]
 
-            # turn.stop_reason == "tool_use" → execute requested tool calls
-            if not turn.tool_calls:
-                # Defensive: stop_reason says tool_use but no calls returned.
-                logger.warning(
-                    f"[Agent] iter={iteration+1} stop_reason=tool_use but no tool_calls; breaking"
-                )
-                answer = turn.text or answer
-                break
+    async def _build_tf(
+        self,
+        req: GenerationRequest,
+        tenant_id: str,
+    ) -> dict[str, Any]:
+        """Build the merged tenant + request + extracted filter dict."""
+        extraction = await self._filter_extractor.extract(req.query)
+        tf: dict[str, Any] = self._tenant_svc.get_tenant_filter(tenant_id) or {}
+        if req.filters:
+            tf = {**tf, **req.filters}
+        if extraction.filters:
+            tf = {**tf, **extraction.filters}
+        return tf
 
-            # Append the assistant's raw message verbatim — adapter normalizes shape.
-            messages.append(turn.raw_assistant_msg)
-
-            # AGENT-02: execute N≥1 tool calls concurrently. asyncio.gather with
-            # N=1 is functionally equivalent to a single await; we always go
-            # through gather to keep the audit log shape uniform.
-            parallelism = len(turn.tool_calls)
-            parallelism_factors.append(parallelism)
-            tool_names = [tc.name for tc in turn.tool_calls]
-
-            # AGENT-02 AC#4 (W-1): the structured logger IS the per-turn audit
-            # trail. AuditService.log_query records a SINGLE end-of-run aggregate
-            # entry (existing v1.0/v1.1 pattern, intent="agent" — W-3 backward
-            # compat). When AC#4 says "audit log per turn" it refers to THIS
-            # structured log line, not AuditService.
-            logger.info(
-                f"[Agent] iter={iteration+1} parallel_factor={parallelism} tools={tool_names}"
-            )
-
-            tool_coros = [
-                self._execute_tool_call(tc, tf or {}, req)
-                for tc in turn.tool_calls
-            ]
-            tool_outputs = await asyncio.gather(*tool_coros, return_exceptions=True)
-
-            # Build one tool_result per tool_call.id (preserve order via zip).
-            tool_results: list[dict[str, Any]] = []
-            for tc, output in zip(turn.tool_calls, tool_outputs):
-                if isinstance(output, BaseException):
-                    logger.error(
-                        f"[Agent] tool_call_id={tc.id} name={tc.name} failed: {output!r}"
-                    )
-                    tool_results.append({
-                        "type":        "tool_result",
-                        "tool_use_id": tc.id,
-                        "content":     f"工具执行失败:{type(output).__name__}: {output}",
-                        "is_error":    True,
-                    })
-                else:
-                    chunks, ctx_text = output
-                    all_chunks.extend(chunks)
-                    tool_results.append({
-                        "type":        "tool_result",
-                        "tool_use_id": tc.id,
-                        "content":     ctx_text,
-                    })
-
-            # Dedup ONCE per turn, AFTER gather (gotcha #1 — moved out of inner loop).
-            seen_ids: set[str] = set()
-            deduped: list[RetrievedChunk] = []
-            for c in all_chunks:
-                if c.chunk_id not in seen_ids:
-                    seen_ids.add(c.chunk_id)
-                    deduped.append(c)
-            all_chunks = deduped[:20]
-
-            messages.append({"role": "user", "content": tool_results})
-
+    async def _persist_turn(
+        self,
+        req: GenerationRequest,
+        answer: str,
+        all_chunks: list[RetrievedChunk],
+        trace_id: str,
+        t0: float,
+        parallelism_factors: list[int],
+    ) -> GenerationResponse:
+        """Save memory, write audit log, return GenerationResponse."""
         total_ms = round((time.perf_counter() - t0) * 1000, 1)
-        max_parallelism = max(parallelism_factors) if parallelism_factors else 0
-
-        # 保存记忆
+        user_id, tenant_id = getattr(req, "user_id", ""), getattr(req, "tenant_id", "")
         await self._memory.save_turn(
             session_id=req.session_id, user_id=user_id, tenant_id=tenant_id,
             user_turn=ConversationTurn(role="user", content=req.query),
@@ -818,44 +765,65 @@ class AgentQueryPipeline:
             ),
             intent=None,
         )
-
-        # W-3: audit log keeps backward compat with v1.0/v1.1. The `intent` field
-        # stays exactly "agent" — same value existing dashboards/ETL key on. The
-        # per-turn parallelism factor is in the structured logger above
-        # (`[Agent] iter=… parallel_factor=…`), NOT pushed into AuditService.
         await self._audit.log_query(
-            user_id=user_id, tenant_id=tenant_id,
-            query=req.query, trace_id=trace_id,
+            user_id=user_id, tenant_id=tenant_id, query=req.query, trace_id=trace_id,
             result=AuditResult.SUCCESS, latency_ms=total_ms,
             sources_count=len(all_chunks), intent="agent",
         )
-
-        logger.info(
-            f"[Agent] DONE trace={trace_id} {total_ms}ms chunks={len(all_chunks)} "
-            f"max_parallelism={max_parallelism} turns={len(parallelism_factors)}"
-        )
+        max_par = max(parallelism_factors) if parallelism_factors else 0
+        logger.info(f"[Agent] DONE trace={trace_id} {total_ms}ms chunks={len(all_chunks)} "
+                    f"max_parallelism={max_par} turns={len(parallelism_factors)}")
         return GenerationResponse(
-            answer=answer,
-            sources=all_chunks[:req.top_k],
-            session_id=req.session_id,
-            query=req.query,
-            latency_ms=total_ms,
-            trace_id=trace_id,
-            model=settings.active_model,
+            answer=answer, sources=all_chunks[:req.top_k],
+            session_id=req.session_id, query=req.query,
+            latency_ms=total_ms, trace_id=trace_id, model=settings.active_model,
         )
 
-    async def _execute_tool_call(
-        self,
-        tc: ToolCall,
-        tf: dict[str, Any],
-        req: GenerationRequest,
-    ) -> tuple[list[RetrievedChunk], str]:
-        """Delegate to the shared helper at services.agent.tool_executor.
+    # ── main entry point ─────────────────────────────────────────────────────
 
-        Method retained as a one-line delegate for backwards compatibility
-        with v1.2 callsites; Wave 3 of Phase 16 removes it entirely.
-        """
-        return await _shared_execute_tool_call(tc, tf, req, self._retriever, self._llm)
+    async def run(self, req: GenerationRequest) -> GenerationResponse:
+        trace_id = str(uuid.uuid4())[:8]
+        tenant_id, user_id = getattr(req, "tenant_id", ""), getattr(req, "user_id", "")
+        t0 = time.perf_counter()
+        tf = await self._build_tf(req, tenant_id)
+        mem_ctx = await self._memory.load_context(req.session_id, user_id, tenant_id, req.query)
+        messages = self._build_initial_messages(req, mem_ctx)
+        planner, executor = get_planner(), get_executor()
+        all_chunks: list[RetrievedChunk] = []
+        parallelism_factors: list[int] = []
+        answer = ""
+
+        for iteration in range(MAX_ITERATIONS):
+            try:
+                plan: ToolPlan = await planner.plan_from_messages(
+                    messages, tools=self._AGENT_TOOLS, system=self._AGENT_SYSTEM,
+                )
+            except NotImplementedError:
+                logger.warning(f"[Agent] provider lacks call_agentic_turn — falling back: "
+                               f"provider={type(self._llm).__name__}")
+                return await get_query_pipeline().run(req)
+            except (anthropic.APIError, openai.APIError, httpx.HTTPError, asyncio.TimeoutError) as exc:
+                logger.error(f"[Agent] call_agentic_turn failed iter={iteration+1}: {exc!r}")
+                answer = "抱歉，智能助手在处理您的请求时遇到了错误，请稍后重试。"
+                break
+
+            if not plan.steps:  # terminal: plan.rationale IS the final answer (D-10)
+                answer = plan.rationale or answer
+                if plan.stop_reason == "max_tokens":
+                    logger.warning(f"[Agent] iter={iteration+1} stop_reason=max_tokens (response truncated)")
+                break
+
+            messages.append(plan.raw_assistant_msg)
+            parallelism = len(plan.steps)
+            parallelism_factors.append(parallelism)
+            logger.info(f"[Agent] iter={iteration+1} parallel_factor={parallelism} "
+                        f"tools={[tc.name for tc in plan.steps]}")
+            raw_outputs = await executor.execute_plan(plan, tf, req)
+            tool_results = self._build_tool_results(plan, raw_outputs, all_chunks)
+            all_chunks = self._dedup_chunks(all_chunks)  # dedup ONCE per turn, post-gather
+            messages.append({"role": "user", "content": tool_results})
+
+        return await self._persist_turn(req, answer, all_chunks, trace_id, t0, parallelism_factors)
 
 
 _ingest_pipeline = None
@@ -898,11 +866,12 @@ class SwarmQueryPipeline:
     MAX_SWARM_TURNS_PER_AGENT: int = int(getattr(settings, "max_swarm_turns_per_agent", 5))
 
     def __init__(self) -> None:
-        self._retriever  = get_retriever()
-        self._llm        = get_llm_client()
-        self._memory     = get_memory_service()
-        self._audit      = get_audit_service()
-        self._tenant_svc = get_tenant_service()
+        self._retriever        = get_retriever()
+        self._llm              = get_llm_client()
+        self._memory           = get_memory_service()
+        self._audit            = get_audit_service()
+        self._tenant_svc       = get_tenant_service()
+        self._filter_extractor = get_filter_extractor()
 
     async def _decompose(self, query: str) -> list[str]:
         """Decompose a multi-dimension query into independent sub-questions (D-02).
@@ -1004,7 +973,7 @@ class SwarmQueryPipeline:
             tool_calls_count += len(turn.tool_calls)
 
             tool_coros = [
-                self._execute_tool_call(tc, tf, req)
+                _shared_execute_tool_call(tc, tf, req, self._retriever, self._llm)
                 for tc in turn.tool_calls
             ]
             tool_outputs = await asyncio.gather(*tool_coros, return_exceptions=True)
@@ -1075,20 +1044,6 @@ class SwarmQueryPipeline:
             task_type="generate",
         )
 
-    async def _execute_tool_call(
-        self,
-        tc: ToolCall,
-        tf: dict[str, Any],
-        req: GenerationRequest,
-    ) -> tuple[list[RetrievedChunk], str]:
-        """Delegate to the shared helper at services.agent.tool_executor.
-
-        Method retained as a one-line delegate to preserve
-        SwarmQueryPipeline's v1.3 internal callsites; Wave 3 of Phase 16
-        removes it entirely once the new Executor owns dispatch end-to-end.
-        """
-        return await _shared_execute_tool_call(tc, tf, req, self._retriever, self._llm)
-
     async def run(self, req: GenerationRequest) -> GenerationResponse:
         """Top-level swarm execution (AGENT-03).
 
@@ -1105,7 +1060,7 @@ class SwarmQueryPipeline:
         user_id   = getattr(req, "user_id",   "")
         t0        = time.perf_counter()
 
-        extraction = await get_filter_extractor().extract(req.query)
+        extraction = await self._filter_extractor.extract(req.query)
         tf = self._tenant_svc.get_tenant_filter(tenant_id)
         if req.filters:
             tf = {**(tf or {}), **req.filters}
