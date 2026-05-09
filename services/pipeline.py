@@ -15,8 +15,8 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-import json   # noqa: F401 — referenced in SwarmQueryPipeline._decompose (Task 4)
-import re    # noqa: F401 — referenced in SwarmQueryPipeline._decompose (Task 4)
+import json
+import re
 import time
 import uuid
 from dataclasses import dataclass
@@ -932,3 +932,53 @@ class SwarmQueryPipeline:
         self._memory     = get_memory_service()
         self._audit      = get_audit_service()
         self._tenant_svc = get_tenant_service()
+
+    async def _decompose(self, query: str) -> list[str]:
+        """Decompose a multi-dimension query into independent sub-questions (D-02).
+
+        Returns single-element list `[query]` when:
+          - LLM output cannot be parsed as JSON
+          - Parsed result is not a list
+          - Parsed list is empty after strip+dedup
+        """
+        raw: str = await self._llm.chat(
+            system=_COORDINATOR_SYSTEM,
+            user=query,
+            temperature=0.0,
+            task_type="generate",   # main model — see Pitfall 4
+        )
+
+        # Extract first JSON array substring (LLM may wrap in prose despite instruction).
+        match = re.search(r"\[.*\]", raw, re.DOTALL)
+        if match is None:
+            logger.warning(f"[Swarm] coordinator returned no JSON array; falling back to N=1. raw={raw[:200]!r}")
+            return [query]
+
+        try:
+            parsed = json.loads(match.group(0))
+        except (json.JSONDecodeError, TypeError) as exc:
+            logger.warning(f"[Swarm] coordinator JSON parse failed: {exc!r}; falling back to N=1. raw={match.group(0)[:200]!r}")
+            return [query]
+
+        if not isinstance(parsed, list):
+            logger.warning(f"[Swarm] coordinator returned non-list ({type(parsed).__name__}); falling back to N=1.")
+            return [query]
+
+        # Strip + dedup while preserving order; drop empty/non-string entries.
+        seen: set[str] = set()
+        sub_questions: list[str] = []
+        for item in parsed:
+            if not isinstance(item, str):
+                continue
+            stripped = item.strip()
+            if not stripped or stripped in seen:
+                continue
+            seen.add(stripped)
+            sub_questions.append(stripped)
+
+        if not sub_questions:
+            logger.warning("[Swarm] coordinator returned empty list after cleanup; falling back to N=1.")
+            return [query]
+
+        # Cap at MAX_SWARM_AGENTS (D-09).
+        return sub_questions[: self.MAX_SWARM_AGENTS]
