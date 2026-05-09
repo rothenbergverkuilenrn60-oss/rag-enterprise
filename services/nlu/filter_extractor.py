@@ -20,14 +20,46 @@ LLM-based extractor is explicitly OUT OF SCOPE for v1.1 (REQ A-5 acceptance #5).
 """
 from __future__ import annotations
 
+import asyncio
+import json
 import re
 from dataclasses import dataclass, field
+from typing import Literal
+
+import anthropic
+import httpx
+import openai
+from loguru import logger
+
+from utils.cache import cache_get, cache_set
 
 # Frozen patterns — D-03 in CONTEXT.md. DO NOT extend with English patterns
 # (deferred to v1.2). DO NOT relax to optional 节/页 — separation must be explicit.
 _PAGE_RE    = re.compile(r"第\s*(\d+)\s*页")
 _CLAUSE_RE  = re.compile(r"(\d+(?:\.\d+)+)条款")
 _SECTION_RE = re.compile(r"(\d+(?:\.\d+)+)\s*节?")
+
+
+_FILTER_EXTRACT_SYSTEM: str = """\
+你是查询过滤器提取助手。从用户查询中提取页码（page_number）和章节号（section_id）。
+
+要求：
+1. 仅返回 JSON 对象，格式如下，不包含任何其他文字：
+   {"page_number": <整数或 null>, "section_id": "<字符串或 null>"}
+2. page_number: 用户提到的具体页码（如"第三页"→3，"第10页"→10）。如未提及，返回 null。
+3. section_id: 用户提到的章节号（如"第三章"→"3"，"3.2节"→"3.2"，"2.1.4条款"→"2.1.4"）。如未提及，返回 null。
+4. 如果两者均未提及，返回 {"page_number": null, "section_id": null}。
+
+示例：
+输入：关于第三章的内容
+输出：{"page_number": null, "section_id": "3"}
+
+输入：第10页讲什么
+输出：{"page_number": 10, "section_id": null}
+
+输入：什么是企业RAG
+输出：{"page_number": null, "section_id": null}
+"""
 
 
 @dataclass
@@ -41,6 +73,21 @@ class FilterExtractionResult:
     """
     filters:        dict[str, int | str] = field(default_factory=dict)
     semantic_query: str                  = ""
+
+
+@dataclass(frozen=True)
+class ExtractionResult:
+    """Wrapper exposing fallback_source for regex-vs-LLM tracing (NLU-02 AC#4).
+
+    Returned from `FilterExtractor.extract()`. The `filters` and `semantic_query`
+    fields mirror `FilterExtractionResult` for callsite backward compatibility
+    (truthiness on `.filters` works unchanged at all 4 pipeline callsites — D-04).
+    `fallback_source` distinguishes regex hits from LLM-fallback hits and from
+    no-match results.
+    """
+    filters:         dict[str, int | str]
+    semantic_query:  str
+    fallback_source: Literal["regex", "llm"] | None = None
 
 
 def extract_filters(query: str) -> FilterExtractionResult:
@@ -88,4 +135,10 @@ def extract_filters(query: str) -> FilterExtractionResult:
     return FilterExtractionResult(filters=filters, semantic_query=stripped)
 
 
-__all__ = ["FilterExtractionResult", "extract_filters"]
+__all__ = [
+    "ExtractionResult",
+    "FilterExtractionResult",
+    "FilterExtractor",
+    "extract_filters",
+    "get_filter_extractor",
+]
