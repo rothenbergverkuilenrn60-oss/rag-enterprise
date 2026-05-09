@@ -15,13 +15,14 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import itertools
 import json
 import re
 import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, AsyncGenerator
+from typing import Any, AsyncGenerator, AsyncIterator
 
 import anthropic                                          # noqa: F401 — referenced in narrow except in AgentQueryPipeline.run
 import httpx                                              # noqa: F401 — referenced in narrow except in AgentQueryPipeline.run
@@ -72,15 +73,22 @@ from utils.metrics import (
     rule_trigger_total,
 )
 from utils.models import (
+    AgentEvent,
     DocType,
+    ExecutorParallelEvent,  # noqa: F401 — re-exported by event class hierarchy; consumed via SSE
     GenerationRequest,
     GenerationResponse,
     IngestionRequest,
     IngestionResponse,
+    PlannerPlanEvent,
     RawDocument,
     RetrievedChunk,
+    SynthesizerFinalEvent,
     ToolPlan,
     ToolResult,
+    ToolSpanEndEvent,
+    ToolSpanErrorEvent,
+    ToolSpanStartEvent,
 )
 from utils.observability import start_span
 
@@ -808,6 +816,154 @@ class AgentQueryPipeline:
             messages.append({"role": "user", "content": tool_results})
 
         return await self._persist_turn(req, answer, all_chunks, trace_id, t0, parallelism_factors)
+
+    # ── streaming entry point (Phase 18 AGENT-04) ───────────────────────────
+
+    async def run_streaming(
+        self,
+        req: GenerationRequest,
+    ) -> AsyncIterator[AgentEvent]:
+        """Streaming sibling of ``run`` — yields AgentEvent per planner/tool/synthesizer step.
+
+        Mirrors the ``run`` loop body verbatim except:
+          - Yields ``PlannerPlanEvent`` immediately after each successful
+            planner call (D-06).
+          - Replaces ``executor.execute_plan(...)`` with
+            ``executor.execute_plan_streaming(...)``, forwarding the events
+            it emits and collecting the bare ``ToolResult`` /
+            ``BaseException`` results.
+          - Yields ``SynthesizerFinalEvent`` after the iteration loop
+            finishes (D-07).
+          - Calls ``_persist_turn`` AFTER the synthesizer.final event so
+            audit / memory logging is unchanged (security_gate).
+
+        Existing ``run`` is byte-identical and remains for the legacy
+        non-streaming path (``/query?agent_mode=true``).
+        """
+        trace_id = uuid.uuid4().hex[:8]
+        seq_counter = itertools.count()
+
+        tenant_id, user_id = getattr(req, "tenant_id", ""), getattr(req, "user_id", "")
+        t0 = time.perf_counter()
+        tf = await self._build_tf(req, tenant_id)
+        mem_ctx = await self._memory.load_context(req.session_id, user_id, tenant_id, req.query)
+        messages = self._build_initial_messages(req, mem_ctx)
+        planner, executor = get_planner(), get_executor()
+        all_chunks: list[RetrievedChunk] = []
+        parallelism_factors: list[int] = []
+        answer = ""
+
+        for iteration in range(MAX_ITERATIONS):
+            try:
+                plan: ToolPlan = await planner.plan_from_messages(
+                    messages,
+                    tools=get_tool_registry().schemas_for(
+                        self._llm.provider_name,
+                        names=AGENT_TOOL_ALLOWLIST,
+                    ),
+                    system=self._AGENT_SYSTEM,
+                )
+            except NotImplementedError:
+                logger.warning(
+                    f"[Agent:stream] provider lacks call_agentic_turn — "
+                    f"provider={type(self._llm).__name__}"
+                )
+                answer = "智能助手在当前模型上不可用，请切换 provider 后重试。"
+                break
+            except (anthropic.APIError, openai.APIError, httpx.HTTPError, asyncio.TimeoutError) as exc:
+                logger.error(f"[Agent:stream] call_agentic_turn failed iter={iteration+1}: {exc!r}")
+                answer = "抱歉，智能助手在处理您的请求时遇到了错误，请稍后重试。"
+                break
+
+            if not plan.steps:  # terminal: plan.rationale IS the final answer (D-06)
+                answer = plan.rationale or answer
+                if plan.stop_reason == "max_tokens":
+                    logger.warning(
+                        f"[Agent:stream] iter={iteration+1} stop_reason=max_tokens "
+                        f"(response truncated)"
+                    )
+                break
+
+            # Emit planner.plan ONLY for plans that have steps
+            # (D-06: event mirrors planner-action boundary).
+            yield PlannerPlanEvent(
+                trace_id=trace_id,
+                seq=next(seq_counter),
+                ts_ms=int(time.time() * 1000),
+                plan=plan,
+            )
+
+            messages.append(plan.raw_assistant_msg)
+            parallelism = len(plan.steps)
+            parallelism_factors.append(parallelism)
+            logger.info(
+                f"[Agent:stream] iter={iteration+1} parallel_factor={parallelism} "
+                f"tools={[tc.name for tc in plan.steps]}"
+            )
+
+            # ──────────────────────────────────────────────────────────────
+            # Span-id pairing (Task 2b refactor).
+            # Executor contract (plan 18-02):
+            #   1. ToolSpanStartEvent emit in flat parallel-group iteration
+            #      order — bind span_id → step idx as each start arrives.
+            #   2. ToolSpanEndEvent / ToolSpanErrorEvent for span S is yielded
+            #      IMMEDIATELY before the bare result/exception for span S.
+            #   3. Bare results may arrive in as_completed order WITHIN a
+            #      group — NOT necessarily plan.steps order.
+            # Strategy: track (span_id → step_idx) on each start event; on
+            # each end/error event, buffer the resolved step_idx in
+            # `_pending_idx` so the very next bare-result yield slots into
+            # raw_outputs at the correct index.
+            # ──────────────────────────────────────────────────────────────
+            raw_outputs: list[ToolResult | BaseException | None] = [None] * len(plan.steps)
+            flat_idx_order: list[int] = [idx for group in plan.parallel_groups for idx in group]
+            flat_pos: int = 0
+            span_id_to_step_idx: dict[str, int] = {}
+            _pending_idx: int = -1   # step idx whose bare result arrives next
+
+            async for item in executor.execute_plan_streaming(
+                plan, tf, req,
+                trace_id=trace_id,
+                seq_counter=seq_counter,
+            ):
+                if isinstance(item, AgentEvent):
+                    yield item
+                    if isinstance(item, ToolSpanStartEvent):
+                        # Executor emits start events in flat_idx_order — bind span_id.
+                        if flat_pos < len(flat_idx_order):
+                            span_id_to_step_idx[item.span_id] = flat_idx_order[flat_pos]
+                            flat_pos += 1
+                    elif isinstance(item, (ToolSpanEndEvent, ToolSpanErrorEvent)):
+                        # Buffer the step idx whose bare result arrives next.
+                        _pending_idx = span_id_to_step_idx.get(item.span_id, -1)
+                else:
+                    # Bare ToolResult or BaseException — pair with most-recently-resolved span.
+                    if 0 <= _pending_idx < len(raw_outputs):
+                        raw_outputs[_pending_idx] = item
+                        _pending_idx = -1   # reset; next end/error event will set the next idx
+                    # else: contract violation — drop result; defensive None below
+                    #       converts to RuntimeError so _build_tool_results contract holds.
+
+            collected: list[ToolResult | BaseException] = [
+                r if r is not None else RuntimeError("missing executor result")
+                for r in raw_outputs
+            ]
+            tool_results = self._build_tool_results(plan, collected, all_chunks)
+            all_chunks = self._dedup_chunks(all_chunks)
+            messages.append({"role": "user", "content": tool_results})
+
+        # Synthesizer.final — emitted regardless of how loop ended
+        # (terminal-plan, error, max-iter).
+        yield SynthesizerFinalEvent(
+            trace_id=trace_id,
+            seq=next(seq_counter),
+            ts_ms=int(time.time() * 1000),
+            answer=answer,
+            sources_count=len(all_chunks),
+        )
+
+        # Audit log + memory persistence — unchanged shape (security_gate).
+        await self._persist_turn(req, answer, all_chunks, trace_id, t0, parallelism_factors)
 
 
 _ingest_pipeline = None
