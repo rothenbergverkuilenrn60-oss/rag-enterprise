@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Fork Swarm, NLU & Quality
-status: ready_to_plan
-stopped_at: 12-03 SUMMARY written; 3 task commits (35799d4, f3bf267, 5252acc) on master. /query swarm routing live; 8 unit tests pass; integration test gated by pytest.mark.integration.
-last_updated: "2026-05-09T02:30:00.000Z"
-last_activity: 2026-05-09 — Plan 12-03 complete (commits 35799d4, f3bf267, 5252acc); AGENT-03 acceptance criteria 1–7 closed
+status: Phase 13 context gathered — ready for `/gsd-plan-phase 13`
+stopped_at: Phase 13 CONTEXT.md written (15 decisions D-01..D-15 locked across 8 categories)
+last_updated: "2026-05-09T11:30:00.000Z"
+last_activity: 2026-05-09 — Phase 13 discuss-phase complete (NLU-02 design decisions locked)
 progress:
   total_phases: 4
   completed_phases: 2
@@ -21,29 +21,29 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-08)
 
 **Core value:** Every query returns a grounded, auditable answer — no hallucinations, no silent failures, no security gaps.
-**Current focus:** Phase 12 — Fork-Agent Swarm
+**Current focus:** Phase 13 — LLM Filter Fallback (NLU-02)
 
 ## Current Position
 
-Phase: 13
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-05-09
+Phase: 13 (context gathered, plans pending)
+Plan: —
+Status: Ready for `/gsd-plan-phase 13`
+Last activity: 2026-05-09 — discuss-phase complete; 15 decisions locked
 
 | Field | Value |
 |-------|-------|
 | Milestone | v1.3 Fork Swarm, NLU & Quality |
-| Current phase | 12 — Fork-Agent Swarm |
-| Current plan | 12-03 (Wave 3 — executed; verification pending) |
-| Phase status | 3/3 plans executed (Wave 1 + Wave 2 + Wave 3 done) |
-| Overall progress | 1/4 phases (3/3 plans complete in Phase 12) |
+| Current phase | 13 — LLM Filter Fallback |
+| Current plan | — |
+| Phase status | Context gathered (D-01..D-15 locked); plans pending |
+| Overall progress | 1/4 phases (Phase 12 closed; Phase 13 ready to plan) |
 
 ## Phase Overview
 
 | Phase | Name | REQ-IDs | Status |
 |-------|------|---------|--------|
 | 12 | Fork-Agent Swarm | AGENT-03 | Executed (verification pending) |
-| 13 | LLM Filter Fallback | NLU-02 | Not started |
+| 13 | LLM Filter Fallback | NLU-02 | Context gathered |
 | 14 | Frontend Split and DOM Modernization | UI-02 | Not started |
 | 15 | Coverage Combine and 70% Floor | TEST-04, TEST-06 | Not started |
 
