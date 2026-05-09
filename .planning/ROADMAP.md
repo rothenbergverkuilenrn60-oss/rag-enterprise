@@ -91,7 +91,8 @@ See [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md) for full phase deta
   2. FastAPI serves `static/ui.js` and `static/ui.css` alongside `ui.html` with no configuration changes; the `index.html → ui.html` symlink and StaticFiles mount are unchanged
   3. No `onclick=`, `onsubmit=`, or other inline event handlers remain in `ui.html`; all event wiring lives in `ui.js` via `addEventListener`
   4. The UI renders identically to the pre-split version for the document upload, query submission, and result display flows
-**Plans**: TBD
+**Plans**: 1 plan
+  - [ ] 14-01-PLAN.md (Wave 1) — Extract inline <style> and <script> from static/ui.html into static/ui.css + static/ui.js (IIFE-wrapped, addEventListener wiring); add tests/unit/test_static_ui.py; update tests/integration/test_ui_static.py sentinel list. main.py and symlink UNCHANGED.
 **UI hint**: yes
 
 ### Phase 15: Coverage Combine and 70% Floor
