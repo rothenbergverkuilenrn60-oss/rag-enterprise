@@ -128,7 +128,7 @@ See [milestones/v1.3-ROADMAP.md](milestones/v1.3-ROADMAP.md) for full phase deta
 | 13. LLM Filter Fallback | v1.3 | 3/3 | Complete ✓ | 2026-05-09 |
 | 14. Frontend Split and DOM Modernization | v1.3 | 1/1 | Complete ✓ | 2026-05-09 |
 | 15. Coverage Combine and 70% Floor | v1.3 | 2/2 | Complete ✓ | 2026-05-09 |
-| 16. Planner + Executor Extraction | v1.4 | 0/0 | Pending | — |
+| 16. Planner + Executor Extraction | v1.4 | 0/3 | Plans created (Waves 1→2→3, TDD on Wave 2) | — |
 | 17. Tool Abstraction + RetrieveTool | v1.4 | 0/0 | Pending | — |
 | 18. SSE Planner Trace Event Stream | v1.4 | 0/0 | Pending | — |
 | 19. Agent-First Docs + Demo + Release | v1.4 | 0/0 | Pending | — |

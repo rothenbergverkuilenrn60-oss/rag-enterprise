@@ -41,7 +41,7 @@ Last activity: 2026-05-09 — Milestone v1.4 started
 
 | Phase | Name | REQ-IDs | Status |
 |-------|------|---------|--------|
-| 16 | Planner + Executor Extraction | AGENT-06, AGENT-09, NLU-03 | Not started |
+| 16 | Planner + Executor Extraction | AGENT-06, AGENT-09, NLU-03 | Plans created (3 plans, Waves 1→2→3, TDD on Wave 2) |
 | 17 | Tool Abstraction + RetrieveTool | AGENT-07 | Not started |
 | 18 | SSE Planner Trace Event Stream | AGENT-04 | Not started |
 | 19 | Agent-First Docs + Demo + Release | AGENT-08 | Not started |
