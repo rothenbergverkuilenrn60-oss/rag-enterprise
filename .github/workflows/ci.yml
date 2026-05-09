@@ -52,44 +52,26 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt -r requirements-dev.txt
 
-      - name: Run unit tests with coverage
+      - name: Run unit tests with coverage (data collection only)
+        env:
+          COVERAGE_FILE: .coverage.unit
         run: |
           pytest tests/unit/ \
             --asyncio-mode=auto \
             --timeout=30 \
             --cov=services \
             --cov=utils \
-            --cov-report=term-missing \
-            --cov-report=xml:coverage.xml \
-            --cov-fail-under=46 \
+            --cov-report= \
             -v
 
-      - name: Fetch v1.0 tag for diff-cover baseline
-        run: git fetch origin tag v1.0 --no-tags
-
-      - name: Run diff-cover against v1.0 (TEST-03 hard gate)
-        # v1.1 BOOTSTRAP EXCEPTION: PR #1 introduces the v1.1 milestone — its own diff
-        # against v1.0 is the entire v1.1 codebase (~1337 changed lines). Gating it at
-        # 80% retroactively is a chicken-and-egg block. Marked continue-on-error for
-        # the bootstrap PR; PR #2+ (Phase 11 onwards) test fresh against post-merge
-        # master and the gate hard-blocks them as designed (D-05).
-        # FOLLOW-UP: remove `continue-on-error: true` after PR #1 merges.
-        continue-on-error: true
-        run: |
-          diff-cover coverage.xml \
-            --compare-branch=v1.0 \
-            --fail-under=80 \
-            --format html:diff-cover.html
-
-      - name: Upload coverage report
+      - name: Upload unit coverage data
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: coverage-report
-          path: |
-            .coverage
-            coverage.xml
-            diff-cover.html
+          name: coverage-unit
+          path: .coverage.unit
+          if-no-files-found: error
+          retention-days: 7
 
   integration-tests:
     name: Integration Tests
@@ -118,16 +100,104 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt -r requirements-dev.txt
 
-      - name: Run integration tests
+      - name: Run integration tests with coverage (data collection only)
         env:
           REDIS_URL: redis://localhost:6379/0
           ENVIRONMENT: development
+          COVERAGE_FILE: .coverage.integration
         run: |
           pytest tests/integration/ \
             --asyncio-mode=auto \
             --timeout=60 \
+            --cov=services \
+            --cov=utils \
+            --cov-append \
+            --cov-report= \
             -v
-        continue-on-error: true   # 集成测试依赖外部服务，允许失败但显示结果
+        continue-on-error: true   # D-03: integration deps may fail; combine job uses whatever data exists
+
+      - name: Upload integration coverage data
+        uses: actions/upload-artifact@v4
+        if: always()   # always upload; combine handles missing/empty per D-03
+        with:
+          name: coverage-integration
+          path: .coverage.integration
+          if-no-files-found: warn   # D-03: integration may produce no data (acceptable)
+          retention-days: 7
+
+  coverage-combine:
+    name: Coverage Combine and Floor (TEST-04 + TEST-06 + TEST-03)
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests]
+    if: always()   # run even if integration-tests failed (D-03)
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # Pitfall 4: diff-cover needs full history to find merge-base with v1.0
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Download unit coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-unit
+          path: .
+
+      - name: Download integration coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-integration
+          path: .
+        continue-on-error: true   # D-03: integration may have produced no artifact
+
+      - name: List coverage data files (debug)
+        run: ls -la .coverage* || true
+
+      - name: Combine coverage data
+        run: |
+          # --keep preserves .coverage.unit / .coverage.integration in artifact for debugging (Pitfall 2).
+          # Missing one input -> stderr warning + exit 0 (correct per D-03).
+          # ALL inputs missing -> exit 1 (correct fail signal — combine job fails before report).
+          coverage combine --keep .coverage.unit .coverage.integration
+
+      - name: TEST-04 — Coverage report (combined, source of truth)
+        run: coverage report
+
+      - name: TEST-06 — Floor gate (combined coverage >= 70%)
+        run: coverage report --fail-under=70   # exit 2 on miss -> step fails (Pitfall 5)
+
+      - name: Generate coverage.xml for diff-cover
+        run: coverage xml -o coverage.xml
+
+      - name: Fetch v1.0 tag for diff-cover baseline
+        run: git fetch origin tag v1.0 --no-tags
+
+      - name: TEST-03 — diff-cover gate (>= 80% on changed lines vs v1.0)
+        run: |
+          diff-cover coverage.xml \
+            --compare-branch=v1.0 \
+            --fail-under=80 \
+            --format html:diff-cover.html
+
+      - name: Upload combined coverage artifacts
+        uses: actions/upload-artifact@v4
+        if: always()   # always publish even if a gate failed — reviewers need the report
+        with:
+          name: coverage-report
+          path: |
+            .coverage
+            .coverage.unit
+            .coverage.integration
+            coverage.xml
+            diff-cover.html
+          retention-days: 30
 
   security-scan:
     name: Security Scan
