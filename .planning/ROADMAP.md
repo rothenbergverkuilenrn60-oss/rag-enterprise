@@ -63,7 +63,7 @@ See [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md) for full phase deta
   3. The coordinator emits a final synthesized answer that explicitly references results from all N sub-agents
   4. A swarm invocation with more sub-questions than `MAX_SWARM_AGENTS` (default 5) is capped; sub-agents exceeding `MAX_SWARM_TURNS_PER_AGENT` (default 5) stop cleanly without error
   5. The audit log for every swarm invocation records N, per-agent turn count, per-agent tool calls, swarm latency, and synthesis latency
-**Plans**: TBD
+**Plans**: 12-01 (Wave 1 — data-model foundations) ✅ complete; 12-02 (Wave 2 — SwarmQueryPipeline core) pending; 12-03 (Wave 3 — routing + tests) pending
 **UI hint**: no
 
 ### Phase 13: LLM Filter Fallback

@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Fork Swarm, NLU & Quality
-status: Ready for `/gsd-execute-phase 12`
-stopped_at: Phase 12 plans written (3 waves, plan-checker PASS)
-last_updated: "2026-05-09T09:45:00.000Z"
-last_activity: 2026-05-09 — Phase 12 plans written + verified (PASS)
+status: Phase 12 Wave 1 complete — ready for Wave 2 (Plan 12-02)
+stopped_at: Plan 12-01 executed (data-model foundations on master)
+last_updated: "2026-05-09T09:54:00.000Z"
+last_activity: 2026-05-09 — Plan 12-01 complete (swarm_mode + max_swarm_* settings)
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 3
-  completed_plans: 0
+  completed_plans: 1
 ---
 
 # STATE — EnterpriseRAG v1.3 Fork Swarm, NLU & Quality
@@ -24,18 +24,18 @@ See: .planning/PROJECT.md (updated 2026-05-08)
 
 ## Current Position
 
-Phase: 12 (plans written, ready for execute)
-Plan: 12-01, 12-02, 12-03 (3 waves)
-Status: Ready for `/gsd-execute-phase 12`
-Last activity: 2026-05-09 — Phase 12 plans written + plan-checker PASS
+Phase: 12 (Wave 1 complete, Wave 2 next)
+Plan: 12-02 (Wave 2, depends on 12-01)
+Status: 12-01 executed and committed; ready for Plan 12-02
+Last activity: 2026-05-09 — Plan 12-01 complete (commits 83396b1, c0db54e)
 
 | Field | Value |
 |-------|-------|
 | Milestone | v1.3 Fork Swarm, NLU & Quality |
 | Current phase | 12 — Fork-Agent Swarm |
-| Current plan | 12-01 (Wave 1, depends on []) |
-| Phase status | Plans ready (3/3 plans, plan-checker PASS) |
-| Overall progress | 0/4 phases (3/3 plans pending execute) |
+| Current plan | 12-02 (Wave 2, depends on 12-01) |
+| Phase status | 1/3 plans executed (Wave 1 done) |
+| Overall progress | 0/4 phases (1/3 plans complete in current phase) |
 
 ## Phase Overview
 
@@ -110,9 +110,9 @@ None.
 
 ## Session Continuity
 
-**Last updated:** 2026-05-09 — Phase 12 plans written + plan-checker PASS
-**Stopped at:** 3 plans on disk (12-01 data model, 12-02 SwarmQueryPipeline core, 12-03 routing+tests)
-**Next action:** `/gsd-execute-phase 12` (start with Wave 1 = 12-01-PLAN.md)
+**Last updated:** 2026-05-09 — Plan 12-01 executed (Wave 1 complete)
+**Stopped at:** 12-01 SUMMARY written; commits 83396b1 (swarm_mode field), c0db54e (max_swarm_* settings) on master
+**Next action:** Execute Plan 12-02 (Wave 2 — SwarmQueryPipeline core in `services/pipeline.py`)
 
 ### Phase 12 Plan Summary
 
