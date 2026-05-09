@@ -22,6 +22,7 @@ from services.pipeline import (
     get_agent_pipeline,
     get_ingest_pipeline,
     get_query_pipeline,
+    get_swarm_pipeline,    # AGENT-03
 )
 from utils.cache import cache_invalidate
 from utils.models import (
@@ -204,8 +205,13 @@ async def query(request: Request, req: GenerationRequest) -> APIResponse:
     """非流式 RAG 查询。非流式用于后台任务、批处理、长文本生成"""
     trace_id = str(uuid.uuid4())[:8]
     try:
-        # agent_mode=True → Agentic 工具循环；否则走标准 Pipeline
-        pipeline = get_agent_pipeline() if req.agent_mode else get_query_pipeline()
+        # AGENT-03 三向路由：swarm_mode > agent_mode > 默认 QueryPipeline
+        if req.swarm_mode:
+            pipeline = get_swarm_pipeline()
+        elif req.agent_mode:
+            pipeline = get_agent_pipeline()
+        else:
+            pipeline = get_query_pipeline()
         result: GenerationResponse = await pipeline.run(req)
         data = result.model_dump(mode="json")
         if not req.include_images:
