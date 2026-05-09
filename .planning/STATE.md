@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Agent-First Architecture Inversion
-status: Defining requirements / awaiting first phase plan
-stopped_at: Completed 16-03-PLAN.md — AgentQueryPipeline.run seam swap, AGENT-06/09/NLU-03 closed
-last_updated: "2026-05-09T09:49:46.759Z"
-last_activity: 2026-05-09 — Milestone v1.4 started
+status: Phase 16 implementation complete — awaiting /gsd-verify-work 16
+stopped_at: Phase 16 Wave 3 executed — AgentQueryPipeline.run seam swap landed; AGENT-06/09/NLU-03 acceptance ready for verify
+last_updated: "2026-05-09T17:50:00Z"
+last_activity: 2026-05-09 — Phase 16 Wave 3 executed (Plan 16-03 complete)
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 3
-  completed_plans: 1
-  percent: 33
+  completed_plans: 3
+  percent: 100
 ---
 
 # STATE — EnterpriseRAG (v1.4 planning)
@@ -25,24 +25,24 @@ See: .planning/PROJECT.md (updated 2026-05-09 after v1.4 open)
 
 ## Current Position
 
-Phase: Not started (defining requirements complete; ready for `/gsd-plan-phase 16`)
-Plan: —
-Status: Defining requirements / awaiting first phase plan
-Last activity: 2026-05-09 — Milestone v1.4 started
+Phase: 16 — Planner + Executor Extraction (implementation complete; awaiting `/gsd-verify-work 16`)
+Plan: 16-03 (Wave 3, final)
+Status: Phase 16 implementation complete — awaiting verify
+Last activity: 2026-05-09 — Wave 3 executed (commits f69a4b0..c896b4b)
 
 | Field | Value |
 |-------|-------|
 | Milestone | v1.4 Agent-First Architecture Inversion |
-| Current phase | 16 — Planner + Executor Extraction (not started) |
-| Current plan | — |
-| Phase status | 0/4 phases started |
-| Overall progress | 0/4 phases; v1.4 is just opened |
+| Current phase | 16 — Planner + Executor Extraction (3/3 plans executed) |
+| Current plan | 16-03 (complete) |
+| Phase status | 1/4 phases implementation-complete (verify pending) |
+| Overall progress | Phase 16 = 100% plans executed; v1.4 = 25% phases at impl-complete |
 
 ## Phase Overview
 
 | Phase | Name | REQ-IDs | Status |
 |-------|------|---------|--------|
-| 16 | Planner + Executor Extraction | AGENT-06, AGENT-09, NLU-03 | Wave 1 + Wave 2 executed; Wave 3 pending (run body rewrite + delete delegates) |
+| 16 | Planner + Executor Extraction | AGENT-06, AGENT-09, NLU-03 | All 3 waves executed; awaiting /gsd-verify-work 16 |
 | 17 | Tool Abstraction + RetrieveTool | AGENT-07 | Not started |
 | 18 | SSE Planner Trace Event Stream | AGENT-04 | Not started |
 | 19 | Agent-First Docs + Demo + Release | AGENT-08 | Not started |
@@ -103,9 +103,15 @@ None.
 
 ## Session Continuity
 
-**Last updated:** 2026-05-09 — Phase 16 Wave 2 complete (Planner + Executor + ToolPlan + parity tests)
-**Stopped at:** Completed 16-03-PLAN.md — AgentQueryPipeline.run seam swap, AGENT-06/09/NLU-03 closed
-**Next action:** New session — run `/gsd-execute-phase 16 --wave 3` to execute Plan 16-03. The seam swap rewires AgentQueryPipeline.run to call get_planner() + get_executor() and absorbs the v1.3 max_iterations=5 outer loop at orchestrator level (CONTEXT.md D-12). Wave 3 is the only plan in Phase 16 that changes AgentQueryPipeline.run body — Wave 1 was helper extraction with one-line delegates; Wave 2 built the new collaborators in isolation.
+**Last updated:** 2026-05-09 — Phase 16 Wave 3 executed (seam swap, _execute_tool_call delegates deleted)
+**Stopped at:** Phase 16 implementation complete — awaiting `/gsd-verify-work 16`
+**Next action:** Run `/gsd-verify-work 16` to confirm AGENT-06/09/NLU-03 acceptance against the codebase. After verify passes, `/gsd-ship` to advance to Phase 17 (Tool Abstraction + RetrieveTool, AGENT-07).
+
+### Phase 16 Wave 3 Execution Notes
+
+- **Wave 3 (commits f69a4b0 → c896b4b, feat(16-03-T1..T4) + summary commit):** AgentQueryPipeline.run rewritten as thin orchestrator over `get_planner()` + `get_executor()`; final body 43 lines (≤50 gate). Module-level `MAX_ITERATIONS = 5` constant absorbs v1.3 outer-loop cap (CONTEXT.md D-12). Both `_execute_tool_call` one-line delegates deleted from `services/pipeline.py` — `grep -rnE "def _execute_tool_call" services/` returns 0; only `async def execute_tool_call` in `services/agent/tool_executor.py:24` remains (AGENT-09 acceptance). `tests/unit/test_agent_pipeline_refactor.py` mock targets switched to `services.pipeline.get_planner` / `services.pipeline.get_executor` (consumer-path pattern); 11 public assertions unchanged. Verification: `pytest tests/unit -q` → 656 passed / 1 skipped / 0 failures; `coverage report --fail-under=70` → 72.1%; `ruff check services/ tests/` clean; `mypy --strict` 296 errors (= v1.3 baseline, 0 new).
+- **Three deviations (auto-fixed, Rule 1/2):** (1) `Executor.execute_plan` lacked `return_exceptions=True` on `asyncio.gather` — broke error-isolation test; fixed. (2) `SwarmQueryPipeline` filter extractor not injectable — added DI param to keep 8 swarm tests green. (3) `test_execute_plan_propagates_exceptions` updated to assert post-fix isolation behavior. All in scope for `services/agent/executor.py`, `services/pipeline.py`, `tests/unit/test_executor.py`, `tests/unit/test_swarm_pipeline.py` — no architectural drift from PLAN.md must-haves.
+- **Phase 16 close-out:** AGENT-06 (planner + executor extraction), AGENT-09 (single shared `execute_tool_call`), NLU-03 (intent classification by planner — preserves regex-first filter extractor) all implementation-complete. `/gsd-verify-work 16` is the next gate.
 
 ### Phase 16 Wave 1 + 2 Execution Notes
 
