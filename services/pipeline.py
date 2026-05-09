@@ -75,7 +75,7 @@ from utils.metrics import (
 from utils.models import (
     AgentEvent,
     DocType,
-    ExecutorParallelEvent,  # noqa: F401 — hoisted for Task 2b span_id pairing refactor
+    ExecutorParallelEvent,  # noqa: F401 — re-exported by event class hierarchy; consumed via SSE
     GenerationRequest,
     GenerationResponse,
     IngestionRequest,
@@ -86,9 +86,9 @@ from utils.models import (
     SynthesizerFinalEvent,
     ToolPlan,
     ToolResult,
-    ToolSpanEndEvent,    # noqa: F401 — hoisted for Task 2b span_id pairing refactor
-    ToolSpanErrorEvent,  # noqa: F401 — hoisted for Task 2b span_id pairing refactor
-    ToolSpanStartEvent,  # noqa: F401 — hoisted for Task 2b span_id pairing refactor
+    ToolSpanEndEvent,
+    ToolSpanErrorEvent,
+    ToolSpanStartEvent,
 )
 from utils.observability import start_span
 
@@ -902,16 +902,25 @@ class AgentQueryPipeline:
             )
 
             # ──────────────────────────────────────────────────────────────
-            # Task 2a (GREEN minimal): in-order pairing.
-            # The executor (plan 18-02) yields the bare result IMMEDIATELY
-            # after the corresponding tool.span.end (or tool.span.error)
-            # event for that span. For single-step plans (the case Tests
-            # 1, 6, 7, 8, 9 exercise) the natural fill order coincides with
-            # plan.steps order. Multi-tool multi-group correctness is
-            # finished in Task 2b's refactor.
+            # Span-id pairing (Task 2b refactor).
+            # Executor contract (plan 18-02):
+            #   1. ToolSpanStartEvent emit in flat parallel-group iteration
+            #      order — bind span_id → step idx as each start arrives.
+            #   2. ToolSpanEndEvent / ToolSpanErrorEvent for span S is yielded
+            #      IMMEDIATELY before the bare result/exception for span S.
+            #   3. Bare results may arrive in as_completed order WITHIN a
+            #      group — NOT necessarily plan.steps order.
+            # Strategy: track (span_id → step_idx) on each start event; on
+            # each end/error event, buffer the resolved step_idx in
+            # `_pending_idx` so the very next bare-result yield slots into
+            # raw_outputs at the correct index.
             # ──────────────────────────────────────────────────────────────
             raw_outputs: list[ToolResult | BaseException | None] = [None] * len(plan.steps)
-            next_slot = 0
+            flat_idx_order: list[int] = [idx for group in plan.parallel_groups for idx in group]
+            flat_pos: int = 0
+            span_id_to_step_idx: dict[str, int] = {}
+            _pending_idx: int = -1   # step idx whose bare result arrives next
+
             async for item in executor.execute_plan_streaming(
                 plan, tf, req,
                 trace_id=trace_id,
@@ -919,13 +928,21 @@ class AgentQueryPipeline:
             ):
                 if isinstance(item, AgentEvent):
                     yield item
+                    if isinstance(item, ToolSpanStartEvent):
+                        # Executor emits start events in flat_idx_order — bind span_id.
+                        if flat_pos < len(flat_idx_order):
+                            span_id_to_step_idx[item.span_id] = flat_idx_order[flat_pos]
+                            flat_pos += 1
+                    elif isinstance(item, (ToolSpanEndEvent, ToolSpanErrorEvent)):
+                        # Buffer the step idx whose bare result arrives next.
+                        _pending_idx = span_id_to_step_idx.get(item.span_id, -1)
                 else:
-                    # Bare ToolResult or BaseException — fill plan.steps order.
-                    # Single-tool plans: trivially correct.
-                    # Multi-tool: refactored in Task 2b.
-                    if next_slot < len(raw_outputs):
-                        raw_outputs[next_slot] = item
-                        next_slot += 1
+                    # Bare ToolResult or BaseException — pair with most-recently-resolved span.
+                    if 0 <= _pending_idx < len(raw_outputs):
+                        raw_outputs[_pending_idx] = item
+                        _pending_idx = -1   # reset; next end/error event will set the next idx
+                    # else: contract violation — drop result; defensive None below
+                    #       converts to RuntimeError so _build_tool_results contract holds.
 
             collected: list[ToolResult | BaseException] = [
                 r if r is not None else RuntimeError("missing executor result")
