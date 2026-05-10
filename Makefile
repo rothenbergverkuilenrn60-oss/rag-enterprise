@@ -4,7 +4,7 @@
 # 使用：make <target>
 # =============================================================================
 
-.PHONY: help build up down logs shell ingest eval clean coverage-diff coverage-combined demo-agent demo-agent-record
+.PHONY: help build up down logs shell ingest eval clean coverage-diff coverage-combined coverage-per-module demo-agent demo-agent-record
 
 COMPOSE = docker compose
 SERVICE = rag-api
@@ -135,3 +135,19 @@ coverage-combined:  ## Mirror CI: combined unit+integration coverage report (TES
 	conda run -n torch_env coverage combine --keep .coverage.unit .coverage.integration
 	conda run -n torch_env coverage report
 	conda run -n torch_env coverage report --fail-under=70
+
+.PHONY: coverage-per-module
+coverage-per-module: ## Phase 22: enforce per-module >=70% on the 5 v1.5-locked modules (run `uv run pytest tests/unit/ --cov=services --cov=utils` first to populate .coverage)
+	@echo ">> Phase 22: per-module >=70% gate (mirrors ci.yml coverage-combine job)"
+	@test -f .coverage || { echo "ERROR: .coverage not found. Run: uv run pytest tests/unit/ --cov=services --cov=utils"; exit 1; }
+	@FAILED=""; \
+	for MOD in services/pipeline.py services/generator/llm_client.py services/vectorizer/vector_store.py services/retriever/retriever.py services/extractor/extractor.py; do \
+		echo ""; echo "=== $$MOD ==="; \
+		uv run coverage report --include="$$MOD" --show-missing --fail-under=70 || FAILED="$$FAILED $$MOD"; \
+	done; \
+	echo ""; \
+	if [ -n "$$FAILED" ]; then \
+		echo "FAIL: per-module floor missed for:$$FAILED"; \
+		exit 1; \
+	fi; \
+	echo "PASS: all 5 Phase-22 modules >=70%"
