@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Agent-First Architecture Inversion
-status: executing
-stopped_at: Plan 19-02 complete (RED+GREEN, 6 integration tests, runner module)
-last_updated: "2026-05-09T15:33:21.346Z"
-last_activity: 2026-05-09
+status: implementation-complete
+stopped_at: Phase 19 complete (AGENT-08, VERIFICATION PASSED 5/5 SCs); v1.4 release ceremony drafted, tag pending PR merge
+last_updated: "2026-05-10T00:00:00.000Z"
+last_activity: 2026-05-10
 progress:
   total_phases: 4
-  completed_phases: 2
+  completed_phases: 4
   total_plans: 19
-  completed_plans: 12
-  percent: 63
+  completed_plans: 19
+  percent: 100
 ---
 
 # STATE — EnterpriseRAG (v1.4 planning)
@@ -21,31 +21,31 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-09 after v1.4 open)
 
 **Core value:** Every query returns a grounded, auditable answer — no hallucinations, no silent failures, no security gaps.
-**Current focus:** Phase 19 — Agent-First Docs + Demo + Release (Phase 18 complete; AGENT-04 closed; awaiting Phase 19 docs+demo to lock v1.4 milestone PR)
+**Current focus:** v1.4 milestone PR — all 4 phases (16, 17, 18, 19) implementation-complete + verified; release ceremony drafted; user runs `release-tag-commands.md` post-PR-merge to cut `v1.4.0`.
 
 ## Current Position
 
-Phase: 18 (sse-planner-trace-event-stream) — EXECUTING
-Plan: 2 of 5
-Status: Ready to execute
-Last activity: 2026-05-09
+Phase: 19 (agent-first-docs-demo-release) — COMPLETE
+Plan: 8 of 8
+Status: Phase 19 VERIFICATION PASSED (5/5 SCs); milestone ready for PR
+Last activity: 2026-05-10
 
 | Field | Value |
 |-------|-------|
 | Milestone | v1.4 Agent-First Architecture Inversion |
-| Current phase | 17 — Tool Abstraction + RetrieveTool (3/3 plans executed) |
-| Current plan | 17-03 (complete) |
-| Phase status | 2/4 phases implementation-complete (verify pending on both 16 + 17) |
-| Overall progress | Phase 17 = 100% plans executed; v1.4 = 50% phases at impl-complete |
+| Current phase | 19 — Agent-First Docs + Demo + Release (8/8 plans complete) |
+| Current plan | 19-08 (complete; release ceremony drafted, autonomous: false) |
+| Phase status | 4/4 phases implementation-complete; Phase 19 VERIFIED |
+| Overall progress | v1.4 = 100% plans executed; milestone awaiting PR merge + tag cut |
 
 ## Phase Overview
 
 | Phase | Name | REQ-IDs | Status |
 |-------|------|---------|--------|
-| 16 | Planner + Executor Extraction | AGENT-06, AGENT-09, NLU-03 | All 3 waves executed; awaiting /gsd-verify-work 16 |
-| 17 | Tool Abstraction + RetrieveTool | AGENT-07 | All 3 waves executed; awaiting /gsd-verify-work 17 |
-| 18 | SSE Planner Trace Event Stream | AGENT-04 | Context gathered (D-01..D-18); ready for /gsd-plan-phase 18 |
-| 19 | Agent-First Docs + Demo + Release | AGENT-08 | Not started |
+| 16 | Planner + Executor Extraction | AGENT-06, AGENT-09, NLU-03 | Complete ✓ (3/3 waves) |
+| 17 | Tool Abstraction + RetrieveTool | AGENT-07 | Complete ✓ (3/3 waves) |
+| 18 | SSE Planner Trace Event Stream | AGENT-04 | Complete ✓ (5/5 waves) |
+| 19 | Agent-First Docs + Demo + Release | AGENT-08 | Complete ✓ (8/8 plans, VERIFIED 2026-05-10) |
 
 ## Accumulated Context
 
@@ -103,9 +103,9 @@ None.
 
 ## Session Continuity
 
-**Last updated:** 2026-05-09 — Phase 17 implementation complete (3 waves, 22 commits)
-**Stopped at:** Plan 19-02 complete (RED+GREEN, 6 integration tests, runner module)
-**Next action:** Run `/gsd-verify-work 17` to confirm AGENT-07 acceptance against codebase. Then advance to `/gsd-discuss-phase 18` (SSE Planner Trace Event Stream, AGENT-04). Phase 18 consumes Phase 17's `ToolResult.metadata` shape for `tool.span` events — forward-compat verified during Phase 17 research (RESEARCH §"Phase 18 SSE Forward-Compat").
+**Last updated:** 2026-05-10 — Phase 19 complete (8/8 plans across 6 waves; VERIFICATION PASSED 5/5 SCs)
+**Stopped at:** v1.4 milestone implementation-complete; release ceremony drafted (`release-notes-v1.4.md` + `release-tag-commands.md`); user runs the ceremony post-PR-merge per D-12.
+**Next action:** Open the v1.4 milestone PR from `gsd/v1.3-milestone` → `master`. After merge, run the 7-step runbook in `.planning/phases/19-agent-first-docs-demo-release/release-tag-commands.md` to cut `v1.4.0`, push, and publish the GitHub release. v1.5+ follow-ups (AGENT-05 multi-agent debate, MCP plug-in discovery, mutation testing) tracked in the carry-forward todos below.
 
 ### Phase 17 Wave 1 Execution Notes
 
