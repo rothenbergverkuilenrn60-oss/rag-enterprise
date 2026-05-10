@@ -18,7 +18,7 @@ from __future__ import annotations
 import json
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, AsyncGenerator
+from typing import Any, AsyncGenerator, ClassVar
 
 import httpx
 from loguru import logger
@@ -113,6 +113,8 @@ class BaseLLMClient(ABC):
     chat_with_tools() 和 chat_thinking() 是可选扩展，默认回退到普通 chat()。
     """
 
+    provider_name: ClassVar[str] = "anthropic"  # default; subclasses override
+
     @abstractmethod
     async def chat(
         self, system: str, user: str,
@@ -197,6 +199,8 @@ class BaseLLMClient(ABC):
 # Ollama Client（默认，WSL2 本地部署）
 # ══════════════════════════════════════════════════════════════════════════════
 class OllamaLLMClient(BaseLLMClient):
+    provider_name: ClassVar[str] = "openai"  # Ollama uses OpenAI-compatible tool format (RESEARCH A3)
+
     def __init__(self) -> None:
         self._base  = settings.ollama_base_url
         self._model = settings.ollama_model
@@ -266,6 +270,8 @@ class OllamaLLMClient(BaseLLMClient):
 # OpenAI Client
 # ══════════════════════════════════════════════════════════════════════════════
 class OpenAILLMClient(BaseLLMClient):
+    provider_name: ClassVar[str] = "openai"
+
     def __init__(self) -> None:
         from openai import AsyncOpenAI
         self._client = AsyncOpenAI(
@@ -508,6 +514,8 @@ class AnthropicLLMClient(BaseLLMClient):
       4. Extended Thinking — chat_thinking() 用于多跳推理，逐步分析复杂问题
       5. 错误分类          — RateLimitError / OverloadedError 分开处理
     """
+
+    provider_name: ClassVar[str] = "anthropic"
 
     def __init__(self) -> None:
         import anthropic

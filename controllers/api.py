@@ -22,6 +22,7 @@ from services.pipeline import (
     get_agent_pipeline,
     get_ingest_pipeline,
     get_query_pipeline,
+    get_swarm_pipeline,    # AGENT-03
 )
 from utils.cache import cache_invalidate
 from utils.models import (
@@ -204,8 +205,13 @@ async def query(request: Request, req: GenerationRequest) -> APIResponse:
     """非流式 RAG 查询。非流式用于后台任务、批处理、长文本生成"""
     trace_id = str(uuid.uuid4())[:8]
     try:
-        # agent_mode=True → Agentic 工具循环；否则走标准 Pipeline
-        pipeline = get_agent_pipeline() if req.agent_mode else get_query_pipeline()
+        # AGENT-03 三向路由：swarm_mode > agent_mode > 默认 QueryPipeline
+        if req.swarm_mode:
+            pipeline = get_swarm_pipeline()
+        elif req.agent_mode:
+            pipeline = get_agent_pipeline()
+        else:
+            pipeline = get_query_pipeline()
         result: GenerationResponse = await pipeline.run(req)
         data = result.model_dump(mode="json")
         if not req.include_images:
@@ -244,6 +250,47 @@ async def query_stream(request: Request, req: GenerationRequest) -> StreamingRes
         _sse(),
         media_type="text/event-stream",      # SSE 协议：返回文本流，每个事件占一行，事件之间用空行隔开
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},      # 禁用缓存,x-accel-buffering 是告诉 Nginx 不要缓冲，直接透传
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Agent SSE (Phase 18, AGENT-04) — named-event stream over the agentic loop
+# ══════════════════════════════════════════════════════════════════════════════
+@router.post("/agent/v1/run/stream", tags=["agent"])
+@_limiter.limit(f"{settings.rate_limit_query_rpm}/minute")
+async def agent_run_stream(request: Request, req: GenerationRequest) -> StreamingResponse:
+    """SSE event stream for agentic queries (AGENT-04, Phase 18).
+
+    Emits typed AgentEvent payloads as named SSE frames:
+
+        event: <event_type>\\ndata: <model_dump_json>\\n\\n
+
+    Terminal event is ``synthesizer.final`` — no ``[DONE]`` sentinel (D-01).
+    Auth + rate limit + multi-tenant RLS inherit from the existing ``/query``
+    stack (D-01, D-03). Body shape is ``GenerationRequest`` unchanged; the
+    route invokes ``AgentQueryPipeline.run_streaming`` regardless of
+    ``req.agent_mode`` — this URL IS the agent surface.
+    """
+    pipeline = get_agent_pipeline()
+
+    async def _sse():
+        try:
+            async for evt in pipeline.run_streaming(req):
+                # D-10 named-event format: event: + data: + blank line.
+                # model_dump_json() is one-way Pydantic V2 serialization —
+                # no client-controlled deserialization (T-18-17).
+                yield f"event: {evt.event_type}\ndata: {evt.model_dump_json()}\n\n"
+        except (asyncpg.PostgresError, httpx.HTTPError, openai.APIError, ValueError) as exc:
+            logger.error(f"[API:agent_stream] error={exc}")
+            # Named-event error frame — keep wire shape consistent with the
+            # rest of the stream so frontend EventSource handlers stay simple.
+            # Generic message only; full traceback at logger.error (T-18-15).
+            yield 'event: error\ndata: {"message": "服务暂时不可用，请稍后重试"}\n\n'
+
+    return StreamingResponse(
+        _sse(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
 
 

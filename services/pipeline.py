@@ -15,10 +15,14 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import itertools
+import json
+import re
 import time
 import uuid
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, AsyncGenerator
+from typing import Any, AsyncGenerator, AsyncIterator
 
 import anthropic                                          # noqa: F401 — referenced in narrow except in AgentQueryPipeline.run
 import httpx                                              # noqa: F401 — referenced in narrow except in AgentQueryPipeline.run
@@ -26,7 +30,10 @@ import openai                                             # noqa: F401 — refer
 from loguru import logger
 
 from config.settings import settings
-from services.audit.audit_service import AuditResult, get_audit_service
+from services.agent import get_executor, get_planner
+from services.agent.tools import get_tool_registry
+from services.agent.tools.retrieve import retrieve_impl as _shared_execute_tool_call
+from services.audit.audit_service import AuditAction, AuditEvent, AuditResult, get_audit_service
 from services.doc_processor.chunker import get_doc_processor
 from services.events.event_bus import get_event_bus
 from services.extractor.extractor import get_extractor
@@ -38,7 +45,7 @@ from services.memory.memory_service import (
     ConversationTurn,
     get_memory_service,
 )
-from services.nlu.filter_extractor import extract_filters
+from services.nlu.filter_extractor import get_filter_extractor
 
 # Core services
 from services.nlu.nlu_service import QueryIntent, get_nlu_service
@@ -66,15 +73,22 @@ from utils.metrics import (
     rule_trigger_total,
 )
 from utils.models import (
-    AgenticTurn,
+    AgentEvent,
     DocType,
+    ExecutorParallelEvent,  # noqa: F401 — re-exported by event class hierarchy; consumed via SSE
     GenerationRequest,
     GenerationResponse,
     IngestionRequest,
     IngestionResponse,
+    PlannerPlanEvent,
     RawDocument,
     RetrievedChunk,
-    ToolCall,
+    SynthesizerFinalEvent,
+    ToolPlan,
+    ToolResult,
+    ToolSpanEndEvent,
+    ToolSpanErrorEvent,
+    ToolSpanStartEvent,
 )
 from utils.observability import start_span
 
@@ -311,7 +325,7 @@ class QueryPipeline:
         # `effective_query` feeds NLU + cache_key + embedding text; `extraction.filters`
         # merges into tf below with highest precedence (tenant < req.filters < extracted).
         # `req.query` (raw) is preserved for `original_query=` audit and memory turn save.
-        extraction = extract_filters(req.query)
+        extraction = await get_filter_extractor().extract(req.query)
         effective_query = extraction.semantic_query
 
         nlu = await self._nlu.analyze(
@@ -472,7 +486,7 @@ class QueryPipeline:
         # QUERY-01 mirror of _run_query: extract filters → tf merge (extracted wins)
         # → NLU runs against the stripped semantic query so rewritten_queries don't
         # carry "第63页"-style literals into the embedder.
-        extraction = extract_filters(req.query)
+        extraction = await get_filter_extractor().extract(req.query)
         effective_query = extraction.semantic_query
 
         tf           = self._tenant_svc.get_tenant_filter(tenant_id)
@@ -529,6 +543,61 @@ class QueryPipeline:
 # ══════════════════════════════════════════════════════════════════════════════
 # Agent 查询流水线（Agentic RAG）
 # ══════════════════════════════════════════════════════════════════════════════
+@dataclass(frozen=True)
+class _SubAgentResult:
+    """Internal: result of a single SwarmQueryPipeline sub-agent run.
+
+    AGENT-03 — used only inside services/pipeline.py; not part of the public API.
+    """
+    answer: str
+    turns: int
+    tool_calls_count: int
+    chunks: list[RetrievedChunk]
+
+
+_COORDINATOR_SYSTEM: str = """\
+你是一个查询分解协调器。
+
+任务：将用户的多维度查询分解为独立的子问题列表，每个子问题对应一个可独立检索的维度。
+
+严格规则：
+1. 仅输出 JSON 数组，无任何前缀、后缀、解释、markdown 代码块。
+2. 数组元素为字符串，每个元素是一个完整、自包含的子问题。
+3. 如果输入查询只有一个维度（无法进一步分解），返回包含原始查询的单元素数组：["原始查询"]。
+4. 子问题数量不得超过 5 个；超出时合并语义最相近的维度。
+5. 子问题必须是中文（与输入语言一致）。
+
+示例输入：审计上月所有未结案件的产假天数、病假规定、加班补偿政策
+示例输出：["上月所有未结案件的产假天数", "上月所有未结案件的病假规定", "上月所有未结案件的加班补偿政策"]
+
+示例单维度输入：什么是产假？
+示例单维度输出：["什么是产假？"]
+"""
+
+
+_SYNTHESIS_SYSTEM: str = """\
+你是一个答案综合器。
+
+任务：根据多个子代理对原始查询不同维度的回答，合成一个连贯、完整、无重复的最终答案。
+
+规则：
+1. 保留所有子答案中的关键事实和具体数字、政策、条款。
+2. 去除子答案之间的重复表述；按维度组织最终答案，可使用小标题或列表。
+3. 若某子答案标记为失败（以 '[Sub-agent ' 开头并包含 'failed'），跳过该维度并在最终答案末尾以一行注明缺失维度（不暴露技术细节）。
+4. 答案必须使用中文。
+5. 不得编造未在子答案中出现的信息。
+"""
+
+# Module-level constant (AGENT-06 / CONTEXT.md D-12).
+# The cap is enforced by the orchestrator outer loop; Executor runs exactly
+# one ToolPlan per call and does NOT enforce this limit internally.
+MAX_ITERATIONS: int = 5
+
+# Explicit allowlist of tool names exposed to the planner LLM (AGENT-07).
+# WebSearchTool is registered but excluded here (placeholder — v1.5+).
+AGENT_TOOL_ALLOWLIST: list[str] = ["search_knowledge_base", "refine_search"]
+
+
 class AgentQueryPipeline:
     """
     Agentic RAG：Claude 通过 Tool Use 自主决策检索策略。
@@ -544,48 +613,6 @@ class AgentQueryPipeline:
       3. 收到检索结果后继续推理
       4. 直到 stop_reason == "end_turn"（Claude 认为信息充足）
     """
-
-    MAX_ITERATIONS = 5
-
-    _AGENT_TOOLS = [
-        {
-            "name": "search_knowledge_base",
-            "description": "在企业知识库中搜索相关信息",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "搜索查询词，应精确描述需要找到的信息",
-                    },
-                    "top_k": {
-                        "type": "integer",
-                        "description": "返回结果数量（1-10）",
-                        "default": 5,
-                    },
-                },
-                "required": ["query"],
-            },
-        },
-        {
-            "name": "refine_search",
-            "description": "用更精确的关键词细化搜索，适用于初次搜索结果不够具体时",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "refined_query": {
-                        "type": "string",
-                        "description": "更精确的搜索词",
-                    },
-                    "source_filter": {
-                        "type": "string",
-                        "description": "限定搜索的文档来源（可选）",
-                    },
-                },
-                "required": ["refined_query"],
-            },
-        },
-    ]
 
     _AGENT_SYSTEM = """\
 你是企业知识库的智能问答助手。通过工具自主检索知识库，逐步构建完整回答。
@@ -607,158 +634,115 @@ class AgentQueryPipeline:
 """
 
     def __init__(self) -> None:
-        self._retriever  = get_retriever()
-        self._llm        = get_llm_client()
-        self._memory     = get_memory_service()
-        self._audit      = get_audit_service()
-        self._tenant_svc = get_tenant_service()
+        self._retriever        = get_retriever()
+        self._llm              = get_llm_client()
+        self._memory           = get_memory_service()
+        self._audit            = get_audit_service()
+        self._tenant_svc       = get_tenant_service()
+        self._filter_extractor = get_filter_extractor()
 
-    async def run(self, req: GenerationRequest) -> GenerationResponse:
-        trace_id  = str(uuid.uuid4())[:8]
-        tenant_id = getattr(req, "tenant_id", "")
-        user_id   = getattr(req, "user_id",   "")
-        t0        = time.perf_counter()
+    # ── helpers ──────────────────────────────────────────────────────────────
 
-        # v1.1 QUERY-01 carry-forward: extract filters from raw query so every
-        # tool-driven retrieve() call inherits page/section scope via `tf`.
-        # Agent does not run NLU.analyze; req.query stays as raw user input.
-        extraction = extract_filters(req.query)
-
-        tf = self._tenant_svc.get_tenant_filter(tenant_id)
-        if req.filters:
-            tf = {**(tf or {}), **req.filters}
-        if extraction.filters:
-            tf = {**(tf or {}), **extraction.filters}
-
-        # 短期对话历史
-        mem_ctx = await self._memory.load_context(req.session_id, user_id, tenant_id, req.query)
+    def _build_initial_messages(
+        self,
+        req: GenerationRequest,
+        mem_ctx: Any,
+    ) -> list[dict[str, Any]]:
+        """Build the opening messages list from chat history + user query."""
         _MAX_TURN_CHARS = 2000
-        chat_history = [
+        messages: list[dict[str, Any]] = [
             {"role": t.role, "content": t.content[:_MAX_TURN_CHARS]}
             for t in mem_ctx.short_term[-6:]
         ]
-
-        messages: list[dict[str, Any]] = []
-        for turn_msg in chat_history:
-            messages.append({"role": turn_msg["role"], "content": turn_msg["content"]})
         messages.append({"role": "user", "content": req.query})
+        return messages
 
-        all_chunks: list[RetrievedChunk] = []
-        answer = ""
-        parallelism_factors: list[int] = []   # one entry per turn that issued tool calls
+    @staticmethod
+    def _build_tool_results(
+        plan: ToolPlan,
+        raw_outputs: list[ToolResult | BaseException],
+        all_chunks: list[RetrievedChunk],
+    ) -> list[dict[str, Any]]:
+        """Convert Executor output to provider tool_result dicts.
 
-        for iteration in range(self.MAX_ITERATIONS):
-            try:
-                turn: AgenticTurn = await self._llm.call_agentic_turn(
-                    messages=messages,
-                    tools=self._AGENT_TOOLS,
-                    system=self._AGENT_SYSTEM,
-                    max_tokens=settings.llm_max_tokens,
-                    parallel_tool_calls=True,
+        Appends successfully retrieved chunks to ``all_chunks`` in-place.
+        Returns the tool_results list for the next user message.
+
+        Handles three cases:
+          1. BaseException — escape (CancelledError / TimeoutError from gather)
+          2. ToolResult with is_error=True — controlled error from tool (e.g. RetrieveTool)
+          3. ToolResult success — extend all_chunks + build tool_result dict
+        """
+        tool_results: list[dict[str, Any]] = []
+        for tc, output in zip(plan.steps, raw_outputs):
+            if isinstance(output, BaseException):
+                logger.error(
+                    f"[Agent] tool_call_id={tc.id} name={tc.name} failed: {output!r}"
                 )
-            except NotImplementedError:
-                # D-03: provider doesn't support agent_mode (e.g. Ollama in v1.2).
-                # Fall back to fixed pipeline; preserves user-visible behavior of
-                # the deleted Anthropic-only gate without Anthropic-specific code.
-                logger.warning(
-                    f"[Agent] provider lacks call_agentic_turn — falling back: "
-                    f"provider={type(self._llm).__name__}"
+                tool_results.append({
+                    "type":        "tool_result",
+                    "tool_use_id": tc.id,
+                    "content":     f"工具执行失败:{type(output).__name__}: {output}",
+                    "is_error":    True,
+                })
+            elif output.is_error:
+                logger.error(
+                    f"[Agent] tool_call_id={tc.id} name={tc.name} returned is_error: {output.content}"
                 )
-                return await get_query_pipeline().run(req)
-            except (
-                anthropic.APIError,
-                openai.APIError,
-                httpx.HTTPError,
-                asyncio.TimeoutError,
-            ) as exc:
-                # B-1: NARROW provider-error tuple per project ERR-01 rule
-                # (CLAUDE.md). Catches provider rate-limit/API errors,
-                # transport-level HTTP failures, and async timeouts. Does NOT
-                # catch generic Exception — internal bugs (KeyError, etc.) bubble.
-                logger.error(f"[Agent] call_agentic_turn failed iter={iteration+1}: {exc!r}")
-                answer = "抱歉，智能助手在处理您的请求时遇到了错误，请稍后重试。"
-                break
+                tool_results.append({
+                    "type":        "tool_result",
+                    "tool_use_id": tc.id,
+                    "content":     output.content,
+                    "is_error":    True,
+                })
+            else:
+                all_chunks.extend(output.chunks)
+                tool_results.append({
+                    "type":        "tool_result",
+                    "tool_use_id": tc.id,
+                    "content":     output.content,
+                })
+        return tool_results
 
-            # Terminal: text_only / max_tokens / error → take whatever text we have
-            if turn.stop_reason in ("text_only", "max_tokens", "error"):
-                answer = turn.text or answer
-                if turn.stop_reason == "max_tokens":
-                    logger.warning(
-                        f"[Agent] iter={iteration+1} stop_reason=max_tokens (response truncated)"
-                    )
-                break
+    @staticmethod
+    def _dedup_chunks(
+        all_chunks: list[RetrievedChunk],
+    ) -> list[RetrievedChunk]:
+        """Dedup by chunk_id (ONCE per turn, post-gather — gotcha #1)."""
+        seen: set[str] = set()
+        deduped: list[RetrievedChunk] = []
+        for c in all_chunks:
+            if c.chunk_id not in seen:
+                seen.add(c.chunk_id)
+                deduped.append(c)
+        return deduped[:20]
 
-            # turn.stop_reason == "tool_use" → execute requested tool calls
-            if not turn.tool_calls:
-                # Defensive: stop_reason says tool_use but no calls returned.
-                logger.warning(
-                    f"[Agent] iter={iteration+1} stop_reason=tool_use but no tool_calls; breaking"
-                )
-                answer = turn.text or answer
-                break
+    async def _build_tf(
+        self,
+        req: GenerationRequest,
+        tenant_id: str,
+    ) -> dict[str, Any]:
+        """Build the merged tenant + request + extracted filter dict."""
+        extraction = await self._filter_extractor.extract(req.query)
+        tf: dict[str, Any] = self._tenant_svc.get_tenant_filter(tenant_id) or {}
+        if req.filters:
+            tf = {**tf, **req.filters}
+        if extraction.filters:
+            tf = {**tf, **extraction.filters}
+        return tf
 
-            # Append the assistant's raw message verbatim — adapter normalizes shape.
-            messages.append(turn.raw_assistant_msg)
-
-            # AGENT-02: execute N≥1 tool calls concurrently. asyncio.gather with
-            # N=1 is functionally equivalent to a single await; we always go
-            # through gather to keep the audit log shape uniform.
-            parallelism = len(turn.tool_calls)
-            parallelism_factors.append(parallelism)
-            tool_names = [tc.name for tc in turn.tool_calls]
-
-            # AGENT-02 AC#4 (W-1): the structured logger IS the per-turn audit
-            # trail. AuditService.log_query records a SINGLE end-of-run aggregate
-            # entry (existing v1.0/v1.1 pattern, intent="agent" — W-3 backward
-            # compat). When AC#4 says "audit log per turn" it refers to THIS
-            # structured log line, not AuditService.
-            logger.info(
-                f"[Agent] iter={iteration+1} parallel_factor={parallelism} tools={tool_names}"
-            )
-
-            tool_coros = [
-                self._execute_tool_call(tc, tf or {}, req)
-                for tc in turn.tool_calls
-            ]
-            tool_outputs = await asyncio.gather(*tool_coros, return_exceptions=True)
-
-            # Build one tool_result per tool_call.id (preserve order via zip).
-            tool_results: list[dict[str, Any]] = []
-            for tc, output in zip(turn.tool_calls, tool_outputs):
-                if isinstance(output, BaseException):
-                    logger.error(
-                        f"[Agent] tool_call_id={tc.id} name={tc.name} failed: {output!r}"
-                    )
-                    tool_results.append({
-                        "type":        "tool_result",
-                        "tool_use_id": tc.id,
-                        "content":     f"工具执行失败:{type(output).__name__}: {output}",
-                        "is_error":    True,
-                    })
-                else:
-                    chunks, ctx_text = output
-                    all_chunks.extend(chunks)
-                    tool_results.append({
-                        "type":        "tool_result",
-                        "tool_use_id": tc.id,
-                        "content":     ctx_text,
-                    })
-
-            # Dedup ONCE per turn, AFTER gather (gotcha #1 — moved out of inner loop).
-            seen_ids: set[str] = set()
-            deduped: list[RetrievedChunk] = []
-            for c in all_chunks:
-                if c.chunk_id not in seen_ids:
-                    seen_ids.add(c.chunk_id)
-                    deduped.append(c)
-            all_chunks = deduped[:20]
-
-            messages.append({"role": "user", "content": tool_results})
-
+    async def _persist_turn(
+        self,
+        req: GenerationRequest,
+        answer: str,
+        all_chunks: list[RetrievedChunk],
+        trace_id: str,
+        t0: float,
+        parallelism_factors: list[int],
+    ) -> GenerationResponse:
+        """Save memory, write audit log, return GenerationResponse."""
         total_ms = round((time.perf_counter() - t0) * 1000, 1)
-        max_parallelism = max(parallelism_factors) if parallelism_factors else 0
-
-        # 保存记忆
+        user_id, tenant_id = getattr(req, "user_id", ""), getattr(req, "tenant_id", "")
         await self._memory.save_turn(
             session_id=req.session_id, user_id=user_id, tenant_id=tenant_id,
             user_turn=ConversationTurn(role="user", content=req.query),
@@ -768,74 +752,218 @@ class AgentQueryPipeline:
             ),
             intent=None,
         )
-
-        # W-3: audit log keeps backward compat with v1.0/v1.1. The `intent` field
-        # stays exactly "agent" — same value existing dashboards/ETL key on. The
-        # per-turn parallelism factor is in the structured logger above
-        # (`[Agent] iter=… parallel_factor=…`), NOT pushed into AuditService.
         await self._audit.log_query(
-            user_id=user_id, tenant_id=tenant_id,
-            query=req.query, trace_id=trace_id,
+            user_id=user_id, tenant_id=tenant_id, query=req.query, trace_id=trace_id,
             result=AuditResult.SUCCESS, latency_ms=total_ms,
             sources_count=len(all_chunks), intent="agent",
         )
-
-        logger.info(
-            f"[Agent] DONE trace={trace_id} {total_ms}ms chunks={len(all_chunks)} "
-            f"max_parallelism={max_parallelism} turns={len(parallelism_factors)}"
-        )
+        max_par = max(parallelism_factors) if parallelism_factors else 0
+        logger.info(f"[Agent] DONE trace={trace_id} {total_ms}ms chunks={len(all_chunks)} "
+                    f"max_parallelism={max_par} turns={len(parallelism_factors)}")
         return GenerationResponse(
-            answer=answer,
-            sources=all_chunks[:req.top_k],
-            session_id=req.session_id,
-            query=req.query,
-            latency_ms=total_ms,
-            trace_id=trace_id,
-            model=settings.active_model,
+            answer=answer, sources=all_chunks[:req.top_k],
+            session_id=req.session_id, query=req.query,
+            latency_ms=total_ms, trace_id=trace_id, model=settings.active_model,
         )
 
-    async def _execute_tool_call(
+    # ── main entry point ─────────────────────────────────────────────────────
+
+    async def run(self, req: GenerationRequest) -> GenerationResponse:
+        trace_id = str(uuid.uuid4())[:8]
+        tenant_id, user_id = getattr(req, "tenant_id", ""), getattr(req, "user_id", "")
+        t0 = time.perf_counter()
+        tf = await self._build_tf(req, tenant_id)
+        mem_ctx = await self._memory.load_context(req.session_id, user_id, tenant_id, req.query)
+        messages = self._build_initial_messages(req, mem_ctx)
+        planner, executor = get_planner(), get_executor()
+        all_chunks: list[RetrievedChunk] = []
+        parallelism_factors: list[int] = []
+        answer = ""
+
+        for iteration in range(MAX_ITERATIONS):
+            try:
+                plan: ToolPlan = await planner.plan_from_messages(
+                    messages,
+                    tools=get_tool_registry().schemas_for(
+                        self._llm.provider_name,
+                        names=AGENT_TOOL_ALLOWLIST,
+                    ),
+                    system=self._AGENT_SYSTEM,
+                )
+            except NotImplementedError:
+                logger.warning(f"[Agent] provider lacks call_agentic_turn — falling back: "
+                               f"provider={type(self._llm).__name__}")
+                return await get_query_pipeline().run(req)
+            except (anthropic.APIError, openai.APIError, httpx.HTTPError, asyncio.TimeoutError) as exc:
+                logger.error(f"[Agent] call_agentic_turn failed iter={iteration+1}: {exc!r}")
+                answer = "抱歉，智能助手在处理您的请求时遇到了错误，请稍后重试。"
+                break
+
+            if not plan.steps:  # terminal: plan.rationale IS the final answer (D-10)
+                answer = plan.rationale or answer
+                if plan.stop_reason == "max_tokens":
+                    logger.warning(f"[Agent] iter={iteration+1} stop_reason=max_tokens (response truncated)")
+                break
+
+            messages.append(plan.raw_assistant_msg)
+            parallelism = len(plan.steps)
+            parallelism_factors.append(parallelism)
+            logger.info(f"[Agent] iter={iteration+1} parallel_factor={parallelism} "
+                        f"tools={[tc.name for tc in plan.steps]}")
+            raw_outputs = await executor.execute_plan(plan, tf, req)
+            tool_results = self._build_tool_results(plan, raw_outputs, all_chunks)
+            all_chunks = self._dedup_chunks(all_chunks)  # dedup ONCE per turn, post-gather
+            messages.append({"role": "user", "content": tool_results})
+
+        return await self._persist_turn(req, answer, all_chunks, trace_id, t0, parallelism_factors)
+
+    # ── streaming entry point (Phase 18 AGENT-04) ───────────────────────────
+
+    async def run_streaming(
         self,
-        tc: ToolCall,
-        tf: dict[str, Any],
         req: GenerationRequest,
-    ) -> tuple[list[RetrievedChunk], str]:
-        """Execute one tool call and return (chunks, ctx_text).
+    ) -> AsyncIterator[AgentEvent]:
+        """Streaming sibling of ``run`` — yields AgentEvent per planner/tool/synthesizer step.
 
-        Side-effect-free with respect to the calling pipeline state — this lets
-        ``asyncio.gather(return_exceptions=True)`` collect results without
-        mutating shared state during the parallel section. Caller merges
-        ``chunks`` into ``all_chunks`` and runs dedup AFTER the gather.
+        Mirrors the ``run`` loop body verbatim except:
+          - Yields ``PlannerPlanEvent`` immediately after each successful
+            planner call (D-06).
+          - Replaces ``executor.execute_plan(...)`` with
+            ``executor.execute_plan_streaming(...)``, forwarding the events
+            it emits and collecting the bare ``ToolResult`` /
+            ``BaseException`` results.
+          - Yields ``SynthesizerFinalEvent`` after the iteration loop
+            finishes (D-07).
+          - Calls ``_persist_turn`` AFTER the synthesizer.final event so
+            audit / memory logging is unchanged (security_gate).
+
+        Existing ``run`` is byte-identical and remains for the legacy
+        non-streaming path (``/query?agent_mode=true``).
         """
-        args       = tc.arguments or {}
-        query_str  = args.get("query") or args.get("refined_query", req.query)
-        top_k      = min(int(args.get("top_k", 5)), 10)
-        src_filter = args.get("source_filter")
+        trace_id = uuid.uuid4().hex[:8]
+        seq_counter = itertools.count()
 
-        effective_filter = dict(tf or {})
-        if src_filter:
-            effective_filter["source"] = src_filter
+        tenant_id, user_id = getattr(req, "tenant_id", ""), getattr(req, "user_id", "")
+        t0 = time.perf_counter()
+        tf = await self._build_tf(req, tenant_id)
+        mem_ctx = await self._memory.load_context(req.session_id, user_id, tenant_id, req.query)
+        messages = self._build_initial_messages(req, mem_ctx)
+        planner, executor = get_planner(), get_executor()
+        all_chunks: list[RetrievedChunk] = []
+        parallelism_factors: list[int] = []
+        answer = ""
 
-        chunks, _ = await self._retriever.retrieve(
-            query=query_str,
-            top_k=top_k,
-            filters=effective_filter or None,
-            llm_client=self._llm,
+        for iteration in range(MAX_ITERATIONS):
+            try:
+                plan: ToolPlan = await planner.plan_from_messages(
+                    messages,
+                    tools=get_tool_registry().schemas_for(
+                        self._llm.provider_name,
+                        names=AGENT_TOOL_ALLOWLIST,
+                    ),
+                    system=self._AGENT_SYSTEM,
+                )
+            except NotImplementedError:
+                logger.warning(
+                    f"[Agent:stream] provider lacks call_agentic_turn — "
+                    f"provider={type(self._llm).__name__}"
+                )
+                answer = "智能助手在当前模型上不可用，请切换 provider 后重试。"
+                break
+            except (anthropic.APIError, openai.APIError, httpx.HTTPError, asyncio.TimeoutError) as exc:
+                logger.error(f"[Agent:stream] call_agentic_turn failed iter={iteration+1}: {exc!r}")
+                answer = "抱歉，智能助手在处理您的请求时遇到了错误，请稍后重试。"
+                break
+
+            if not plan.steps:  # terminal: plan.rationale IS the final answer (D-06)
+                answer = plan.rationale or answer
+                if plan.stop_reason == "max_tokens":
+                    logger.warning(
+                        f"[Agent:stream] iter={iteration+1} stop_reason=max_tokens "
+                        f"(response truncated)"
+                    )
+                break
+
+            # Emit planner.plan ONLY for plans that have steps
+            # (D-06: event mirrors planner-action boundary).
+            yield PlannerPlanEvent(
+                trace_id=trace_id,
+                seq=next(seq_counter),
+                ts_ms=int(time.time() * 1000),
+                plan=plan,
+            )
+
+            messages.append(plan.raw_assistant_msg)
+            parallelism = len(plan.steps)
+            parallelism_factors.append(parallelism)
+            logger.info(
+                f"[Agent:stream] iter={iteration+1} parallel_factor={parallelism} "
+                f"tools={[tc.name for tc in plan.steps]}"
+            )
+
+            # ──────────────────────────────────────────────────────────────
+            # Span-id pairing (Task 2b refactor).
+            # Executor contract (plan 18-02):
+            #   1. ToolSpanStartEvent emit in flat parallel-group iteration
+            #      order — bind span_id → step idx as each start arrives.
+            #   2. ToolSpanEndEvent / ToolSpanErrorEvent for span S is yielded
+            #      IMMEDIATELY before the bare result/exception for span S.
+            #   3. Bare results may arrive in as_completed order WITHIN a
+            #      group — NOT necessarily plan.steps order.
+            # Strategy: track (span_id → step_idx) on each start event; on
+            # each end/error event, buffer the resolved step_idx in
+            # `_pending_idx` so the very next bare-result yield slots into
+            # raw_outputs at the correct index.
+            # ──────────────────────────────────────────────────────────────
+            raw_outputs: list[ToolResult | BaseException | None] = [None] * len(plan.steps)
+            flat_idx_order: list[int] = [idx for group in plan.parallel_groups for idx in group]
+            flat_pos: int = 0
+            span_id_to_step_idx: dict[str, int] = {}
+            _pending_idx: int = -1   # step idx whose bare result arrives next
+
+            async for item in executor.execute_plan_streaming(
+                plan, tf, req,
+                trace_id=trace_id,
+                seq_counter=seq_counter,
+            ):
+                if isinstance(item, AgentEvent):
+                    yield item
+                    if isinstance(item, ToolSpanStartEvent):
+                        # Executor emits start events in flat_idx_order — bind span_id.
+                        if flat_pos < len(flat_idx_order):
+                            span_id_to_step_idx[item.span_id] = flat_idx_order[flat_pos]
+                            flat_pos += 1
+                    elif isinstance(item, (ToolSpanEndEvent, ToolSpanErrorEvent)):
+                        # Buffer the step idx whose bare result arrives next.
+                        _pending_idx = span_id_to_step_idx.get(item.span_id, -1)
+                else:
+                    # Bare ToolResult or BaseException — pair with most-recently-resolved span.
+                    if 0 <= _pending_idx < len(raw_outputs):
+                        raw_outputs[_pending_idx] = item
+                        _pending_idx = -1   # reset; next end/error event will set the next idx
+                    # else: contract violation — drop result; defensive None below
+                    #       converts to RuntimeError so _build_tool_results contract holds.
+
+            collected: list[ToolResult | BaseException] = [
+                r if r is not None else RuntimeError("missing executor result")
+                for r in raw_outputs
+            ]
+            tool_results = self._build_tool_results(plan, collected, all_chunks)
+            all_chunks = self._dedup_chunks(all_chunks)
+            messages.append({"role": "user", "content": tool_results})
+
+        # Synthesizer.final — emitted regardless of how loop ended
+        # (terminal-plan, error, max-iter).
+        yield SynthesizerFinalEvent(
+            trace_id=trace_id,
+            seq=next(seq_counter),
+            ts_ms=int(time.time() * 1000),
+            answer=answer,
+            sources_count=len(all_chunks),
         )
 
-        # Format chunks as XML document blocks (mirrors v1.1 shape).
-        if chunks:
-            doc_blocks = "\n\n".join(
-                f'<document index="{i+1}" title="{c.metadata.title or c.doc_id}">\n'
-                f"{c.content}\n"
-                f"</document>"
-                for i, c in enumerate(chunks)
-            )
-            ctx_text = f"<search_results>\n{doc_blocks}\n</search_results>"
-        else:
-            ctx_text = "未找到相关内容"
-
-        return chunks, ctx_text
+        # Audit log + memory persistence — unchanged shape (security_gate).
+        await self._persist_turn(req, answer, all_chunks, trace_id, t0, parallelism_factors)
 
 
 _ingest_pipeline = None
@@ -859,3 +987,318 @@ def get_agent_pipeline():
     if _agent_pipeline is None:
         _agent_pipeline = AgentQueryPipeline()
     return _agent_pipeline
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Swarm 查询流水线（Fork-Agent — AGENT-03）
+# ══════════════════════════════════════════════════════════════════════════════
+class SwarmQueryPipeline:
+    """Fork-Agent Swarm pipeline (AGENT-03).
+
+    Decomposes a multi-dimension query into N independent sub-questions
+    (D-02), runs each as an isolated AgentQueryPipeline-style sub-agent
+    with its own short tool loop (D-05), then synthesizes their answers
+    (D-04). N=1 short-circuits to AgentQueryPipeline (D-03). The agent
+    class is unmodified (D-01).
+    """
+
+    MAX_SWARM_AGENTS: int = int(getattr(settings, "max_swarm_agents", 5))
+    MAX_SWARM_TURNS_PER_AGENT: int = int(getattr(settings, "max_swarm_turns_per_agent", 5))
+
+    def __init__(self) -> None:
+        self._retriever        = get_retriever()
+        self._llm              = get_llm_client()
+        self._memory           = get_memory_service()
+        self._audit            = get_audit_service()
+        self._tenant_svc       = get_tenant_service()
+        self._filter_extractor = get_filter_extractor()
+
+    async def _decompose(self, query: str) -> list[str]:
+        """Decompose a multi-dimension query into independent sub-questions (D-02).
+
+        Returns single-element list `[query]` when:
+          - LLM output cannot be parsed as JSON
+          - Parsed result is not a list
+          - Parsed list is empty after strip+dedup
+        """
+        raw: str = await self._llm.chat(
+            system=_COORDINATOR_SYSTEM,
+            user=query,
+            temperature=0.0,
+            task_type="generate",   # main model — see Pitfall 4
+        )
+
+        # Extract first JSON array substring (LLM may wrap in prose despite instruction).
+        match = re.search(r"\[.*\]", raw, re.DOTALL)
+        if match is None:
+            logger.warning(f"[Swarm] coordinator returned no JSON array; falling back to N=1. raw={raw[:200]!r}")
+            return [query]
+
+        try:
+            parsed = json.loads(match.group(0))
+        except (json.JSONDecodeError, TypeError) as exc:
+            logger.warning(f"[Swarm] coordinator JSON parse failed: {exc!r}; falling back to N=1. raw={match.group(0)[:200]!r}")
+            return [query]
+
+        if not isinstance(parsed, list):
+            logger.warning(f"[Swarm] coordinator returned non-list ({type(parsed).__name__}); falling back to N=1.")
+            return [query]
+
+        # Strip + dedup while preserving order; drop empty/non-string entries.
+        seen: set[str] = set()
+        sub_questions: list[str] = []
+        for item in parsed:
+            if not isinstance(item, str):
+                continue
+            stripped = item.strip()
+            if not stripped or stripped in seen:
+                continue
+            seen.add(stripped)
+            sub_questions.append(stripped)
+
+        if not sub_questions:
+            logger.warning("[Swarm] coordinator returned empty list after cleanup; falling back to N=1.")
+            return [query]
+
+        # Cap at MAX_SWARM_AGENTS (D-09).
+        return sub_questions[: self.MAX_SWARM_AGENTS]
+
+    async def _run_sub_agent(
+        self,
+        agent_index: int,
+        sub_question: str,
+        tf: dict[str, Any],
+        req: GenerationRequest,
+    ) -> _SubAgentResult:
+        """Run a single sub-agent — bounded tool loop, isolated state (Pitfall 1, D-06)."""
+        # Fresh messages list per coroutine — never shared (Pitfall 1).
+        # Sub-agents receive ONLY their sub-question; chat history is excluded (D-06).
+        messages: list[dict[str, Any]] = [{"role": "user", "content": sub_question}]
+        answer: str = ""
+        turns: int = 0
+        tool_calls_count: int = 0
+        all_chunks: list[RetrievedChunk] = []
+
+        for iteration in range(self.MAX_SWARM_TURNS_PER_AGENT):
+            turns = iteration + 1
+            try:
+                turn = await self._llm.call_agentic_turn(
+                    messages=messages,
+                    tools=get_tool_registry().schemas_for(
+                        self._llm.provider_name,
+                        names=AGENT_TOOL_ALLOWLIST,
+                    ),
+                    system=AgentQueryPipeline._AGENT_SYSTEM,
+                    max_tokens=settings.llm_max_tokens,
+                    parallel_tool_calls=True,
+                )
+            except (
+                anthropic.APIError,
+                openai.APIError,
+                httpx.HTTPError,
+                asyncio.TimeoutError,
+            ) as exc:
+                logger.error(f"[Swarm] sub-agent {agent_index} call_agentic_turn failed iter={turns}: {exc!r}")
+                answer = f"[Sub-agent {agent_index} failed: {exc!r}]"
+                break
+
+            # Terminal stop reasons → take the text and exit.
+            if turn.stop_reason in ("text_only", "max_tokens", "error"):
+                answer = turn.text or answer
+                break
+
+            if not turn.tool_calls:
+                answer = turn.text or answer
+                break
+
+            # Append assistant's tool-use message; gather tool results concurrently.
+            messages.append(turn.raw_assistant_msg)
+            tool_calls_count += len(turn.tool_calls)
+
+            tool_coros = [
+                _shared_execute_tool_call(tc, tf, req, self._retriever, self._llm)
+                for tc in turn.tool_calls
+            ]
+            tool_outputs = await asyncio.gather(*tool_coros, return_exceptions=True)
+
+            tool_results: list[dict[str, Any]] = []
+            for tc, output in zip(turn.tool_calls, tool_outputs):
+                if isinstance(output, BaseException):
+                    tool_results.append({
+                        "type":        "tool_result",
+                        "tool_use_id": tc.id,
+                        "content":     f"工具执行失败:{type(output).__name__}: {output}",
+                        "is_error":    True,
+                    })
+                else:
+                    chunks, ctx_text = output
+                    all_chunks.extend(chunks)
+                    tool_results.append({
+                        "type":        "tool_result",
+                        "tool_use_id": tc.id,
+                        "content":     ctx_text,
+                    })
+
+            messages.append({"role": "user", "content": tool_results})
+        else:
+            # Loop exited via for-else → max turns reached without break.
+            logger.warning(f"[Swarm] sub-agent {agent_index} hit MAX_SWARM_TURNS_PER_AGENT={self.MAX_SWARM_TURNS_PER_AGENT}")
+            answer = answer or f"[Sub-agent {agent_index} reached max turns without final answer]"
+
+        return _SubAgentResult(
+            answer=answer,
+            turns=turns,
+            tool_calls_count=tool_calls_count,
+            chunks=all_chunks,
+        )
+
+    async def _synthesize(
+        self,
+        original_query: str,
+        sub_questions: list[str],
+        answers: list[str],
+    ) -> str:
+        """Synthesize sub-agent answers into final response (D-04, Pitfall 5).
+
+        Short-circuits to graceful-degradation string when all sub-agents failed,
+        avoiding a wasted LLM call (Pitfall 5).
+        """
+        # Pitfall 5: skip LLM if every sub-agent failed.
+        if answers and all(
+            a.startswith("[Sub-agent ") and " failed:" in a
+            for a in answers
+        ):
+            logger.error("[Swarm] all sub-agents failed; returning graceful degradation string without synthesis call")
+            return "抱歉，所有子代理处理失败，无法生成答案。"
+
+        # Format: numbered (sub_question, answer) pairs for the synthesizer.
+        sections: list[str] = [f"原始查询：{original_query}", ""]
+        for idx, (q, a) in enumerate(zip(sub_questions, answers), start=1):
+            sections.append(f"=== 子问题 {idx} ===")
+            sections.append(f"问：{q}")
+            sections.append(f"答：{a}")
+            sections.append("")
+        formatted = "\n".join(sections).rstrip()
+
+        return await self._llm.chat(
+            system=_SYNTHESIS_SYSTEM,
+            user=formatted,
+            temperature=0.1,
+            task_type="generate",
+        )
+
+    async def run(self, req: GenerationRequest) -> GenerationResponse:
+        """Top-level swarm execution (AGENT-03).
+
+        Sequence:
+          1. Decompose query into sub-questions (D-02).
+          2. N=1 → delegate to AgentQueryPipeline (D-03).
+          3. Fan out N sub-agents concurrently (D-05).
+          4. Collect results; replace exceptions with error markers (Pitfall 2).
+          5. Synthesize final answer (D-04).
+          6. Persist memory + audit; return response.
+        """
+        trace_id  = str(uuid.uuid4())[:8]
+        tenant_id = getattr(req, "tenant_id", "")
+        user_id   = getattr(req, "user_id",   "")
+        t0        = time.perf_counter()
+
+        extraction = await self._filter_extractor.extract(req.query)
+        tf = self._tenant_svc.get_tenant_filter(tenant_id)
+        if req.filters:
+            tf = {**(tf or {}), **req.filters}
+        if extraction.filters:
+            tf = {**(tf or {}), **extraction.filters}
+
+        sub_questions = await self._decompose(req.query)
+
+        # D-03: N=1 short-circuit — delegate to AgentQueryPipeline.
+        if len(sub_questions) <= 1:
+            logger.info(
+                f"[Swarm] N=1 fallback (sub_questions={sub_questions!r}); delegating to AgentQueryPipeline. trace_id={trace_id}"
+            )
+            return await get_agent_pipeline().run(req)
+
+        # D-05: fan out concurrently; isolate failures.
+        swarm_t0 = time.perf_counter()
+        sub_coros = [
+            self._run_sub_agent(i, q, tf or {}, req)
+            for i, q in enumerate(sub_questions)
+        ]
+        raw_results = await asyncio.gather(*sub_coros, return_exceptions=True)
+        swarm_latency_ms = round((time.perf_counter() - swarm_t0) * 1000, 1)
+
+        answers: list[str] = []
+        per_agent_turns: list[int] = []
+        per_agent_tool_calls: list[int] = []
+        all_swarm_chunks: list[RetrievedChunk] = []
+        for i, res in enumerate(raw_results):
+            # Pitfall 2: BaseException (covers asyncio.CancelledError, TimeoutError),
+            # NOT Exception.
+            if isinstance(res, BaseException):
+                logger.error(f"[Swarm] sub-agent {i} raised: {res!r}")
+                answers.append(f"[Sub-agent {i} failed: {res!r}]")
+                per_agent_turns.append(0)
+                per_agent_tool_calls.append(0)
+                continue
+            # res is _SubAgentResult
+            answers.append(res.answer)
+            per_agent_turns.append(res.turns)
+            per_agent_tool_calls.append(res.tool_calls_count)
+            all_swarm_chunks.extend(res.chunks)
+
+        synth_t0 = time.perf_counter()
+        final_answer = await self._synthesize(req.query, sub_questions, answers)
+        synthesis_latency_ms = round((time.perf_counter() - synth_t0) * 1000, 1)
+
+        total_ms = round((time.perf_counter() - t0) * 1000, 1)
+
+        # Persist memory turn (mirrors AgentQueryPipeline pattern).
+        await self._memory.save_turn(
+            session_id=req.session_id,
+            user_id=user_id,
+            tenant_id=tenant_id,
+            user_turn=ConversationTurn(role="user", content=req.query),
+            ai_turn=ConversationTurn(role="assistant", content=final_answer),
+            intent=None,
+        )
+
+        # CRITICAL: audit via log() directly with AuditEvent — log_query has a
+        # FIXED signature and cannot accept swarm_n/per_agent_*/etc.
+        await self._audit.log(AuditEvent(
+            action=AuditAction.QUERY,
+            user_id=user_id,
+            tenant_id=tenant_id,
+            resource_id=hashlib.sha256(req.query.encode()).hexdigest()[:16],
+            result=AuditResult.SUCCESS,
+            detail={
+                "latency_ms":           total_ms,
+                "sources_count":        len(all_swarm_chunks),
+                "query_len":            len(req.query),
+                "intent":               "swarm",
+                "swarm_n":              len(sub_questions),
+                "per_agent_turns":      per_agent_turns,
+                "per_agent_tool_calls": per_agent_tool_calls,
+                "swarm_latency_ms":     swarm_latency_ms,
+                "synthesis_latency_ms": synthesis_latency_ms,
+            },
+            trace_id=trace_id,
+        ))
+
+        return GenerationResponse(
+            answer=final_answer,
+            sources=all_swarm_chunks[:req.top_k],
+            session_id=req.session_id,
+            query=req.query,
+            latency_ms=total_ms,
+            trace_id=trace_id,
+            model=settings.active_model,
+        )
+
+
+_swarm_pipeline = None
+def get_swarm_pipeline():
+    global _swarm_pipeline
+    if _swarm_pipeline is None:
+        _swarm_pipeline = SwarmQueryPipeline()
+    return _swarm_pipeline

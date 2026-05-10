@@ -77,13 +77,23 @@ def _tool_call(call_id: str, name: str = "search_knowledge_base", **args: Any) -
 
 
 @pytest.fixture
-def mock_pipeline():
-    """Build an AgentQueryPipeline with all collaborators replaced by AsyncMock."""
-    from services.pipeline import AgentQueryPipeline
+def mock_pipeline(monkeypatch):
+    """Build an AgentQueryPipeline with all collaborators replaced by AsyncMock.
+
+    Phase 16 Wave-3 update: ``get_planner`` / ``get_executor`` are patched at
+    the consumer path (``services.pipeline.*``) so Planner + Executor use
+    the fixture's mock ``_llm`` and ``_retriever``.  All 11 public test
+    assertions are unchanged; only mock-target wiring updated.
+    """
+    from services.agent.executor import Executor
+    from services.agent.planner import Planner
     from services.memory.memory_service import MemoryContext
+    from services.nlu.filter_extractor import ExtractionResult
+    from services.pipeline import AgentQueryPipeline
 
     pipe = AgentQueryPipeline.__new__(AgentQueryPipeline)
     pipe._llm = MagicMock()
+    pipe._llm.provider_name = "anthropic"  # required for schemas_for() in run()
     pipe._llm.call_agentic_turn = AsyncMock()
     pipe._retriever = MagicMock()
     pipe._retriever.retrieve = AsyncMock(return_value=([], {}))
@@ -103,6 +113,21 @@ def mock_pipeline():
     pipe._audit.log_query = AsyncMock()
     pipe._tenant_svc = MagicMock()
     pipe._tenant_svc.get_tenant_filter = MagicMock(return_value={})
+    # Phase 16 Wave-3: _filter_extractor is now a stored instance attribute.
+    pipe._filter_extractor = MagicMock()
+    pipe._filter_extractor.extract = AsyncMock(
+        return_value=ExtractionResult(filters={}, semantic_query="")
+    )
+
+    # Patch consumer-path factories so run() uses the fixture's mock collaborators.
+    monkeypatch.setattr(
+        "services.pipeline.get_planner",
+        lambda: Planner(llm=pipe._llm),
+    )
+    monkeypatch.setattr(
+        "services.pipeline.get_executor",
+        lambda: Executor(retriever=pipe._retriever, llm=pipe._llm),
+    )
     return pipe
 
 

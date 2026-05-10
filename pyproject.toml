@@ -91,3 +91,36 @@ managed = true
 
 [tool.uv.workspace]
 members = []
+
+[tool.coverage.run]
+source = ["services", "utils"]
+parallel = false
+# NOTE: deviates from CONTEXT.md D-08 draft (parallel = true) per RESEARCH.md Pitfall 1.
+# Empirically verified 2026-05-09 (coverage.py 7.13.5): parallel = true + COVERAGE_FILE
+# appends .HOST.PID.RAND suffix and breaks `path: .coverage.unit` artifact upload.
+# Explicit COVERAGE_FILE per-job (D-10) already provides per-job uniqueness.
+branch = false
+# line coverage only; branch coverage deferred to v1.4+
+omit = [
+    "*/__init__.py",
+    "*/migrations/*",
+    "*/tests/*",
+]
+
+[tool.coverage.report]
+fail_under = 70
+# TEST-06 AC#1: raises floor from 46% (v1.0 bootstrap) to 70%
+show_missing = true
+# TEST-06 AC#5: per-module breakdown in CI logs
+precision = 1
+skip_covered = false
+# show all modules (covered + uncovered) for visibility
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
+
+[tool.coverage.xml]
+output = "coverage.xml"

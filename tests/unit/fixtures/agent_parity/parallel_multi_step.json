@@ -1,0 +1,56 @@
+{
+  "_provenance": {
+    "captured_from": "synthesized from v1.3 AgentQueryPipeline + asyncio.gather parallel-burst shape (commit 74c7f3b)",
+    "input_query": "比较产假天数和病假规定的差异",
+    "fixture_role": "multi-step parallel parity baseline; expected_tool_call_sequence length >= 2; exercises parallel_groups single-wave fan-out",
+    "recapture_command": "LOG_LEVEL=DEBUG uv run --no-sync python -m scripts.capture_agent_baseline --query '比较产假天数和病假规定' --provider openai --expect-parallel >= 2 > tests/unit/fixtures/agent_parity/parallel_multi_step.json",
+    "consumer": "tests/unit/test_agent_parity.py (added in Plan 16-02)",
+    "schema_version": 1
+  },
+  "input_messages": [
+    {
+      "role": "system",
+      "content": "You are a helpful enterprise RAG assistant. Use the search_knowledge_base tool when you need document context. Issue multiple tool calls in parallel when the user asks a multi-dimension question."
+    },
+    {
+      "role": "user",
+      "content": "比较产假天数和病假规定的差异"
+    }
+  ],
+  "llm_canned_turns": [
+    {
+      "tool_calls": [
+        {
+          "id": "call_parallel_A",
+          "name": "search_knowledge_base",
+          "arguments": {"query": "产假天数", "top_k": 5}
+        },
+        {
+          "id": "call_parallel_B",
+          "name": "search_knowledge_base",
+          "arguments": {"query": "病假规定", "top_k": 5}
+        }
+      ],
+      "text": null,
+      "stop_reason": "tool_use"
+    },
+    {
+      "tool_calls": [],
+      "text": "产假与病假在以下三个维度有差异: (1) 时长 — 产假法定 98 天起步, 病假按工龄分级 3-24 个月; (2) 工资支付 — 产假由生育保险覆盖, 病假按本人工资比例发放; (3) 申请门槛 — 产假需妊娠证明, 病假需医院诊断证明。",
+      "stop_reason": "end_turn"
+    }
+  ],
+  "expected_tool_call_sequence": [
+    {
+      "id": "call_parallel_A",
+      "name": "search_knowledge_base",
+      "arguments": {"query": "产假天数", "top_k": 5}
+    },
+    {
+      "id": "call_parallel_B",
+      "name": "search_knowledge_base",
+      "arguments": {"query": "病假规定", "top_k": 5}
+    }
+  ],
+  "expected_final_text": "产假与病假在以下三个维度有差异: (1) 时长 — 产假法定 98 天起步, 病假按工龄分级 3-24 个月; (2) 工资支付 — 产假由生育保险覆盖, 病假按本人工资比例发放; (3) 申请门槛 — 产假需妊娠证明, 病假需医院诊断证明。"
+}

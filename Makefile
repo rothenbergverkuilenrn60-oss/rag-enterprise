@@ -4,7 +4,7 @@
 # 使用：make <target>
 # =============================================================================
 
-.PHONY: help build up down logs shell ingest eval clean coverage-diff
+.PHONY: help build up down logs shell ingest eval clean coverage-diff coverage-combined demo-agent demo-agent-record
 
 COMPOSE = docker compose
 SERVICE = rag-api
@@ -68,6 +68,15 @@ eval:  ## 运行 RAGAS 评测（一次性任务）
 eval-local:  ## 本地（非Docker）运行评测
 	conda run -n torch_env python -m eval.ragas_runner
 
+# ── Agent 演示 (Phase 19) ──────────────────────────────────────────────────────
+demo-agent:  ## 演示 Planner→Executor→Synthesizer 4 路并行 (Phase 19, AGENT-08)
+	APP_MODEL_DIR=$${APP_MODEL_DIR:-/tmp} .venv/bin/python -m services.agent._demo_runner
+
+demo-agent-record:  ## 录制 docs/demo.cast (维护任务，需要 asciinema)
+	@command -v asciinema >/dev/null 2>&1 || { echo "asciinema not installed; install via: pipx install asciinema"; exit 1; }
+	asciinema rec docs/demo.cast --overwrite \
+		--command "APP_MODEL_DIR=$${APP_MODEL_DIR:-/tmp} .venv/bin/python -m services.agent._demo_runner"
+
 # ── 健康检查 ──────────────────────────────────────────────────────────────────
 health:  ## 检查 rag-api 健康状态
 	curl -s http://localhost:8000/api/v1/health | python3 -m json.tool
@@ -110,3 +119,19 @@ clean:  ## 清理构建缓存和悬空镜像
 
 clean-reports:  ## 清理评测报告
 	rm -f eval_reports/eval_*.json eval_reports/eval_*.html
+
+coverage-combined:  ## Mirror CI: combined unit+integration coverage report (TEST-04 + TEST-06)
+	@echo ">> Erasing prior coverage data..."
+	conda run -n torch_env coverage erase
+	@echo ">> Running unit tests with coverage (separate data file)..."
+	COVERAGE_FILE=.coverage.unit conda run -n torch_env pytest tests/unit/ \
+		--asyncio-mode=auto --timeout=30 \
+		--cov=services --cov=utils --cov-report= -q
+	@echo ">> Running integration tests with --cov-append..."
+	COVERAGE_FILE=.coverage.integration conda run -n torch_env pytest tests/integration/ \
+		--asyncio-mode=auto --timeout=60 \
+		--cov=services --cov=utils --cov-append --cov-report= -q || true
+	@echo ">> Combining and reporting..."
+	conda run -n torch_env coverage combine --keep .coverage.unit .coverage.integration
+	conda run -n torch_env coverage report
+	conda run -n torch_env coverage report --fail-under=70

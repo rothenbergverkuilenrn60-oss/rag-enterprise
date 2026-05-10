@@ -1,0 +1,46 @@
+{
+  "_provenance": {
+    "captured_from": "synthesized from v1.3 AgentQueryPipeline shape (commit 74c7f3b)",
+    "input_query": "查询 v1.0 hardening 包含哪些安全特性",
+    "fixture_role": "single-step parity baseline; expected_tool_call_sequence length = 1",
+    "recapture_command": "LOG_LEVEL=DEBUG uv run --no-sync python -m scripts.capture_agent_baseline --query 'v1.0 hardening 安全特性' --provider openai > tests/unit/fixtures/agent_parity/single_step.json",
+    "consumer": "tests/unit/test_agent_parity.py (added in Plan 16-02)",
+    "schema_version": 1
+  },
+  "input_messages": [
+    {
+      "role": "system",
+      "content": "You are a helpful enterprise RAG assistant. Use the search_knowledge_base tool when you need document context."
+    },
+    {
+      "role": "user",
+      "content": "查询 v1.0 hardening 包含哪些安全特性"
+    }
+  ],
+  "llm_canned_turns": [
+    {
+      "tool_calls": [
+        {
+          "id": "call_single_step_001",
+          "name": "search_knowledge_base",
+          "arguments": {"query": "v1.0 hardening 安全特性", "top_k": 5}
+        }
+      ],
+      "text": null,
+      "stop_reason": "tool_use"
+    },
+    {
+      "tool_calls": [],
+      "text": "v1.0 Hardening 引入了五个核心安全特性: (1) JWT denylist + 32 字符最低长度的启动校验, (2) 每路由速率限制装饰器, (3) PII 检测默认阻塞, (4) 生产环境拒绝 localhost 的 CORS 锁定, (5) 50+ 个宽 except 替换为窄异常处理。",
+      "stop_reason": "end_turn"
+    }
+  ],
+  "expected_tool_call_sequence": [
+    {
+      "id": "call_single_step_001",
+      "name": "search_knowledge_base",
+      "arguments": {"query": "v1.0 hardening 安全特性", "top_k": 5}
+    }
+  ],
+  "expected_final_text": "v1.0 Hardening 引入了五个核心安全特性: (1) JWT denylist + 32 字符最低长度的启动校验, (2) 每路由速率限制装饰器, (3) PII 检测默认阻塞, (4) 生产环境拒绝 localhost 的 CORS 锁定, (5) 50+ 个宽 except 替换为窄异常处理。"
+}

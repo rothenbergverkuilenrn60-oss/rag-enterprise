@@ -1,39 +1,94 @@
 # EnterpriseRAG
 
-A production-grade Retrieval-Augmented Generation platform built on FastAPI. Serves enterprise tenants with multi-tenant document ingestion, hybrid retrieval, and LLM-powered query answering.
+A Planner → Executor → Synthesizer agent. RAG is one of its tools.
 
-## Features
+Multi-tenant document understanding, parallel tool dispatch, structured event
+stream — built on FastAPI + PostgreSQL/pgvector. Provider-neutral across
+Anthropic, OpenAI, Azure, and Ollama.
 
-- **Multi-tenant isolation** — PostgreSQL Row-Level Security; each tenant's data is strictly separated at the database level
-- **Hybrid retrieval** — dense vector search (pgvector HNSW) + BM25 sparse, fused with RRF; HyDE and multi-query expansion
-- **6-stage ingest pipeline** — preprocess → extract → PII detect → chunk → vectorize → audit
-- **10-stage query pipeline** — NLU → memory → rewrite → HyDE → hybrid retrieval → rerank → rules → generate → audit → stream
-- **Image extraction** — PDF-embedded images extracted, captioned by LLM, and stored as retrievable `chunk_type="image"` vector chunks
-- **Async ingest** — `POST /ingest/async` returns a `task_id` immediately; ARQ/Redis worker processes in background; poll status via `GET /ingest/status/{task_id}`
-- **Agentic RAG** — Anthropic Tool Use loop (max 5 iterations) for complex multi-step queries
-- **Security** — JWT startup validation, per-route rate limiting, PII blocking by default, CORS locked to explicit origins
-- **Observability** — Prometheus metrics, structured logging, optional Langfuse tracing, audit log with flush buffer
-- **Streaming** — SSE responses for real-time token delivery
+## Quick demo
 
-### Parallel agentic tool calls
+`make demo-agent` runs a 4-tool parallel `RetrieveTool` plan against fixture data
+(no API keys required). Replay the recorded session locally:
 
-When `agent_mode=True` is set on a `/query` request, EnterpriseRAG drives a
-provider-neutral tool-use loop on top of either Anthropic Claude or OpenAI
-function-calling. If the LLM emits multiple tool calls in a single assistant
-turn (e.g. answering a multi-dimension question that splits into independent
-sub-queries), the pipeline executes them concurrently via `asyncio.gather` —
-turn-internal latency is bounded by the slowest tool, not the sum.
+```bash
+asciinema play docs/demo.cast
+```
 
-- Provider neutrality lives in `BaseLLMClient.call_agentic_turn` (`services/generator/llm_client.py`).
-- Parallel execution lives in `AgentQueryPipeline.run` (`services/pipeline.py`).
-- Per-turn audit trail: structured-logger line `[Agent] iter=N parallel_factor=M tools=[...]` records the parallelism factor every turn that issues tool calls.
-- Live demo: `pytest tests/integration/test_agent_pipeline_parallel.py` (requires `OPENAI_API_KEY`).
+The cast file lives in-repo at [`docs/demo.cast`](docs/demo.cast) (asciicast v2,
+~0.6s playback, 11 SSE events).
 
-Providers without native tool-use (e.g. Ollama in v1.2) gracefully fall back
-to the fixed `QueryPipeline`; the pipeline catches `NotImplementedError` from
-the adapter and emits a structured-log warning.
+<!--
+GitHub-inline asciinema render — populate after a maintainer runs
+`asciinema upload docs/demo.cast` post-merge. Replace <ID> with the returned
+asciinema.org id; the SVG below renders inline on github.com.
+
+<a href="https://asciinema.org/a/<ID>" target="_blank">
+  <img src="https://asciinema.org/a/<ID>.svg" alt="Phase 19 demo: 4-way parallel tool fan-out via SSE event stream" width="720">
+</a>
+-->
+
+Each `tool.span.start` event fires near-simultaneously; each `tool.span.end`
+event fires ~500 ms later, bounded by `max(tool_latency)`, not the sum. The SSE
+event stream IS the architectural surface — what you see in the cast is what
+`POST /api/v1/agent/v1/run/stream` emits over the wire.
 
 ## Architecture
+
+```
+Request ──▶ Planner ──ToolPlan──▶ Executor ──results──▶ Synthesizer ──▶ Response
+                                     │
+                              parallel dispatch
+                              (asyncio.as_completed,
+                               BaseException isolation)
+```
+
+Three explicit collaborators behind a Pydantic V2 frozen contract. The
+Planner is stateless and provider-neutral (`BaseLLMClient.call_agentic_turn`).
+The Executor walks `ToolPlan.parallel_groups` via `asyncio.as_completed`. The
+Synthesizer is the LLM's terminal turn after results return.
+
+Full mental model + signatures + runnable example: [Planner / Executor Model](docs/agent-architecture.md#planner-executor-model).
+
+## Tools the agent calls
+
+Tools register via a static class registry (`services/agent/tools/registry.py`)
+and are dispatched provider-neutrally. The planner sees only tools listed in
+`AGENT_TOOL_ALLOWLIST` in `services/pipeline.py`.
+
+| Tool | Status | Implementation |
+|------|--------|----------------|
+| `RetrieveTool` | shipped (v1.4) | Hybrid pgvector + BM25 + RRF + reranker (Phase 17). Wraps `QueryPipeline.run()` — v1.3 retrieval behavior preserved. |
+| `RefinedRetrieveTool` | shipped (v1.4) | LLM-driven query refinement before retrieval (Phase 17). |
+| `WebSearchTool` | placeholder | Registered but excluded from `AGENT_TOOL_ALLOWLIST`. Real implementation deferred to v1.5+. |
+| `SQLTool` | planned | Tool-authoring example shipped in [docs/agent-architecture.md#authoring-tools](docs/agent-architecture.md#authoring-tools). |
+| `MCPTool` | planned | MCP plug-in discovery as a registry replacement — interface clean enough that callsites do not change. |
+
+Add a tool: see [Authoring Tools](docs/agent-architecture.md#authoring-tools).
+
+## Platform features
+
+Each item below is a tool the agent calls OR a supporting service the agent depends on.
+
+### Multi-tenant isolation
+PostgreSQL Row-Level Security; each tenant's data is strictly separated at the database level. Every `RetrieveTool` dispatch carries a `tenant_id` that the executor scopes via Postgres RLS — no cross-tenant leakage by construction.
+
+### Hybrid retrieval (RetrieveTool internals)
+Dense vector search (pgvector HNSW, `ef_construction=200 m=16`) + BM25 sparse, fused with RRF; HyDE and multi-query expansion. The reranker runs cross-encoder over the top-K fused candidates. The legacy 10-stage query pipeline (NLU → memory → rewrite → HyDE → hybrid retrieval → rerank → rules → generate → audit → stream) lives intact behind `QueryPipeline.run()` and is what `RetrieveTool` wraps.
+
+### Document ingestion
+Six-stage pipeline: preprocess → extract → PII detect → chunk → vectorize → audit. Async variant returns a `task_id` immediately (`POST /ingest/async`); ARQ/Redis worker processes in background; poll status via `GET /ingest/status/{task_id}`.
+
+### Image extraction
+PDF-embedded images extracted via PyMuPDF, captioned by LLM, stored as retrievable `chunk_type="image"` vector chunks. Note: PyMuPDF is licensed under AGPL-3.0 — commercial on-premise deployments require a separate license.
+
+### Provider neutrality
+`BaseLLMClient.call_agentic_turn` (Phase 11) abstracts Anthropic Tool Use, OpenAI function-calling, Azure, and Ollama into one shape. The Planner consumes only this interface — no provider branches in pipeline code. `parallel_tool_calls=True` enabled on OpenAI; `disable_parallel_tool_use=False` on Anthropic. Providers without native tool-use (e.g. Ollama in v1.2) gracefully fall back to the fixed `QueryPipeline`; the pipeline catches `NotImplementedError` from the adapter and emits a structured-log warning.
+
+### Security
+JWT startup validation, per-route rate limiting, PII blocking by default, CORS locked to explicit origins. v1.0 hardening + v1.1 multi-tenant RLS form the defense-in-depth baseline. Auth is OIDC/JWT via `services/auth/`.
+
+### Module layout
 
 ```
 controllers/api.py          HTTP layer (FastAPI routes, auth, rate-limit, SSE)
@@ -41,13 +96,14 @@ controllers/api.py          HTTP layer (FastAPI routes, auth, rate-limit, SSE)
 services/pipeline.py        IngestionPipeline / QueryPipeline / AgentQueryPipeline
     │
 services/
+    agent/                  Planner / Executor / Synthesizer + tools/ registry (v1.4 core)
     preprocessor/           Stage 1 — clean, deduplicate, language detect
     extractor/              Stage 2 — PDF text + image extraction (PyMuPDF)
     doc_processor/          Stage 3/4 — PII detection, chunking strategies
     vectorizer/             Stage 5 — BGE-M3 embedding, pgvector upsert
     retriever/              Dense + BM25 + RRF fusion + reranker
     generator/              LLM client (Ollama / OpenAI / Anthropic / Azure)
-    nlu/                    Intent classification, entity disambiguation
+    nlu/                    Filter extraction (intent classification by Planner — Phase 16)
     memory/                 Redis short-term + PostgreSQL long-term
     auth/                   OIDC/JWT validation
     audit/                  Buffered audit log
@@ -60,13 +116,41 @@ utils/                      Shared: models, logger, cache, metrics, tasks
 config/settings.py          Pydantic V2 BaseSettings — all config via env vars
 ```
 
-**Vector store:** PostgreSQL + pgvector (HNSW index, `ef_construction=200 m=16`)  
-**Task queue:** ARQ + Redis  
-**Auth:** OIDC/JWT  
+**Stack:** PostgreSQL + pgvector (HNSW), ARQ + Redis, OIDC/JWT, FastAPI.
 
-## Quick Start — Docker
+### Testing & coverage
 
-### 1. Configure environment
+| Gate | Threshold | Scope |
+|------|-----------|-------|
+| Combined coverage | ≥ 70% (TEST-06, v1.3 Phase 15) | unit + integration |
+| Diff-coverage | ≥ 80% on changed lines (TEST-03) | per-PR |
+| RAGAS faithfulness | > 0.85 | 200 stratified QA pairs, judge model |
+| RAGAS answer relevancy | > 0.80 | same suite |
+
+Run locally: `make test`, `make coverage-combined`, `make eval`. CI enforces all four on PRs against `master`.
+
+The `coverage-combine` job (Phase 15) downloads the unit and integration `.coverage` artifacts, runs `coverage combine`, then `coverage report --fail-under=70` and `diff-cover coverage.xml --fail-under=80` on the combined artifact. A floor below 70% OR diff-coverage below 80% **blocks the merge** — no override comments, no soft-warn mode. Phase 10's "only unit-test coverage counts" decision is superseded by Phase 15's combined-report rule.
+
+## Observability
+
+The agent runtime emits a structured SSE event stream on `POST /api/v1/agent/v1/run/stream` (Phase 18, AGENT-04). Six event types: `planner.plan`, `tool.span.start`, `tool.span.end`, `tool.span.error`, `executor.parallel`, `synthesizer.final`. Each carries a `trace_id`, monotonic `seq`, and `ts_ms`. Wire format + payload tables: [Event Schema Reference](docs/agent-architecture.md#event-schema-reference).
+
+Other observability: Prometheus metrics on `/metrics`; structured logging via `structlog`; optional Langfuse tracing; buffered audit log with flush.
+
+## Quick start
+
+### Try the demo first
+
+```bash
+git clone <repo-url> && cd rag_enterprise
+make demo-agent
+```
+
+Stub-LLM, fixture-only, no API keys needed. Exits 0 in ~1.5s and prints the SSE event stream to stdout.
+
+### Docker stack
+
+#### 1. Configure environment
 
 ```bash
 cp .env.docker .env.docker.local   # keep original as template
@@ -92,7 +176,7 @@ OLLAMA_MODEL=qwen2.5:14b
 # ANTHROPIC_API_KEY=sk-ant-...
 ```
 
-### 2. Place documents
+#### 2. Place documents
 
 Put source files under `data/raw/`. Supported formats:
 
@@ -104,7 +188,7 @@ Put source files under `data/raw/`. Supported formats:
 | Text | `.txt` `.md` `.csv` `.json` |
 | Web | `.html` `.htm` |
 
-### 3. Start the stack
+#### 3. Start the stack
 
 ```bash
 make build        # build images (first time or after code changes)
@@ -115,7 +199,7 @@ make health       # confirm API is up: {"status": "ok"}
 
 Services started: `rag-api`, `qdrant`, `redis`, `ollama`, `ollama-init` (one-shot model pull), `arq-worker`, `nginx`.
 
-### 4. Ingest documents
+#### 4. Ingest documents
 
 ```bash
 make ingest       # scans /app/data/raw inside the container
@@ -137,7 +221,7 @@ conda run -n torch_env python scripts/ingest_batch.py \
     --concurrency 3
 ```
 
-## Quick Start — Local Development
+### Local dev
 
 ```bash
 # 1. Infrastructure
@@ -164,55 +248,26 @@ pip install -r requirements.txt
 uvicorn main:app --reload --port 8000
 ```
 
-## API Reference
+### cURL example
 
-Base URL: `http://localhost:8000/api/v1`
-
-All endpoints require `Authorization: Bearer <jwt_token>` except `/health` and `/readiness`.
-
-### Core endpoints
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/health` | Liveness check |
-| `GET` | `/readiness` | Readiness check (DB + Redis) |
-| `POST` | `/query` | Synchronous RAG query |
-| `POST` | `/query/stream` | Streaming SSE query |
-| `POST` | `/query/agent` | Agentic multi-step query |
-| `POST` | `/ingest` | Synchronous document ingest |
-| `POST` | `/ingest/async` | Async ingest — returns `task_id` |
-| `GET` | `/ingest/status/{task_id}` | Poll async ingest status |
-| `GET` | `/metrics` | Prometheus metrics |
-
-### Query example
+Stream events from a real agent invocation:
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/query \
-    -H "Authorization: Bearer $TOKEN" \
+curl --no-buffer -X POST http://localhost:8000/api/v1/agent/v1/run/stream \
+    -H "Authorization: Bearer <JWT>" \
     -H "Content-Type: application/json" \
     -d '{
         "query": "What is the annual leave policy?",
-        "tenant_id": "acme",
-        "session_id": "user-123"
+        "session_id": "user-123",
+        "tenant_id": "demo-tenant",
+        "user_id": "demo-user",
+        "top_k": 5
     }'
 ```
 
-### Async ingest example
+`<JWT>` is a token issued by your identity provider; see `services/auth/` for OIDC integration. Replace `demo-tenant` with the tenant ID your JWT scopes you to.
 
-```bash
-# Submit
-TASK=$(curl -s -X POST http://localhost:8000/api/v1/ingest/async \
-    -H "Authorization: Bearer $TOKEN" \
-    -d '{"file_path": "/app/data/raw/policy.pdf", "tenant_id": "acme"}' \
-    | jq -r .task_id)
-
-# Poll
-curl http://localhost:8000/api/v1/ingest/status/$TASK \
-    -H "Authorization: Bearer $TOKEN"
-# {"status": "complete", "task_id": "...", "error": null}
-```
-
-## Configuration
+### Configuration
 
 All settings are read from environment variables (or `.env` file). Key variables:
 
@@ -229,76 +284,16 @@ All settings are read from environment variables (or `.env` file). Key variables
 
 See `config/settings.py` for the full list with defaults.
 
-## Testing
+## Project status
 
-```bash
-# All unit tests
-make test
+**Current release:** v1.4 — Agent-First Architecture Inversion (Phases 16–19).
 
-# Unit tests only
-make test-unit
+- **Design doc:** [docs/v1.4-design.md](docs/v1.4-design.md) — the architectural-inversion thesis (Approach A: incremental refactor, no framework lock-in).
+- **Phase summaries:** [Planner + Executor Extraction](.planning/phases/16-planner-executor-extraction/16-03-SUMMARY.md) · [Tool Abstraction + RetrieveTool](.planning/phases/17-tool-abstraction-retrievetool/17-03-SUMMARY.md) · [SSE Event Stream](.planning/phases/18-sse-planner-trace-event-stream/18-03-SUMMARY.md) · Agent-First Docs + Demo + Release (this milestone).
+- **Changelog:** [CHANGELOG.md](CHANGELOG.md) (keep-a-changelog 1.1.0 format; v1.0 → v1.4 reverse-chronological).
+- **Roadmap:** [.planning/ROADMAP.md](.planning/ROADMAP.md).
 
-# With coverage report
-conda run -n torch_env pytest tests/unit/ -v --cov=services --cov-report=term-missing
-```
-
-Current coverage: **46.6%** (CI floor enforced). Diff-coverage gate (≥ 80% on changed lines) is enforced for v1.1 — see below.
-
-### Diff-Coverage Gate on v1.1 PRs (TEST-03)
-
-From v1.1 onward, any file modified in a PR must ship with **≥ 80% line coverage on the changed lines**. The legacy 46% global floor remains as a separate informational metric for unchanged files.
-
-**What it measures:** lines added or modified in your PR (relative to the v1.0 git tag in CI, or `origin/master...HEAD` locally) that are not exercised by unit tests in `tests/unit/`.
-
-**How to run locally before pushing:**
-
-```bash
-# one-time install
-conda run -n torch_env pip install -r requirements-dev.txt
-
-# run the gate
-make coverage-diff
-```
-
-The target writes `diff-cover.html` to the repo root — open it in a browser to see exactly which lines are uncovered.
-
-**CI behaviour:** the `Run diff-cover against v1.0 (TEST-03 hard gate)` step in the `unit-tests` job runs the same check against the `v1.0` tag. A diff coverage below 80% **blocks the merge** — there are no override comments and no soft-warn mode (decision D-05 in `.planning/phases/10-coverage-gate-on-new-code/10-CONTEXT.md`).
-
-**How to fix a failure:** add unit tests in `tests/unit/` that exercise the changed lines. If a v1.1 file is genuinely impossible to unit-test (e.g., a `main.py`-style boot wrapper), refactor the testable logic into a helper module rather than bypassing the gate.
-
-**Scope notes:**
-
-- Only unit-test coverage counts (`pytest tests/unit/ --cov=services --cov=utils`). Integration tests are not consumed by the gate (decision D-03).
-- The legacy `--cov-fail-under=46` global floor on the unit-tests step is unchanged — it's a separate informational gate, not the v1.1 quality bar.
-- The HTML diff-coverage report is uploaded as the `coverage-report` GitHub Actions artifact alongside `.coverage` and `coverage.xml`.
-
-## RAGAS Evaluation
-
-```bash
-# Run evaluation suite (requires OPENAI_API_KEY for judge model)
-make eval
-
-# Local run
-make eval-local
-```
-
-Evaluates 200 stratified QA pairs against RAGAS `faithfulness > 0.85` and `answer_relevancy > 0.80` gates. Runs automatically on `main` branch CI.
-
-## Makefile Reference
-
-```
-make build        Build all Docker images
-make up           Start full stack (background)
-make down         Stop containers (keep volumes)
-make logs         Tail rag-api logs
-make logs-all     Tail all service logs
-make health       Check API health endpoint
-make ingest       Batch ingest data/raw inside container
-make test         Run unit tests locally
-make eval         Run RAGAS evaluation (Docker)
-make shell        Open shell in rag-api container
-make clean        Prune Docker build cache
-```
+Prior milestones (archived): v1.0 Hardening · v1.1 Retrieval Depth & Frontend · v1.2 Agentic Layer + Swarm · v1.3 Fork Swarm, NLU & Quality. Per-milestone roadmaps live under `.planning/milestones/`.
 
 ## License
 

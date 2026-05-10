@@ -8,22 +8,35 @@ v1.0 Hardening shipped: the system now runs on PostgreSQL+pgvector (no Qdrant), 
 
 v1.1 Retrieval Depth & Frontend shipped: closed the image-only-PDF retrieval gap (PP-StructureV3 OCR + section-aware metadata + page/section query filter), extracted the inline UI to a static asset served via FastAPI StaticFiles, and added a diff-coverage gate that holds new code at ≥ 80% without blocking on legacy.
 
+v1.2 Agentic Layer + Swarm shipped: `agent_mode=True` now executes the real tool-use loop on both OpenAI and Anthropic providers. `BaseLLMClient.call_agentic_turn` abstraction added; Anthropic-only fallback removed; `asyncio.gather` parallel burst executes N ≥ 2 tool calls concurrently per turn.
+
 ## Current State
 
 - ✅ **v1.0 Hardening** shipped 2026-04-27 — [archive](milestones/v1.0-ROADMAP.md)
 - ✅ **v1.1 Retrieval Depth & Frontend** shipped 2026-05-08 — [archive](milestones/v1.1-ROADMAP.md)
+- ✅ **v1.2 Agentic Layer + Swarm** shipped 2026-05-08 — [archive](milestones/v1.2-ROADMAP.md)
+- ✅ **v1.3 Fork Swarm, NLU & Quality** shipped 2026-05-09 — [archive](milestones/v1.3-ROADMAP.md)
 
-## Next Milestone: v1.2 (pending requirements)
+## Current Milestone: v1.4 Agent-First Architecture Inversion
 
-**Status:** not started — run `/gsd-new-milestone v1.2` to define requirements
+**Goal:** Invert the architecture so the agent runtime is the project's core (planner + executor + tool registry), and agentic RAG becomes one tool the agent calls. Today's v1.3 layout is "RAG-first, agent-as-mode" — four parallel pipelines with `AgentQueryPipeline` as one option. v1.4 makes the agent loop primary and wraps `QueryPipeline.run()` as `RetrieveTool`.
 
-**Candidate themes** (captured during v1.1, awaiting prioritization):
-- Provider-agnostic agentic layer (`BaseLLMClient.call_agentic_turn` abstraction) — closes the OpenAI/Anthropic gap in `AgentQueryPipeline` (currently OpenAI silently falls back to non-agentic). Office-hours design APPROVED 2026-05-08.
-- Parallel tool-call burst (single-turn multi-call) — README differentiator; reuses `parallel_tool_calls=True` (OpenAI) / `disable_parallel_tool_use=False` (Anthropic).
-- True swarm with fork agents — references `claude-code` `forkedAgent.ts` pattern; deeper architectural change.
-- LLM-based filter extractor (fallback when regex misses).
-- Frontend modernization (JS/CSS extraction; DOM API rewrites).
-- Integration-test coverage merging via `coverage combine`.
+**Target features:**
+- Planner + Executor extraction inside the existing `AgentQueryPipeline` (no greenfield rewrite, no framework lock-in)
+- Tool abstraction with `RetrieveTool` (wraps hybrid retrieval + RRF + rerank) + ≥1 additional skeletal tool to prove pluggability
+- SSE planner trace event stream (`planner.plan` / `tool.span` / `executor.parallel`) on the streaming endpoint, with documented event schemas
+- Agent-first README rewrite, architecture doc, and reproducible multi-hop demo (`make demo-agent`)
+
+**Carry-forwards merged into main line:**
+- AGENT-04 (SSE for agentic + swarm) → folded into the planner-trace event stream
+- NLU-03 (query intent auto-route) → subsumed by the planner (intent classification becomes planner output)
+- `_execute_tool_call` shared-helper extraction → done as part of the Phase 16 refactor
+
+**Deferred to v1.5+:**
+- AGENT-05 (multi-agent debate / sub-agent verify) — 10x roadmap #2
+- UI-03 (React/Vue full migration), TEST-07 (mutation testing), per-module 70% lift on 5 large modules, UI-02 first-deploy browser smoke test
+
+Source design doc: `~/.gstack/projects/rothenbergverkuilenrn60-oss-rag-enterprise/ubuntu-gsd-v1.3-milestone-design-20260509-163809.md` (Approach A — incremental refactor, recommended).
 
 ## Core Value
 
@@ -72,15 +85,39 @@ Every query returns a grounded, auditable answer — no hallucinations, no silen
 - ✓ Inline `_UI_HTML` extracted to `static/ui.html`, served via FastAPI StaticFiles mount (UI-01) — v1.1
 - ✓ `diff-cover` ≥ 80% gate on v1.1-touched files; legacy 46% floor preserved as informational (TEST-03) — v1.1
 
+**v1.2 Agentic Layer + Swarm**
+- ✓ Provider-neutral `BaseLLMClient.call_agentic_turn` — `AgenticTurn` + `ToolCall` Pydantic V2 models; default-raise on base, implemented by both adapters (AGENT-01) — v1.2
+- ✓ `AnthropicLLMClient.call_agentic_turn` + `OpenAILLMClient.call_agentic_turn` — wire differences absorbed inside adapters; Anthropic-only gate at `pipeline.py:599-604` removed (AGENT-01) — v1.2
+- ✓ `asyncio.gather` parallel tool-call burst; parallelism factor logged per turn; tool result correlation via `tool_call.id` (AGENT-02) — v1.2
+- ✓ 7 hand-curated wire fixtures (4 Anthropic + 3 OpenAI); 13-test parametrized suite + integration test (AGENT-01/02) — v1.2
+
+**v1.3 Fork Swarm, NLU & Quality**
+- ✓ `SwarmQueryPipeline` with coordinator decomposition + N independent sub-agents (isolated `messages`, tool registry, iteration budget) running concurrently via `asyncio.gather`; synthesis LLM produces unified answer; `MAX_SWARM_AGENTS=5` + `MAX_SWARM_TURNS_PER_AGENT=5` caps; per-swarm audit log (AGENT-03) — v1.3
+- ✓ `FilterExtractor` class composes regex-first then LLM-fallback for natural-language section references (e.g., "关于第三章的内容"); cache layer reuses `utils/cache.py`; `fallback_source` traces path; 4/4 pipeline callsites migrated to async (NLU-02) — v1.3
+- ✓ `static/ui.html` split into `static/ui.css` + `static/ui.js` (IIFE-wrapped, addEventListener wiring); inline event handlers eliminated; main.py + StaticFiles symlink unchanged; AC#6 visual regression accepted on mechanical proxies pending first-deploy browser smoke (UI-02) — v1.3
+- ✓ CI 3-job coverage topology: `unit-tests` writes `.coverage.unit`, `integration-tests` writes `.coverage.integration` with `--cov-append` + `continue-on-error: true`, new `coverage-combine` job runs `combine + report --fail-under=70 + diff-cover`; pyproject `[tool.coverage.*]` config (`fail_under = 70`, `show_missing = true`, `parallel = false`) (TEST-04) — v1.3
+- ✓ Combined coverage 53.2% → 71.9% (+18.7pp); 20 services/ modules below 70% at v1.2 close received new unit test files (one happy + one error path each); `coverage report --fail-under=70` exits 0 (TEST-06) — v1.3
+
 ### Active
 
-(none — v1.2 requirements pending; run `/gsd-new-milestone v1.2`)
+**v1.4 Agent-First Architecture Inversion**
+- [ ] **AGENT-06**: Refactor `AgentQueryPipeline` into `Planner` + `Executor` + `Synthesizer` collaborators; preserve v1.2/v1.3 multi-tenant, audit, JWT, RLS invariants — Phase 16
+- [ ] **AGENT-09**: Extract `_execute_tool_call` to shared helper used by both `SwarmQueryPipeline` and the new `Executor` — Phase 16
+- [ ] **NLU-03**: Query intent classification subsumed by the planner output (no separate router); planner decides whether to fan out, single-hop retrieve, or short-circuit — Phase 16
+- [ ] **AGENT-07**: Define `Tool` protocol; wrap `QueryPipeline.run()` as `RetrieveTool` (hybrid + RRF + rerank stays internal); register ≥1 additional skeletal tool (`WebSearchTool` or `SQLTool`) to prove pluggability via static registry — Phase 17
+- [ ] **AGENT-04**: SSE planner trace event stream on `/query/stream` (and/or new `/agent/v1/run/stream`): `planner.plan`, `tool.span` (start/end/error with timing), `executor.parallel` marker, `synthesizer.final`; schemas documented in `docs/agent-architecture.md` — Phase 18
+- [ ] **AGENT-08**: Agent-first README rewrite (architecture lead with agent, RAG framed as one tool); `docs/agent-architecture.md` covering planner/executor model + tool authoring + SSE event schema; `make demo-agent` target running multi-hop demo end-to-end; recorded asciinema/gif of parallel fan-out — Phase 19
 
-**Carried over (not milestone-scoped, still tracked):**
+**Carried over (not v1.4-scoped, still tracked):**
 - [ ] asyncpg pool + RLS: verify `app.current_tenant` per-connection in production pool
 - [ ] PyMuPDF AGPL license: resolve commercial licensing for on-premise deployments
-- [ ] Phase 9 visual diff vs v1.0 + Docker live build (deferred to first deploy)
-- [ ] Phase 10 live PR through CI confirms `coverage-diff` step + HTML artifact (natural confirmation on first PR)
+- [ ] Phase 9/14 visual diff vs v1.0 + Docker live build (deferred to first deploy)
+- [ ] Phase 10/15 live PR through CI confirms `coverage-combine` job + HTML artifact (natural confirmation on first PR)
+- [ ] Push tags `v1.1`, `v1.2`, `v1.3` to origin (currently local-only)
+- [ ] PR #1 + PR #2 + PR #3 (v1.3) review + merge
+- [ ] v1.5+ follow-up: lift 5 large modules above per-module 70% (pipeline, llm_client, vector_store, retriever, extractor)
+- [ ] v1.5+ follow-up: AGENT-05 multi-agent debate / sub-agent verify (10x roadmap #2)
+- [ ] v1.5+ follow-up: UI-03 React/Vue full migration; TEST-07 mutation testing; UI-02 first-deploy browser smoke test
 
 ### Out of Scope
 
@@ -88,23 +125,29 @@ Every query returns a grounded, auditable answer — no hallucinations, no silen
 - Multi-region tenant isolation — single-region RLS sufficient until scale requires it
 - Additional auth providers — existing OIDC integration covers enterprise needs
 - Automatic eval dataset generation pipeline — manual bootstrap sufficient for v1
-- LLM-based filter extractor — regex-only in v1.1; LLM fallback deferred to v1.2
+- LLM-based filter extractor — regex-only in v1.1; LLM fallback deferred to v1.3 (NLU-02)
 - React/Vue/Streamlit frontend — single static HTML is the v1.1 ceiling
 - 80% coverage on legacy modules — v1.1 only gates new code (TEST-03)
 - MinerU / raw PP-OCRv5 alternatives to PP-StructureV3 — research recommends PP-StructureV3
 
 ## Context
 
-**Codebase state:** ~5000 lines of service code (Python/FastAPI). All core infrastructure shipped. v1.0 Hardening closed security and quality gaps.
+**Codebase state:** ~5500+ lines of service code (Python/FastAPI). All core infrastructure shipped across v1.0–v1.3.
 
 **Vector store:** PostgreSQL + pgvector with HNSW index. Qdrant fully removed.
 
-**Testing:** 263 unit tests passing, 46.63% service coverage. CI pipeline: lint → unit (46% floor) → integration → security scan → Docker build → eval gate (main only).
+**Agentic layer:** `agent_mode=True` functional on both OpenAI and Anthropic via `AgentQueryPipeline` (single agent) + `SwarmQueryPipeline` (N isolated sub-agents, parallel via `asyncio.gather`). Both built on the v1.2 `call_agentic_turn` abstraction. Routing: controllers/api.py uses `swarm > agent > default` precedence chain.
+
+**NLU layer:** Filter extractor uses regex-first then LLM-fallback (`FilterExtractor` class). Cache layer reuses `utils/cache.py`. Cost on regex hits stays zero.
+
+**Frontend:** `static/ui.html` references `static/ui.css` + `static/ui.js` (IIFE-wrapped). Inline `<script>`/`<style>` blocks and event handlers eliminated. main.py + StaticFiles symlink unchanged. No bundler.
+
+**Testing:** 622 unit tests; combined unit + integration coverage 71.9%; CI gates `coverage report --fail-under=70` (global floor) + `diff-cover --fail-under=80` (per-file new code). CI pipeline: lint → unit-tests (writes `.coverage.unit`) → integration-tests (writes `.coverage.integration` with `--cov-append`, `continue-on-error: true`) → coverage-combine (combines + enforces both gates) → security scan → Docker build → eval gate (main only).
 
 **Known issues / tech debt:**
-- Unit test coverage at 46% (80% target deferred to v1.1)
 - HNSW UPDATE path: always DELETE + INSERT; schedule periodic `REINDEX`
 - PyMuPDF commercial license: needed for enterprise on-premise
+- `agent_mode: bool = False` field in `utils/models.py:215` stays as toggle; the old Anthropic gate it guarded is gone
 
 ## Constraints
 
@@ -136,6 +179,23 @@ Every query returns a grounded, auditable answer — no hallucinations, no silen
 | `static/index.html → ui.html` symlink (v1.1) | `StaticFiles(html=True)` looks for `index.html`; symlink preserves SC #1 file-name AND makes SC #2 work | ✓ Good — Phase 9 (deviation surfaced at executor checkpoint) |
 | Diff-cover gate on touched files only (v1.1) | Legacy 46% floor stays as informational; v1.1 does not block on legacy code | ✓ Good — Phase 10 |
 | CI vs `v1.0` tag, local vs `origin/master` (v1.1) | REQ baseline-vs-milestone-delta in CI; SC dev-loop ref locally; each ref serves its written use case | ✓ Good — Phase 10 D-01/D-02 split |
+| Non-abstract default-raise `call_agentic_turn` on `BaseLLMClient` (v1.2) | Avoids breaking subclasses that don't need agentic mode; `NotImplementedError` is the safe fallback | ✓ Good — Phase 11 |
+| `_RAW_DICT_FIELDS = {"input"}` lock in `ToolCall` model (v1.2) | Prevents Pydantic from coercing opaque `input` dict into typed model; preserves arbitrary tool schemas | ✓ Good — Phase 11 |
+| Wire fixtures hand-curated against real provider SDKs (v1.2) | Tests exercise actual parsing logic against real response shapes; generated fixtures would miss format nuances | ✓ Good — Phase 11-02 |
+| `parallel_tool_calls=True` explicit in OpenAI; `disable_parallel_tool_use=False` explicit in Anthropic (v1.2) | Defaults exist on both, but explicit makes the contract auditable and self-documenting | ✓ Good — Phase 11 |
+| `zip(turn.tool_calls, tool_outputs)` for result correlation (v1.2) | Preserves `tool_call.id` round-trip without additional bookkeeping; order-stable under `asyncio.gather` | ✓ Good — Phase 11-04 |
+| `AgentQueryPipeline` body byte-identical to v1.2 baseline (v1.3 D-01) | Swarm is a separate pipeline class; preserving AgentQueryPipeline avoids regression risk on v1.2 contract | ✓ Good — Phase 12 |
+| Sub-agents do NOT inherit chat history (v1.3 D-06) | True context isolation; one sub-question's noise cannot crowd another's reasoning | ✓ Good — Phase 12 |
+| `BaseException` (not `Exception`) for asyncio.gather isolation (v1.3) | Covers `CancelledError` / `TimeoutError`; otherwise sub-agent cancellation propagates to swarm | ✓ Good — Phase 12 |
+| `_execute_tool_call` duplicated verbatim between SwarmQueryPipeline + AgentQueryPipeline (v1.3) | Verified token-equivalent at commit `1664c42` via inspect.getsource normalized comparison; refactor deferred to v1.4 | ⚠ Revisit — extract shared helper in v1.4 |
+| `FilterExtractor` composes regex-first then LLM (v1.3 D-11) | Single decision tree; preserves zero-cost regex behavior; LLM only on miss | ✓ Good — Phase 13 |
+| Existing regex `extract_filters` AST byte-identical post-Wave-1 (v1.3 D-02) | Preserves freeze contract from v1.1 QUERY-01; new FilterExtractor wraps not replaces | ✓ Good — Phase 13 |
+| Mock at consumer path (`services.<mod>.<dep>`) not source (v1.3) | Tests exercise real module code; only stubs external boundaries; established by Phase 13 plan-checker | ✓ Good — Phase 13 + reused in Phase 15 |
+| Frontend AC#6 visual regression accepted on mechanical proxies (v1.3) | Sandbox lacks browser tooling; CSS byte-identical, JS preserves semantics, HTML shell intact, all 4 paths return HTTP 200; live smoke at first deploy | ⚠ Revisit — first-deploy browser smoke test |
+| Phase 15 D-04 measure-then-plan for Wave 2 backfill | Pre-locking module list misses production-code drift; measurement at execute time matches reality | ✓ Good — Phase 15 |
+| Phase 15 D-05 diff-cover migrates from `unit-tests` to `coverage-combine` (supersedes Phase 10 D-03) | Combined-data is the single source of truth for both 70% floor and diff-cover gate | ✓ Good — Phase 15 |
+| Phase 15 D-08 `parallel = false` in `[tool.coverage.run]` | Pitfall 1: empirically breaks artifact path with `COVERAGE_FILE` env var; researcher-revised | ✓ Good — Phase 15 |
+| 5 large modules below per-module 70% accepted at v1.3 close | Aggregate floor 71.9% met; deep-mocking heavy pipelines is out of CONTEXT D-04 scope; v1.4 follow-up | ⚠ Revisit — v1.4 |
 
 ## Evolution
 
@@ -153,4 +213,4 @@ Every query returns a grounded, auditable answer — no hallucinations, no silen
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-08 — v1.1 milestone shipped (Retrieval Depth & Frontend); v1.2 pending requirements*
+*Last updated: 2026-05-09 — v1.4 Agent-First Architecture Inversion milestone opened*

@@ -8,7 +8,7 @@ from __future__ import annotations
 import time
 import uuid
 from enum import Enum
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -212,6 +212,7 @@ class GenerationRequest(BaseModel):
     temperature:  float                         = Field(default=0.1, ge=0.0, le=2.0)
     stream:       bool                          = False
     agent_mode:   bool                          = False   # True 时使用 Agentic 工具循环
+    swarm_mode:   bool                          = False   # True 时使用 Fork-Agent Swarm（AGENT-03）
     include_images: bool                        = False   # True 时响应保留 image_b64（默认剥离以减小响应体）
     # 多租户 & 用户身份
     tenant_id:    str                           = ""
@@ -285,6 +286,119 @@ class AgenticTurn(BaseModel):
     raw_assistant_msg:   dict[str, Any]                                       = Field(default_factory=dict)
     usage_input_tokens:  int                                                  = 0
     usage_output_tokens: int                                                  = 0
+
+
+class ToolPlan(BaseModel):
+    """Planner output: an ordered list of ToolCalls plus their parallel-group
+    assignment and a human-readable rationale (AGENT-06, Phase 16).
+
+    ``parallel_groups`` is the canonical execution shape: each inner list is
+    a wave of step indices that the Executor dispatches concurrently via
+    ``asyncio.gather``. Every step index in ``range(len(steps))`` MUST appear
+    in exactly one group; ``parallel_groups`` is never empty for a non-empty
+    plan. Phase 16 CONTEXT.md D-01, D-02 freeze this shape.
+
+    ``rationale`` is surfaced verbatim in the Phase 18 ``planner.plan`` SSE
+    trace event. Planner system prompt instructs the LLM to write
+    ``rationale`` in the same language as the user query (CONTEXT.md D-03).
+    """
+    model_config = ConfigDict(frozen=True)
+
+    steps:             list[ToolCall]  = Field(default_factory=list)
+    parallel_groups:   list[list[int]] = Field(default_factory=list)
+    rationale:         str             = ""
+    # Carried from AgenticTurn so the orchestrator can append it to messages
+    # before appending tool_results (provider wire-format requirement).
+    raw_assistant_msg: dict[str, Any]  = Field(default_factory=dict)
+    # Mirrored from AgenticTurn.stop_reason so the orchestrator can log
+    # max_tokens warnings without a second LLM call.
+    stop_reason:       str             = "text_only"
+
+    @field_validator("parallel_groups")
+    @classmethod
+    def _validate_parallel_groups(
+        cls,
+        v: list[list[int]],
+        info: Any,
+    ) -> list[list[int]]:
+        steps = info.data.get("steps", [])
+        n = len(steps)
+
+        if n == 0:
+            if v:
+                raise ValueError("parallel_groups must be empty when steps is empty")
+            return v
+
+        if not v:
+            raise ValueError("parallel_groups must not be empty when steps is non-empty")
+
+        seen: set[int] = set()
+        for group in v:
+            if not group:
+                raise ValueError("parallel_groups must not contain empty groups")
+            for idx in group:
+                if idx < 0 or idx >= n:
+                    raise ValueError(
+                        f"parallel_groups index {idx} out of range for {n} steps"
+                    )
+                if idx in seen:
+                    raise ValueError(
+                        f"parallel_groups index {idx} appears in multiple groups"
+                    )
+                seen.add(idx)
+
+        if seen != set(range(n)):
+            missing = sorted(set(range(n)) - seen)
+            raise ValueError(
+                f"parallel_groups missing step indices: {missing}"
+            )
+
+        return v
+
+
+class ToolResult(BaseModel):
+    """A single tool's output, normalized across tool implementations (AGENT-07).
+
+    The orchestrator builds provider tool_results from ``content``; ``chunks``
+    is consumed only on the RetrieveTool path; ``metadata`` carries free-form
+    per-tool diagnostic data surfaced to Phase 18 ``tool.span`` SSE events.
+
+    Frozen — adapters never mutate.
+
+    Metadata key convention (Phase 18 SSE forward-compat):
+      - ``latency_ms: int``    — wall-clock ms for the tool run (0 for errors/placeholders)
+      - ``query: str``         — effective query string (RetrieveTool family)
+      - ``placeholder: bool``  — True for skeletal/stub tools (WebSearchTool v1.4)
+      - ``chunk_count: int``   — number of chunks returned (RetrieveTool family)
+      - ``provider: str``      — tool-specific provider tag (future web search tools)
+    """
+    model_config = ConfigDict(frozen=True)
+
+    content:  str
+    chunks:   list[Any]       = Field(default_factory=list)
+    metadata: dict[str, Any]  = Field(default_factory=dict)
+    is_error: bool             = False
+
+
+class ToolContext(BaseModel):
+    """Per-tool-dispatch context (AGENT-07).
+
+    Mirrors v1.3's positional ``execute_tool_call(tc, tf, req, retriever, llm)``
+    signature: ``Executor`` constructs a ``ToolContext`` per dispatch from
+    its bound retriever + llm and the orchestrator's ``tf`` + ``req``.
+
+    ``arbitrary_types_allowed=True`` is REQUIRED — ``retriever`` and ``llm``
+    hold concrete adapter instances (HybridRetrieverService,
+    AnthropicLLMClient) that are not Pydantic models. Without this flag,
+    Pydantic V2 raises ``PydanticUserError`` at construction.
+    Frozen — tools never mutate ctx.
+    """
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+
+    req:       GenerationRequest
+    tf:        dict[str, Any]
+    retriever: Any
+    llm:       Any
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -404,3 +518,115 @@ class AnnotationStats(BaseModel):
     skipped:           int   = 0
     avg_faithfulness:  float | None = None
     avg_answer_quality: float | None = None
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# STAGE 7 — SSE Trace Events (AGENT-04, Phase 18)
+# ══════════════════════════════════════════════════════════════════════════════
+#
+# AgentEvent + 6 concrete subclasses serialized to SSE
+# ``event: <type>\ndata: <json>\n\n`` named-event lines by
+# ``controllers/api.py::/agent/v1/run/stream`` (Phase 18 D-01, D-10).
+#
+# Frozen Pydantic V2 models — match Phase 16/17 D-01 placement convention.
+# ``event_type: ClassVar[str]`` is the discriminator; ClassVar fields are
+# excluded from ``model_dump()`` / ``model_dump_json()`` automatically
+# (Pydantic V2 default behavior). The base class declares no ``event_type``
+# so concrete subclasses each carry their own canonical wire-name.
+
+class AgentEvent(BaseModel):
+    """Abstract-by-convention base for all Phase 18 SSE event payloads.
+
+    Concrete subclasses each declare a unique ``event_type: ClassVar[str]``
+    discriminator and add their own payload fields. Common fields live here.
+
+    Frozen — emitters never mutate; SSE serialization is one-way.
+    """
+    model_config = ConfigDict(frozen=True)
+
+    trace_id: str
+    seq:      int
+    ts_ms:    int
+
+
+class PlannerPlanEvent(AgentEvent):
+    """Emitted once per planner turn — carries the full ToolPlan the planner
+    just produced (D-09)."""
+    event_type: ClassVar[str] = "planner.plan"
+    model_config = ConfigDict(frozen=True)
+
+    plan: ToolPlan
+
+
+class ToolSpanStartEvent(AgentEvent):
+    """Emitted ONCE per tool dispatch BEFORE the coroutine awaits (D-05).
+
+    ``args`` is verbatim from ``ToolCall.arguments`` — the model performs no
+    scrubbing (D-11). Multi-tenant safety is preserved by JWT + RLS at the
+    route layer; this model is a structural carrier only.
+    """
+    event_type: ClassVar[str] = "tool.span.start"
+    model_config = ConfigDict(frozen=True)
+
+    span_id: str
+    name:    str
+    args:    dict[str, Any] = Field(default_factory=dict)
+
+
+class ToolSpanEndEvent(AgentEvent):
+    """Emitted when a tool dispatch resolves to a ``ToolResult`` (D-09).
+
+    ``content_preview`` is first 200 chars of ``ToolResult.content`` — the
+    emitter truncates. ``chunk_count`` and ``latency_ms`` come from
+    ``ToolResult.metadata`` per Phase 17 D-02 (with ``len(result.chunks)``
+    fallback for ``chunk_count``).
+    """
+    event_type: ClassVar[str] = "tool.span.end"
+    model_config = ConfigDict(frozen=True)
+
+    span_id:         str
+    latency_ms:      int
+    chunk_count:     int
+    is_error:        bool
+    content_preview: str
+
+
+class ToolSpanErrorEvent(AgentEvent):
+    """Emitted INSTEAD OF ``tool.span.end`` when a tool dispatch raises
+    ``BaseException`` (D-12).
+
+    ``error_message`` is ``str(exc)[:200]`` — the emitter truncates. Full
+    traceback is logged at ``logger.error`` only; not in the stream.
+    """
+    event_type: ClassVar[str] = "tool.span.error"
+    model_config = ConfigDict(frozen=True)
+
+    span_id:       str
+    latency_ms:    int
+    error_type:    str
+    error_message: str
+
+
+class ExecutorParallelEvent(AgentEvent):
+    """Emitted ONCE per parallel group — at group END with both ``fan_out``
+    and ``group_latency_ms`` populated (D-09).
+
+    Plan 18-01 ``planner_decision`` (D-09 / D-15 reconciliation, option c):
+    emit at group END (not start) so ``group_latency_ms`` is always populated.
+    Plan 18-03's smoke test (D-15) updates the expected sequence accordingly.
+    """
+    event_type: ClassVar[str] = "executor.parallel"
+    model_config = ConfigDict(frozen=True)
+
+    fan_out:          int
+    group_latency_ms: int
+
+
+class SynthesizerFinalEvent(AgentEvent):
+    """Emitted ONCE at end of stream — carries the synthesizer's final answer
+    text verbatim (D-07)."""
+    event_type: ClassVar[str] = "synthesizer.final"
+    model_config = ConfigDict(frozen=True)
+
+    answer:        str
+    sources_count: int
