@@ -75,7 +75,7 @@ See [milestones/v1.3-ROADMAP.md](milestones/v1.3-ROADMAP.md) for full phase deta
 5. TAVILY_API_KEY never appears in git history, planning docs, logs, or SSE error frames; pre-commit / repo grep confirms absence of `tvly-` prefix in tracked files; `.env` is gitignored; `.env.docker` uses `${TAVILY_API_KEY:-}` substitution.
 **Plans:** 5 plans (Wave 1 → 2 → 3 → 4; Plans 03 + 04 run in parallel on Wave 3; TDD on Plans 02 + 03)
 Plans:
-- [ ] 20-01-PLAN.md — Wave 1 (execute): Tavily settings (3 fields) + requirements.txt pin + .env.docker placeholder
+- [x] 20-01-PLAN.md — Wave 1 (execute): Tavily settings (3 fields) + requirements.txt pin + .env.docker placeholder ✓ shipped 2026-05-10 (commits efc4fa8, 7fff13a)
 - [ ] 20-02-PLAN.md — Wave 2 (TDD): WebSearchTool real impl (RED→GREEN→REFACTOR) — _tavily_search retry helper + 3 typed-error kinds + RetrievedChunk mapping + D-15 source-side redaction
 - [ ] 20-03-PLAN.md — Wave 3 (TDD, parallel with 20-04): AGENT_TOOL_ALLOWLIST literal edit + planner-picks-web_search two-fixture integration test + _AGENT_SYSTEM byte-identical guardrail
 - [ ] 20-04-PLAN.md — Wave 3 (execute, parallel with 20-03): static/ui.js URL=<host> locator-token branch + hostOf helper + 9 static-source assertion tests
