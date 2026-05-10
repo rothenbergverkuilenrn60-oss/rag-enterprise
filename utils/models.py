@@ -9,7 +9,7 @@ import time
 import uuid
 from enum import Enum
 from typing import Any, ClassVar, Literal
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 枚举类型
@@ -213,6 +213,7 @@ class GenerationRequest(BaseModel):
     stream:       bool                          = False
     agent_mode:   bool                          = False   # True 时使用 Agentic 工具循环
     swarm_mode:   bool                          = False   # True 时使用 Fork-Agent Swarm（AGENT-03）
+    debate:       bool                          = False   # AGENT-14 — opt-in verifier hop after peer fan-out (CF-02)
     include_images: bool                        = False   # True 时响应保留 image_b64（默认剥离以减小响应体）
     # 多租户 & 用户身份
     tenant_id:    str                           = ""
@@ -222,6 +223,15 @@ class GenerationRequest(BaseModel):
     @classmethod
     def strip_query(cls, v: str) -> str:
         return v.strip()
+
+    @model_validator(mode="after")
+    def _check_debate_requires_swarm(self) -> "GenerationRequest":
+        """D-10: debate=True requires swarm_mode=True (verifier runs after peer fan-out)."""
+        if self.debate and not self.swarm_mode:
+            raise ValueError(
+                "debate=True requires swarm_mode=True (verifier runs after peer fan-out)"
+            )
+        return self
 
 
 class GenerationResponse(BaseModel):
@@ -630,3 +640,70 @@ class SynthesizerFinalEvent(AgentEvent):
 
     answer:        str
     sources_count: int
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Phase 21 — AGENT-05 Multi-Agent Debate / Sub-Agent Verifier
+# ══════════════════════════════════════════════════════════════════════════════
+#
+# VerifierVerdict — Verifier sub-agent return type (D-01).
+# 3 AgentEvent subclasses — verifier.start / verifier.complete / verifier.disagreement
+# (D-08, D-09). Frozen Pydantic V2 models matching the existing AgentEvent
+# subclass convention (each subclass redeclares ``model_config = ConfigDict(frozen=True)``).
+
+class VerifierVerdict(BaseModel):
+    """Verifier sub-agent verdict (AGENT-05).
+
+    Frozen — Verifier emits once; SwarmQueryPipeline reads (and may
+    ``.model_copy(update=...)`` for CF-04 forced-disagree override per
+    21-RESEARCH.md Pitfall P-02).
+
+    Per CONTEXT D-02, ``proposed_answer`` is ALWAYS populated (both verdicts).
+    """
+    model_config = ConfigDict(frozen=True)
+
+    verdict:            Literal["agree", "disagree"]
+    evidence_chunk_ids: list[str]
+    reasoning:          str
+    proposed_answer:    str
+    latency_ms:         int
+
+
+class VerifierStartEvent(AgentEvent):
+    """Emitted ONCE before Verifier.verify() awaits (D-09)."""
+    event_type: ClassVar[str] = "verifier.start"
+    model_config = ConfigDict(frozen=True)
+
+    peer_count: int
+    model:      str                       # resolved per D-05
+
+
+class VerifierCompleteEvent(AgentEvent):
+    """Emitted ONCE after Verifier.verify() returns successfully (D-09).
+
+    No ``proposed_answer_preview`` field — kept off the wire to avoid PII echo
+    and frame bloat (full text reaches users only via SynthesizerFinalEvent).
+    """
+    event_type: ClassVar[str] = "verifier.complete"
+    model_config = ConfigDict(frozen=True)
+
+    verdict:              Literal["agree", "disagree"]
+    evidence_chunk_count: int
+    latency_ms:           int
+
+
+class VerifierDisagreementEvent(AgentEvent):
+    """Emitted on the three disagree paths (D-08).
+
+    ``summary`` is truncated to 200 chars at the emitter, mirroring
+    ``ToolSpanErrorEvent.error_message`` (utils/models.py ~594-607).
+    ``error_type`` is populated only when ``reason="verifier_failed"`` (D-06).
+    """
+    event_type: ClassVar[str] = "verifier.disagreement"
+    model_config = ConfigDict(frozen=True)
+
+    reason:             Literal["peers_diverge", "forced_no_evidence", "verifier_failed"]
+    summary:            str
+    evidence_chunk_ids: list[str]
+    peer_count:         int
+    error_type:         str | None = None
