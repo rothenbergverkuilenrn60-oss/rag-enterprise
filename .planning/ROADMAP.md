@@ -73,6 +73,14 @@ See [milestones/v1.3-ROADMAP.md](milestones/v1.3-ROADMAP.md) for full phase deta
 3. `AGENT_TOOL_ALLOWLIST` includes `web_search`; planner schemas include the tool; integration test asserts an unanswerable-from-KB query causes the planner to pick `web_search` and an in-corpus query still picks `search_knowledge_base`.
 4. `static/ui.js` source rendering: when `chunk_type === "web"`, displays `URL=<host>` (extracted from `metadata.source`) instead of `页=?`; PDF source rendering unchanged. UI smoke test verifies a mixed query renders both source types correctly.
 5. TAVILY_API_KEY never appears in git history, planning docs, logs, or SSE error frames; pre-commit / repo grep confirms absence of `tvly-` prefix in tracked files; `.env` is gitignored; `.env.docker` uses `${TAVILY_API_KEY:-}` substitution.
+**Plans:** 5 plans (Wave 1 → 2 → 3 → 4; Plans 03 + 04 run in parallel on Wave 3; TDD on Plans 02 + 03)
+Plans:
+- [ ] 20-01-PLAN.md — Wave 1 (execute): Tavily settings (3 fields) + requirements.txt pin + .env.docker placeholder
+- [ ] 20-02-PLAN.md — Wave 2 (TDD): WebSearchTool real impl (RED→GREEN→REFACTOR) — _tavily_search retry helper + 3 typed-error kinds + RetrievedChunk mapping + D-15 source-side redaction
+- [ ] 20-03-PLAN.md — Wave 3 (TDD, parallel with 20-04): AGENT_TOOL_ALLOWLIST literal edit + planner-picks-web_search two-fixture integration test + _AGENT_SYSTEM byte-identical guardrail
+- [ ] 20-04-PLAN.md — Wave 3 (execute, parallel with 20-03): static/ui.js URL=<host> locator-token branch + hostOf helper + 9 static-source assertion tests
+- [ ] 20-05-PLAN.md — Wave 4 (execute, autonomous: false): .pre-commit-config.yaml tvly- regex hook + SC5 secret-redaction smoke test (3 tests) + human-verify mixed-source UI render
+
 
 ### Phase 21: AGENT-05 Multi-Agent Debate / Sub-Agent Verifier
 **Goal:** Introduce a single-pass verifier sub-agent that runs after `SwarmQueryPipeline`'s `asyncio.gather` peer fan-out when `req.debate=True`. Verifier reads N peer answers + their cited evidence chunks and emits a structured `VerifierVerdict` (agree / disagree). On disagreement, the synthesizer composes a final response that surfaces the divergence and the evidence-supported answer. Three new SSE event types extend the v1.4 schema; `synthesizer.final` remains terminal. Latency stays bounded by `max(peer) + verifier`, not `sum`.
@@ -202,6 +210,6 @@ Plans:
 | 17. Tool Abstraction + RetrieveTool | v1.4 | 3/3 | Complete ✓ | 2026-05-09 |
 | 18. SSE Planner Trace Event Stream | v1.4 | 5/5 | Complete ✓ | 2026-05-09 |
 | 19. Agent-First Docs + Demo + Release | v1.4 | 8/8 | Complete ✓ | 2026-05-10 |
-| 20. WebSearchTool Real Implementation (Tavily) | v1.5 | 0/0 | Planning | — |
+| 20. WebSearchTool Real Implementation (Tavily) | v1.5 | 0/5 | Planning | — |
 | 21. AGENT-05 Multi-Agent Debate / Sub-Agent Verifier | v1.5 | 0/0 | Planning | — |
 | 22. Per-Module 70% Coverage Lift | v1.5 | 0/0 | Planning | — |
