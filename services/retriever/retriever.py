@@ -385,18 +385,11 @@ def _safe_doc_type(value: str) -> DocType:
 
 
 def _to_retrieved_chunk(r: VectorSearchResult, method: str = "dense") -> RetrievedChunk:
-    meta = ChunkMetadata(
-        source=r.metadata.get("source", ""),
-        doc_id=r.doc_id,
-        title=r.metadata.get("title", ""),
-        author=r.metadata.get("author", ""),
-        chunk_index=r.metadata.get("chunk_index", 0),
-        total_chunks=r.metadata.get("total_chunks", 0),
-        doc_type=_safe_doc_type(r.metadata.get("doc_type", "")),
-        language=r.metadata.get("language", "zh"),
-        chunk_type=r.metadata.get("chunk_type", "text"),
-        image_b64=r.metadata.get("image_b64", ""),
-    )
+    # 自动透传 DB metadata 全字段（Pydantic 忽略未声明键）。
+    # doc_type 走 _safe_doc_type 防御未知值；doc_id 强制对齐 r.doc_id。
+    raw = {**(r.metadata or {}), "doc_id": r.doc_id}
+    raw["doc_type"] = _safe_doc_type(raw.get("doc_type", ""))
+    meta = ChunkMetadata.model_validate(raw)
     return RetrievedChunk(
         chunk_id=r.chunk_id,
         doc_id=r.doc_id,

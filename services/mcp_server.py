@@ -169,7 +169,7 @@ async def _tool_search(args: dict):
                 "content":    chunk.content,
                 "score":      round(chunk.final_score, 4),
                 "source":     chunk.metadata.source,
-                "page":       getattr(chunk.metadata, "page_number", None),
+                "page":       chunk.metadata.page_number,
             })
 
         output = {
