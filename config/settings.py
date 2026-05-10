@@ -273,6 +273,10 @@ class Settings(BaseSettings):
     openai_model:       str   = "gpt-4o"
     anthropic_api_key:  str   = ""
     anthropic_model:    str   = "claude-sonnet-4-6"
+    # Tavily web search (Phase 20, AGENT-10) ───────────────────────────────────
+    tavily_api_key:        str = ""
+    tavily_search_depth:   str = "basic"   # SDK accepts: basic | fast | advanced | ultra-fast
+    tavily_max_results:    int = 5
     # Azure OpenAI（llm_provider="azure" 时生效）
     azure_openai_endpoint:    str = ""   # e.g. https://your-resource.openai.azure.com/
     azure_openai_api_version: str = "2024-02-01"
