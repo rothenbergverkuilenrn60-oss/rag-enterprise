@@ -259,7 +259,7 @@ async def query_stream(request: Request, req: GenerationRequest) -> StreamingRes
 @router.post("/agent/v1/run/stream", tags=["agent"])
 @_limiter.limit(f"{settings.rate_limit_query_rpm}/minute")
 async def agent_run_stream(request: Request, req: GenerationRequest) -> StreamingResponse:
-    """SSE event stream for agentic queries (AGENT-04, Phase 18).
+    """SSE event stream for agentic queries (AGENT-04, Phase 18; AGENT-15 swarm dispatch added Phase 21).
 
     Emits typed AgentEvent payloads as named SSE frames:
 
@@ -267,11 +267,21 @@ async def agent_run_stream(request: Request, req: GenerationRequest) -> Streamin
 
     Terminal event is ``synthesizer.final`` — no ``[DONE]`` sentinel (D-01).
     Auth + rate limit + multi-tenant RLS inherit from the existing ``/query``
-    stack (D-01, D-03). Body shape is ``GenerationRequest`` unchanged; the
-    route invokes ``AgentQueryPipeline.run_streaming`` regardless of
-    ``req.agent_mode`` — this URL IS the agent surface.
+    stack (D-01, D-03). Body shape is ``GenerationRequest`` unchanged.
+
+    Phase 21 / Plan 21-05 / BLOCKER 2: dispatch to ``SwarmQueryPipeline`` when
+    ``req.swarm_mode=True`` so the 3 verifier events (verifier.start /
+    verifier.disagreement / verifier.complete) reach the wire when
+    ``req.debate=True``. Backward-compat (CF-08): non-swarm requests still
+    route to the agent pipeline.
     """
-    pipeline = get_agent_pipeline()
+    # noqa-typing: factories are untyped at the import site (mirrors the pre-Phase-21
+    # pattern at controllers/api.py:209-214 in /query); same baseline tolerance applies.
+    pipeline = (
+        get_swarm_pipeline()  # type: ignore[no-untyped-call]
+        if req.swarm_mode
+        else get_agent_pipeline()
+    )
 
     async def _sse():
         try:
