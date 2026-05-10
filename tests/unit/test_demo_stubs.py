@@ -19,14 +19,14 @@ from typing import Any, ClassVar
 
 import pytest
 
-from services.agent.tools.base import BaseTool
-from services.agent.tools.registry import ToolRegistry
 from services.agent._demo_stubs import (  # noqa: E402  (RED — module does not exist yet)
     DEMO_QUERY,
     DemoStubPlanner,
     build_demo_registry,
     make_fake_retrieve_tool,
 )
+from services.agent.tools.base import BaseTool
+from services.agent.tools.registry import ToolRegistry
 from utils.models import (
     GenerationRequest,
     ToolCall,  # noqa: F401  — required import per plan 19-01 Task 1 acceptance criteria
@@ -34,7 +34,6 @@ from utils.models import (
     ToolPlan,
     ToolResult,
 )
-
 
 # ── helpers ────────────────────────────────────────────────────────────
 

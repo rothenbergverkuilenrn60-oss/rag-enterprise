@@ -17,10 +17,9 @@ os.environ.setdefault("APP_MODEL_DIR", "/tmp")
 os.environ.setdefault("SECRET_KEY", "a-very-secure-key-for-testing-that-is-long-32c")
 
 from contextlib import asynccontextmanager
-from unittest.mock import AsyncMock, MagicMock, call, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 
 # ── Inline fixtures (D-10) ────────────────────────────────────────────────────
 
@@ -330,9 +329,8 @@ async def test_pgvector_create_collection_enables_rls(monkeypatch, fake_pool, fa
 
 async def test_pgvector_upsert_empty_chunks_returns_early(monkeypatch, fake_pool):
     """upsert with no embedding chunks must log warning and return without DB call."""
-    from utils.models import ChunkMetadata, DocType, DocumentChunk
-
     from services.vectorizer.vector_store import PgVectorStore
+    from utils.models import ChunkMetadata, DocType, DocumentChunk
 
     store = PgVectorStore()
     monkeypatch.setattr(
@@ -383,9 +381,8 @@ async def test_pgvector_upsert_parent_chunks_empty_returns_early(monkeypatch, fa
 
 async def test_pgvector_upsert_with_valid_embedding_records(monkeypatch, fake_pool, fake_conn):
     """upsert with chunks that have embeddings must call executemany."""
-    from utils.models import ChunkMetadata, DocType, DocumentChunk
-
     from services.vectorizer.vector_store import PgVectorStore
+    from utils.models import ChunkMetadata, DocType, DocumentChunk
 
     store = PgVectorStore()
     monkeypatch.setattr(
@@ -443,9 +440,8 @@ async def test_pgvector_count(monkeypatch, fake_pool, fake_conn):
 
 async def test_pgvector_upsert_parent_chunks_with_records(monkeypatch, fake_pool, fake_conn):
     """upsert_parent_chunks with non-empty chunks must call executemany."""
-    from utils.models import ChunkMetadata, DocType, DocumentChunk
-
     from services.vectorizer.vector_store import PgVectorStore
+    from utils.models import ChunkMetadata, DocType, DocumentChunk
 
     store = PgVectorStore()
     monkeypatch.setattr(

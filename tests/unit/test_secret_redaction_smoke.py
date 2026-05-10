@@ -37,7 +37,6 @@ from pathlib import Path
 
 import pytest
 
-
 _PATTERN = re.compile(rb"tvly-[A-Za-z0-9]")
 _ALLOWLIST: frozenset[str] = frozenset({
     "tests/unit/test_web_search_tool.py",          # `tvly-LEAK` redaction-test fixture

@@ -28,7 +28,9 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from loguru import logger
-from pydantic import ValidationError  # noqa: F401  # re-exported for caller try/except clarity
+from pydantic import (
+    ValidationError,  # noqa: F401  # re-exported for caller try/except clarity
+)
 
 from config.settings import settings
 from services.generator.llm_client import (

@@ -20,10 +20,9 @@ os.environ.setdefault("APP_MODEL_DIR", "/tmp")
 os.environ.setdefault("SECRET_KEY", "a-very-secure-key-for-testing-that-is-long-32c")
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
-
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Fake fitz infrastructure (D-16: no binary PDFs; mock PyMuPDF at sys.modules)
@@ -50,7 +49,6 @@ class FakePixmap:
 
     def tobytes(self, fmt: str = "png") -> bytes:
         # Minimal valid 1×1 white PNG so PIL.Image.open() won't crash
-        import base64
         # 1×1 white PNG, base64-encoded
         _PNG_1X1 = (
             b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
@@ -433,7 +431,7 @@ class TestExtractPdfEnterpriseRouter:
             "services.extractor.extractor._extract_pdf_scanned_paddleocr", fake_paddle
         )
 
-        result = ext._extract_pdf_enterprise(Path("/fake/doc.pdf"))
+        ext._extract_pdf_enterprise(Path("/fake/doc.pdf"))
         assert len(paddle_calls) == 1
 
 

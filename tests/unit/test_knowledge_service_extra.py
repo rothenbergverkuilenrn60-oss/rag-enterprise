@@ -159,7 +159,10 @@ async def test_incremental_update_skips_unchanged_checksum(tmp_path):
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_incremental_update_runs_pipeline_on_new_file(tmp_path):
-    from services.knowledge.knowledge_service import KnowledgeUpdateService, UpdateStatus
+    from services.knowledge.knowledge_service import (
+        KnowledgeUpdateService,
+        UpdateStatus,
+    )
     p = tmp_path / "doc.txt"
     p.write_text("hello", encoding="utf-8")
     svc = KnowledgeUpdateService()
@@ -175,7 +178,10 @@ async def test_incremental_update_runs_pipeline_on_new_file(tmp_path):
 @pytest.mark.asyncio
 async def test_incremental_update_handles_pipeline_failure(tmp_path):
     """Error path: pipeline.run reports failure → status FAILED."""
-    from services.knowledge.knowledge_service import KnowledgeUpdateService, UpdateStatus
+    from services.knowledge.knowledge_service import (
+        KnowledgeUpdateService,
+        UpdateStatus,
+    )
     p = tmp_path / "doc.txt"
     p.write_text("hello", encoding="utf-8")
     svc = KnowledgeUpdateService()
@@ -190,7 +196,10 @@ async def test_incremental_update_handles_pipeline_failure(tmp_path):
 @pytest.mark.asyncio
 async def test_incremental_update_catches_runtime_error(tmp_path):
     """Error path: pipeline raises → status FAILED with sanitized error."""
-    from services.knowledge.knowledge_service import KnowledgeUpdateService, UpdateStatus
+    from services.knowledge.knowledge_service import (
+        KnowledgeUpdateService,
+        UpdateStatus,
+    )
     p = tmp_path / "doc.txt"
     p.write_text("hello", encoding="utf-8")
     svc = KnowledgeUpdateService()
@@ -203,7 +212,10 @@ async def test_incremental_update_catches_runtime_error(tmp_path):
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_scan_and_update_dispatches_per_file(tmp_path):
-    from services.knowledge.knowledge_service import KnowledgeUpdateService, UpdateStatus
+    from services.knowledge.knowledge_service import (
+        KnowledgeUpdateService,
+        UpdateStatus,
+    )
     (tmp_path / "a.txt").write_text("hello a", encoding="utf-8")
     (tmp_path / "b.md").write_text("hello b", encoding="utf-8")
     svc = KnowledgeUpdateService()

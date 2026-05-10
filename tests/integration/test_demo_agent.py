@@ -31,7 +31,6 @@ from utils.models import (
     SynthesizerFinalEvent,
 )
 
-
 # ── fixture (copy of tests/unit/test_agent_sse.py::patch_pipeline_singletons) ──
 
 @pytest.fixture

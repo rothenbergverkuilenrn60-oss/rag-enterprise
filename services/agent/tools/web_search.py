@@ -35,8 +35,16 @@ from typing import Any, ClassVar
 
 import httpx
 from loguru import logger
-from tavily import AsyncTavilyClient, UsageLimitExceededError  # type: ignore[import-untyped]
-from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_random_exponential
+from tavily import (  # type: ignore[import-untyped]
+    AsyncTavilyClient,
+    UsageLimitExceededError,
+)
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_random_exponential,
+)
 
 from config.settings import settings
 from services.agent.tools.base import BaseTool

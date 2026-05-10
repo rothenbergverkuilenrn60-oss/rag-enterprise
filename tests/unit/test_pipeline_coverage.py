@@ -16,13 +16,10 @@ import os
 os.environ.setdefault("APP_MODEL_DIR", "/tmp")
 os.environ.setdefault("SECRET_KEY", "a-very-secure-key-for-testing-that-is-long-32c")
 
-import asyncio
-from dataclasses import dataclass
 from typing import Any, AsyncIterator
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 
 # ─── Shared helpers ─────────────────────────────────────────────────────────
 
@@ -85,7 +82,6 @@ def _patch_pipeline_infra(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     Patch all AgentQueryPipeline constructor deps at the consumer path
     (CF-02) and return a dict of named stubs for assertion in tests.
     """
-    import services.pipeline as pm
 
     stub_memory = AsyncMock()
     stub_memory.load_context = AsyncMock(return_value=_make_mem_ctx())
@@ -153,7 +149,7 @@ def test_dedup_chunks_empty_input_returns_empty() -> None:
 # ─── _build_initial_messages ─────────────────────────────────────────────────
 
 def test_build_initial_messages_returns_at_least_one_message(monkeypatch: pytest.MonkeyPatch) -> None:
-    stubs = _patch_pipeline_infra(monkeypatch)
+    _patch_pipeline_infra(monkeypatch)
     from services.pipeline import AgentQueryPipeline
     pipeline = AgentQueryPipeline()
     req = _make_req()
@@ -165,7 +161,7 @@ def test_build_initial_messages_returns_at_least_one_message(monkeypatch: pytest
 
 
 def test_build_initial_messages_with_short_term_history(monkeypatch: pytest.MonkeyPatch) -> None:
-    stubs = _patch_pipeline_infra(monkeypatch)
+    _patch_pipeline_infra(monkeypatch)
     from services.memory.memory_service import ConversationTurn, MemoryContext
     from services.pipeline import AgentQueryPipeline
     pipeline = AgentQueryPipeline()
@@ -192,7 +188,7 @@ async def test_agent_query_pipeline_run_planner_api_error_returns_graceful_respo
 ) -> None:
     """When planner raises anthropic.APIError, run() returns graceful error response (no raise)."""
     import anthropic
-    stubs = _patch_pipeline_infra(monkeypatch)
+    _patch_pipeline_infra(monkeypatch)
 
     stub_planner = AsyncMock()
     stub_planner.plan_from_messages = AsyncMock(
@@ -231,7 +227,7 @@ async def test_agent_query_pipeline_run_executor_error_continues_to_persist(
 
     The pipeline's _build_tool_results handles BaseException per step — no crash of outer loop.
     """
-    stubs = _patch_pipeline_infra(monkeypatch)
+    _patch_pipeline_infra(monkeypatch)
 
     terminal_plan = _make_tool_plan_terminal(rationale="done")
 
@@ -268,7 +264,7 @@ async def test_agent_query_pipeline_run_tool_error_result_continues_to_synth(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """ToolResult(is_error=True) does not abort the run; synthesizer called normally."""
-    stubs = _patch_pipeline_infra(monkeypatch)
+    _patch_pipeline_infra(monkeypatch)
 
     step_plan = _make_tool_plan_with_step()
     terminal_plan = _make_tool_plan_terminal(rationale="synthesized answer")
@@ -306,7 +302,7 @@ async def test_agent_query_pipeline_run_not_implemented_delegates_to_query_pipel
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """NotImplementedError from planner triggers fallback to QueryPipeline.run."""
-    stubs = _patch_pipeline_infra(monkeypatch)
+    _patch_pipeline_infra(monkeypatch)
 
     stub_planner = AsyncMock()
     stub_planner.plan_from_messages = AsyncMock(side_effect=NotImplementedError("no agentic turn"))
@@ -343,7 +339,7 @@ async def test_agent_query_pipeline_run_streaming_planner_api_error_yields_synth
 ) -> None:
     """When planner raises APIError, run_streaming still yields SynthesizerFinalEvent and closes cleanly."""
     import anthropic
-    stubs = _patch_pipeline_infra(monkeypatch)
+    _patch_pipeline_infra(monkeypatch)
 
     stub_planner = AsyncMock()
     stub_planner.plan_from_messages = AsyncMock(
@@ -378,7 +374,7 @@ async def test_agent_query_pipeline_run_streaming_not_implemented_yields_synthes
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """NotImplementedError from planner in streaming mode yields SynthesizerFinalEvent."""
-    stubs = _patch_pipeline_infra(monkeypatch)
+    _patch_pipeline_infra(monkeypatch)
 
     stub_planner = AsyncMock()
     stub_planner.plan_from_messages = AsyncMock(side_effect=NotImplementedError("no agentic turn"))
@@ -404,7 +400,7 @@ async def test_agent_query_pipeline_run_streaming_terminal_plan_yields_synthesiz
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """When planner returns terminal plan (no steps), stream yields SynthesizerFinalEvent with answer."""
-    stubs = _patch_pipeline_infra(monkeypatch)
+    _patch_pipeline_infra(monkeypatch)
 
     stub_planner = AsyncMock()
     stub_planner.plan_from_messages = AsyncMock(return_value=_make_tool_plan_terminal(rationale="my answer"))
@@ -432,7 +428,7 @@ async def test_agent_query_pipeline_run_streaming_emits_planner_plan_event(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """With a tool-step plan, run_streaming emits PlannerPlanEvent before SynthesizerFinalEvent."""
-    stubs = _patch_pipeline_infra(monkeypatch)
+    _patch_pipeline_infra(monkeypatch)
 
     step_plan = _make_tool_plan_with_step()
     terminal_plan = _make_tool_plan_terminal(rationale="done")
@@ -441,9 +437,8 @@ async def test_agent_query_pipeline_run_streaming_emits_planner_plan_event(
     stub_planner.plan_from_messages = AsyncMock(side_effect=[step_plan, terminal_plan])
 
     async def _fake_stream(*args: Any, **kwargs: Any) -> AsyncIterator[Any]:
-        from utils.models import ToolResult
         # Yield a ToolSpanStartEvent + ToolSpanEndEvent + bare result
-        from utils.models import ToolSpanStartEvent, ToolSpanEndEvent
+        from utils.models import ToolResult, ToolSpanEndEvent, ToolSpanStartEvent
         span_id = "s1"
         yield ToolSpanStartEvent(
             trace_id="t", seq=0, ts_ms=0, span_id=span_id,
@@ -465,7 +460,7 @@ async def test_agent_query_pipeline_run_streaming_emits_planner_plan_event(
         return _make_generation_response(answer=answer)
 
     from services.pipeline import AgentQueryPipeline
-    from utils.models import PlannerPlanEvent, SynthesizerFinalEvent
+    from utils.models import SynthesizerFinalEvent
     pipeline = AgentQueryPipeline()
     monkeypatch.setattr(pipeline, "_persist_turn", _fake_persist)
 
@@ -511,7 +506,7 @@ async def test_swarm_query_pipeline_synthesis_composes_peer_answers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """SwarmQueryPipeline.run decomposes, runs sub-agents, and synthesizes final answer."""
-    stubs = _patch_swarm_infra(monkeypatch, sub_questions=["q1", "q2"])
+    _patch_swarm_infra(monkeypatch, sub_questions=["q1", "q2"])
 
     from services.pipeline import SwarmQueryPipeline, _SubAgentResult
 
@@ -538,7 +533,7 @@ async def test_swarm_query_pipeline_run_no_verifier_hop_called(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """SwarmQueryPipeline.run does NOT call any verifier — Phase 21 invariant carry-forward."""
-    stubs = _patch_swarm_infra(monkeypatch, sub_questions=["q1", "q2"])
+    _patch_swarm_infra(monkeypatch, sub_questions=["q1", "q2"])
 
     from services.pipeline import SwarmQueryPipeline, _SubAgentResult
 
@@ -563,7 +558,7 @@ async def test_swarm_query_pipeline_n1_delegates_to_agent_pipeline(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """When decompose returns single sub-question, delegates to AgentQueryPipeline."""
-    stubs = _patch_swarm_infra(monkeypatch, sub_questions=["q1"])
+    _patch_swarm_infra(monkeypatch, sub_questions=["q1"])
 
     from services.pipeline import SwarmQueryPipeline
 
@@ -586,7 +581,7 @@ async def test_swarm_query_pipeline_sub_agent_exception_produces_error_marker(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """If a sub-agent coroutine raises, it is replaced with an error-marker string."""
-    stubs = _patch_swarm_infra(monkeypatch, sub_questions=["q1", "q2"])
+    _patch_swarm_infra(monkeypatch, sub_questions=["q1", "q2"])
 
     from services.pipeline import SwarmQueryPipeline
 
@@ -757,7 +752,6 @@ async def test_query_pipeline_chitchat_intent_uses_llm_chat(
 ) -> None:
     """CHITCHAT intent short-circuits to LLM.chat without retrieval."""
     stubs = _patch_query_pipeline_infra(monkeypatch)
-    from services.nlu.nlu_service import QueryIntent
     from services.nlu.nlu_service import QueryIntent
     stubs["nlu_result"].intent = QueryIntent.CHITCHAT
 

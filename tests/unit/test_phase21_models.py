@@ -22,7 +22,6 @@ from utils.models import (
     VerifierVerdict,
 )
 
-
 # ─── Phase 21: VerifierVerdict + 3 events + GenerationRequest.debate ─────
 
 

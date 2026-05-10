@@ -24,16 +24,26 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, AsyncGenerator, AsyncIterator
 
-import anthropic                                          # noqa: F401 — referenced in narrow except in AgentQueryPipeline.run
-import httpx                                              # noqa: F401 — referenced in narrow except in AgentQueryPipeline.run
-import openai                                             # noqa: F401 — referenced in narrow except in AgentQueryPipeline.run
+import anthropic  # noqa: F401 — referenced in narrow except in AgentQueryPipeline.run
+import httpx  # noqa: F401 — referenced in narrow except in AgentQueryPipeline.run
+import openai  # noqa: F401 — referenced in narrow except in AgentQueryPipeline.run
 from loguru import logger
 
 from config.settings import settings
 from services.agent import get_executor, get_planner
 from services.agent.tools import get_tool_registry
 from services.agent.tools.retrieve import retrieve_impl as _shared_execute_tool_call
-from services.audit.audit_service import AuditAction, AuditEvent, AuditResult, get_audit_service
+
+# Phase 21 / Plan 21-05 — Verifier sub-agent (AGENT-05). Top-level import is safe
+# because services/agent/verifier.py guards `from services.pipeline import _SubAgentResult`
+# under `if TYPE_CHECKING:` (Plan 21-03 BLOCKER 3 fix).
+from services.agent.verifier import Verifier  # noqa: E402
+from services.audit.audit_service import (
+    AuditAction,
+    AuditEvent,
+    AuditResult,
+    get_audit_service,
+)
 from services.doc_processor.chunker import get_doc_processor
 from services.events.event_bus import get_event_bus
 from services.extractor.extractor import get_extractor
@@ -89,17 +99,12 @@ from utils.models import (
     ToolSpanEndEvent,
     ToolSpanErrorEvent,
     ToolSpanStartEvent,
-    VerifierCompleteEvent,    # Phase 21 / Plan 21-02 — verifier hop (D-09)
+    VerifierCompleteEvent,  # Phase 21 / Plan 21-02 — verifier hop (D-09)
     VerifierDisagreementEvent,  # Phase 21 / Plan 21-02 — verifier hop (D-08)
-    VerifierStartEvent,       # Phase 21 / Plan 21-02 — verifier hop (D-09)
-    VerifierVerdict,          # Phase 21 / Plan 21-02 — kwarg type for _synthesize (D-04)
+    VerifierStartEvent,  # Phase 21 / Plan 21-02 — verifier hop (D-09)
+    VerifierVerdict,  # Phase 21 / Plan 21-02 — kwarg type for _synthesize (D-04)
 )
 from utils.observability import start_span
-
-# Phase 21 / Plan 21-05 — Verifier sub-agent (AGENT-05). Top-level import is safe
-# because services/agent/verifier.py guards `from services.pipeline import _SubAgentResult`
-# under `if TYPE_CHECKING:` (Plan 21-03 BLOCKER 3 fix).
-from services.agent.verifier import Verifier  # noqa: E402
 
 
 def _infer_doc_type(path: Path) -> DocType:

@@ -13,7 +13,6 @@ from pathlib import Path
 
 import pytest
 
-
 _UI_JS = Path("static/ui.js")
 _UI_CSS = Path("static/ui.css")
 _UI_HTML = Path("static/ui.html")

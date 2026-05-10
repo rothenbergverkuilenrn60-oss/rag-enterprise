@@ -24,7 +24,6 @@ from services.agent.executor import Executor
 from services.pipeline import AgentQueryPipeline
 from utils.models import AgentEvent, GenerationRequest
 
-
 # No-op singleton stubs (runtime equiv. of test_agent_sse.py::patch_pipeline_singletons).
 
 class _NoMem:

@@ -182,10 +182,9 @@ async def test_registry_anthropic_shape_satisfies_call_agentic_turn(
     """The full chain: ToolRegistry.schemas_for("anthropic") output must be
     consumable by call_agentic_turn without conversion. This is what
     pipeline.py now does (post v1.4.1 fix)."""
-    from services.agent.tools.registry import get_tool_registry
-
     # Force-load the registry so RetrieveTool etc. are registered.
     import services.agent.tools  # noqa: F401
+    from services.agent.tools.registry import get_tool_registry
 
     client, fake = openai_client_with_mock_http
     tools = get_tool_registry().schemas_for("anthropic", names=None)

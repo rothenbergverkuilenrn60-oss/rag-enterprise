@@ -54,14 +54,13 @@ async def test_allowlist_includes_web_search() -> None:
 
 async def test_realtime_query_picks_web_search() -> None:
     """SC3-a: real-time query → ToolPlan.steps[0].name == 'web_search'."""
+    # Importing services.agent.tools.web_search triggers @register decorator
+    # at import time so 'web_search' is in registry.list().
+    import services.agent.tools.web_search  # noqa: F401
     from services.agent.planner import Planner
     from services.agent.tools.registry import get_tool_registry
     from services.pipeline import AGENT_TOOL_ALLOWLIST
     from utils.models import AgenticTurn, ToolCall, ToolPlan
-
-    # Importing services.agent.tools.web_search triggers @register decorator
-    # at import time so 'web_search' is in registry.list().
-    import services.agent.tools.web_search  # noqa: F401
 
     tools = get_tool_registry().schemas_for("openai", names=AGENT_TOOL_ALLOWLIST)
     assert any(
@@ -92,11 +91,11 @@ async def test_realtime_query_picks_web_search() -> None:
 
 async def test_in_corpus_query_picks_search_knowledge_base() -> None:
     """SC3-b: in-corpus query → ToolPlan.steps[0].name == 'search_knowledge_base'."""
+    import services.agent.tools.web_search  # noqa: F401
     from services.agent.planner import Planner
     from services.agent.tools.registry import get_tool_registry
     from services.pipeline import AGENT_TOOL_ALLOWLIST
     from utils.models import AgenticTurn, ToolCall, ToolPlan
-    import services.agent.tools.web_search  # noqa: F401
 
     tools = get_tool_registry().schemas_for("openai", names=AGENT_TOOL_ALLOWLIST)
     # SC3 precondition shared with Test B: the same allowlist exposes both

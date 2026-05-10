@@ -27,7 +27,6 @@ from utils.models import (
     VerifierVerdict,
 )
 
-
 # -----------------------------------------------------------------------------
 # Helpers (mirrors tests/unit/test_agent_pipeline_refactor.py:45–76)
 # -----------------------------------------------------------------------------
@@ -511,14 +510,13 @@ def test_format_disagree_module_constant_present() -> None:
 # 8 unit cases below; 1 route test in tests/unit/test_agent_stream_route.py;
 # 1 latency-contract integration case in tests/integration/test_swarm_debate_e2e.py.
 
-import json as _json
+import json as _json  # noqa: E402
 
-from utils.models import (
+from utils.models import (  # noqa: E402
     AgentEvent,
     SynthesizerFinalEvent,
     VerifierCompleteEvent,
     VerifierDisagreementEvent,
-    VerifierStartEvent,
 )
 
 

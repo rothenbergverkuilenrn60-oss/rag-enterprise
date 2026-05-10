@@ -47,11 +47,10 @@ async def test_agent_pipeline_runs_real_tool_use_loop_on_openai(monkeypatch):
     monkeypatch.setenv("LLM_PROVIDER", "openai")
 
     # Lazy-import after env override.
-    from services.pipeline import AgentQueryPipeline
-    from utils.models import GenerationRequest
-
     # Reset any cached singleton so the env override takes effect.
     import services.generator.llm_client as llm_mod
+    from services.pipeline import AgentQueryPipeline
+    from utils.models import GenerationRequest
     llm_mod._llm_instance = None
 
     pipeline = AgentQueryPipeline()

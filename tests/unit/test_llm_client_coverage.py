@@ -20,7 +20,6 @@ import os
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
-from unittest import mock
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx

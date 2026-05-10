@@ -30,7 +30,6 @@ from services.retriever.retriever import (
 from services.vectorizer.vector_store import VectorSearchResult
 from utils.models import ChunkMetadata, DocType, RetrievedChunk
 
-
 # ══════════════════════════════════════════════════════════════════════════════
 # Shared helpers
 # ══════════════════════════════════════════════════════════════════════════════
@@ -511,6 +510,7 @@ async def test_remote_reranker_empty_candidates_returns_empty() -> None:
 async def test_remote_reranker_http_error_falls_back_to_passthrough() -> None:
     """RemoteReranker: httpx.HTTPError → fallback to PassthroughReranker (non-fatal)."""
     import httpx
+
     from services.retriever.retriever import RemoteReranker
 
     rr = RemoteReranker("http://localhost:8001")

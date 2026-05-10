@@ -24,7 +24,6 @@ from utils.models import (
     VerifierVerdict,  # noqa: F401  # plan acceptance ≥3 data-shape imports
 )
 
-
 # -----------------------------------------------------------------------------
 # Helpers
 # -----------------------------------------------------------------------------
@@ -86,8 +85,8 @@ def _verdict_json(
 @pytest.fixture
 def mock_verifier(monkeypatch: pytest.MonkeyPatch) -> Any:
     """Build a Verifier with the LLM dep replaced by AsyncMock at the consumer path."""
-    from services.agent.verifier import Verifier
     import services.agent.verifier as vmod
+    from services.agent.verifier import Verifier
 
     fake_llm = MagicMock()
     fake_llm.call_agentic_turn = AsyncMock()
@@ -315,8 +314,8 @@ async def test_verify_makes_single_llm_call(mock_verifier: Any) -> None:
 
 def test_resolve_llm_anthropic_branch(monkeypatch: pytest.MonkeyPatch) -> None:
     """B-11 — verifier_provider="anthropic" → AnthropicLLMClient instantiated."""
-    from services.agent.verifier import Verifier
     import services.agent.verifier as vmod
+    from services.agent.verifier import Verifier
 
     fake_anthropic_cls = MagicMock()
     monkeypatch.setattr("services.agent.verifier.AnthropicLLMClient", fake_anthropic_cls)
@@ -328,8 +327,8 @@ def test_resolve_llm_anthropic_branch(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_resolve_llm_openai_branch(monkeypatch: pytest.MonkeyPatch) -> None:
     """B-12 — verifier_provider="openai" → OpenAILLMClient instantiated."""
-    from services.agent.verifier import Verifier
     import services.agent.verifier as vmod
+    from services.agent.verifier import Verifier
 
     fake_openai_cls = MagicMock()
     monkeypatch.setattr("services.agent.verifier.OpenAILLMClient", fake_openai_cls)

@@ -22,7 +22,7 @@ from services.pipeline import (
     get_agent_pipeline,
     get_ingest_pipeline,
     get_query_pipeline,
-    get_swarm_pipeline,    # AGENT-03
+    get_swarm_pipeline,  # AGENT-03
 )
 from utils.cache import cache_invalidate
 from utils.models import (
