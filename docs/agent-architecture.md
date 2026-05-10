@@ -248,7 +248,8 @@ The agent runtime emits a structured SSE stream on
 `POST /api/v1/agent/v1/run/stream` (AGENT-04, Phase 18). Each event is one
 SSE frame: `event: <event_type>\ndata: <json>\n\n`. The terminal event is
 `synthesizer.final` — no `[DONE]` sentinel. Payloads are Pydantic V2 frozen
-models in `utils/models.py` (`AgentEvent` base + 6 concrete subclasses);
+models in `utils/models.py` (`AgentEvent` base + 9 concrete subclasses;
+3 verifier subclasses are debate-mode-only — see `### Debate Mode` below);
 every event carries three common fields:
 
 | Field | Type | Required | Description |
@@ -372,6 +373,149 @@ terminal frame; `seq` is the highest in the stream.
 
 Example payload: `{"answer": "员工产假为 98 天 [来源1]...", "sources_count": 5}`
 
+### Debate Mode
+
+The three event types below — `verifier.start`, `verifier.complete`,
+`verifier.disagreement` — are emitted ONLY when the request opts in via
+`req.debate=True`. They extend the v1.4 event surface; non-debate flows
+remain on the existing six event types unchanged.
+
+**Opt-in contract (D-10):** `req.debate=True` requires `req.swarm_mode=True`.
+The `GenerationRequest` Pydantic V2 model raises `ValidationError` at the
+FastAPI body-parsing layer (HTTP 422) when only `debate` is set; the verifier
+sub-agent runs after the peer fan-out, so debate-without-swarm is structurally
+meaningless.
+
+**Latency contract (SC2 / CF-06):** the verifier executes sequentially AFTER
+`asyncio.gather` over the peer sub-agents (NOT in parallel with them). The
+end-to-end latency upper bound is `max(peer_latency) + verifier_latency +
+small_overhead` — never the sum, never `N × verifier_latency`. There is exactly
+one verifier call per debate request regardless of peer count `N`.
+
+**Ordering guarantees:** within a debate run, the event sequence is:
+
+1. (debate=False path) — six existing events as documented above; terminal
+   `synthesizer.final`.
+2. (debate=True, agree) — `verifier.start` → `verifier.complete` → terminal
+   `synthesizer.final`.
+3. (debate=True, disagree honest) — `verifier.start` →
+   `verifier.disagreement` (`reason="peers_diverge"`) → `verifier.complete`
+   (with `verdict="disagree"`) → terminal `synthesizer.final`.
+4. (debate=True, disagree forced — verifier returned `agree` with empty
+   `evidence_chunk_ids`, overridden inside `Verifier.verify()` per CF-04) —
+   `verifier.start` → `verifier.disagreement` (`reason="forced_no_evidence"`)
+   → `verifier.complete` (with `verdict="disagree"`) → terminal
+   `synthesizer.final`.
+5. (debate=True, verifier failed — uncaught `BaseException`) —
+   `verifier.start` → `verifier.disagreement` (`reason="verifier_failed"`,
+   `error_type` populated) → terminal `synthesizer.final` (no `verifier.complete`
+   on the failure path; the synthesizer falls through to the standard consensus
+   path so the user still gets an answer per D-06 graceful degrade).
+
+**Terminal event invariant (CF-07):** `synthesizer.final` remains the
+terminal frame in ALL paths above — the verifier events are intermediate.
+
+**Wire route:** all three event types serialize via the existing
+`emit_sse_frame` (`event: <event_type>\ndata: <model_dump_json>\n\n`); no
+serializer change. They reach the wire through `SwarmQueryPipeline.run_streaming`
+and the existing `POST /api/v1/agent/v1/run/stream` route, which dispatches to
+the swarm pipeline when `req.swarm_mode=True` (a 1-line ternary at
+`controllers/api.py:274` — `pipeline = get_swarm_pipeline() if req.swarm_mode
+else get_agent_pipeline()`). Non-swarm requests continue to route to the agent
+pipeline unchanged (CF-08 backward compat).
+
+> **Backward compatibility:** The three event types below are additive.
+> Non-debate flows (`debate=False`) emit the v1.4 event set unchanged.
+> The existing six event types remain the complete event surface for
+> `debate=False` requests. `synthesizer.final` remains the terminal event
+> in all paths (CF-07).
+
+### verifier.start
+
+Emitted ONCE per debate run, BEFORE `Verifier.verify()` awaits.
+The `peer_count` field reflects the count of sub-agents whose results
+are being verified (excludes peers that raised `BaseException`); `model`
+is the resolved verifier LLM identifier (per `Settings.verifier_model`
+or `Settings.active_model` fallback per D-05).
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `peer_count` | integer | yes | Number of successful peer sub-agents whose results are passed to the verifier (failed peers excluded). |
+| `model` | string | yes | Verifier LLM identifier — e.g. `"gpt-4o"`, `"claude-sonnet-4-6"`. Resolved from `Settings.verifier_model` (override) or `Settings.active_model` (default). |
+
+Example payload:
+
+```json
+{"peer_count": 3, "model": "claude-sonnet-4-6"}
+```
+
+### verifier.complete
+
+Emitted ONCE per debate run AFTER `Verifier.verify()` returns successfully.
+NOT emitted on the verifier-failed path (where `verifier.disagreement`
+with `reason="verifier_failed"` is the only verifier-tier event).
+The `verdict` field carries the final discriminator AFTER the CF-04
+forced-disagree override has been applied inside `Verifier.verify()`
+(so an `agree`-with-empty-evidence verdict surfaces here as `disagree`).
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `verdict` | string (`"agree"` \| `"disagree"`) | yes | Final discriminator after CF-04 forced-disagree override. |
+| `evidence_chunk_count` | integer | yes | Length of `VerifierVerdict.evidence_chunk_ids` — count of evidence chunks the verifier cited. |
+| `latency_ms` | integer | yes | Wall-clock ms for `Verifier.verify()` (the LLM call + parse). |
+
+Example payload:
+
+```json
+{"verdict": "agree", "evidence_chunk_count": 3, "latency_ms": 412}
+```
+
+### verifier.disagreement
+
+Emitted on three distinct paths (D-08):
+
+- `reason="peers_diverge"` — verifier returned `disagree` AND cited at
+  least one evidence chunk; the disagreement reflects honest divergence.
+- `reason="forced_no_evidence"` — verifier originally returned `agree`
+  but cited zero evidence chunks; CF-04 forced the verdict to `disagree`
+  inside `Verifier.verify()`.
+- `reason="verifier_failed"` — `Verifier.verify()` raised
+  `BaseException`; the pipeline catches per D-06, logs the full traceback
+  server-side, emits this event with `error_type` populated, and falls
+  through to the standard consensus path so the user still gets an answer.
+
+The `reason` field is a closed Literal set in v1.5; adding a fourth value
+requires a Literal bump in `utils/models.py` AND an update to this doc.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `reason` | string (`"peers_diverge"` \| `"forced_no_evidence"` \| `"verifier_failed"`) | yes | Closed Literal set (D-08). |
+| `summary` | string | yes | First 200 characters of `VerifierVerdict.reasoning` (or `str(exc)[:200]` on the `verifier_failed` path). Full text logged server-side only — mirrors `tool.span.error.error_message` truncation contract. |
+| `evidence_chunk_ids` | array of string | yes | Chunk IDs the verifier cited; empty list on the `forced_no_evidence` and `verifier_failed` paths. |
+| `peer_count` | integer | yes | Number of successful peer sub-agents (matches the prior `verifier.start.peer_count`). |
+| `error_type` | string | no | Populated ONLY when `reason="verifier_failed"`; carries `type(exc).__name__` (e.g. `"RuntimeError"`, `"TimeoutError"`). `null` on the other two paths. |
+
+Example payload (peers_diverge):
+
+```json
+{"reason": "peers_diverge", "summary": "Peer 0 cites chunk c1 saying X; peer 1 cites chunk c2 saying not-X.",
+ "evidence_chunk_ids": ["c1", "c2"], "peer_count": 3, "error_type": null}
+```
+
+Example payload (forced_no_evidence):
+
+```json
+{"reason": "forced_no_evidence", "summary": "Verifier emitted agree with empty evidence_chunk_ids; CF-04 override.",
+ "evidence_chunk_ids": [], "peer_count": 3, "error_type": null}
+```
+
+Example payload (verifier_failed):
+
+```json
+{"reason": "verifier_failed", "summary": "anthropic.APIError: connection timed out after 30s",
+ "evidence_chunk_ids": [], "peer_count": 3, "error_type": "APIError"}
+```
+
 ### Consuming the Stream
 
 Minimal browser consumer (one `addEventListener` per event type):
@@ -383,6 +527,9 @@ es.addEventListener('tool.span.start',   (e) => { const v = J(e); console.log(`s
 es.addEventListener('tool.span.end',     (e) => { const v = J(e); console.log(`end ${v.span_id} ${v.latency_ms}ms ${v.chunk_count} chunks`); });
 es.addEventListener('tool.span.error',   (e) => { const v = J(e); console.warn(`err ${v.span_id} ${v.error_type}: ${v.error_message}`); });
 es.addEventListener('executor.parallel', (e) => { const v = J(e); console.log(`group fan_out=${v.fan_out} ${v.group_latency_ms}ms`); });
+es.addEventListener('verifier.start',         (e) => { const v = J(e); console.log(`verifier start: peer_count=${v.peer_count} model=${v.model}`); });
+es.addEventListener('verifier.complete',      (e) => { const v = J(e); console.log(`verifier complete: ${v.verdict} (${v.evidence_chunk_count} chunks, ${v.latency_ms}ms)`); });
+es.addEventListener('verifier.disagreement',  (e) => { const v = J(e); console.warn(`verifier disagreement: ${v.reason}${v.error_type ? ' [' + v.error_type + ']' : ''} — ${v.summary}`); });
 es.addEventListener('synthesizer.final', (e) => { const v = J(e); console.log('final:', v.answer); es.close(); });
 ```
 
