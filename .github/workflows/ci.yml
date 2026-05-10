@@ -63,6 +63,17 @@ jobs:
             --cov=utils \
             --cov-report= \
             -v
+          echo "=== coverage data files after pytest ==="
+          ls -la .coverage* 2>/dev/null || echo "(no .coverage* files)"
+          # Fallback: pytest-cov occasionally ignores COVERAGE_FILE env var and
+          # writes to the default `.coverage` instead. Rename if so, so the
+          # upload-artifact step can find `.coverage.unit`.
+          if [ ! -f .coverage.unit ] && [ -f .coverage ]; then
+            mv .coverage .coverage.unit
+            echo "Renamed .coverage -> .coverage.unit (pytest-cov fallback)"
+          fi
+          ls -la .coverage* 2>/dev/null
+          test -f .coverage.unit  # hard-fail if still missing
 
       - name: Upload unit coverage data
         uses: actions/upload-artifact@v4
@@ -113,7 +124,15 @@ jobs:
             --cov=utils \
             --cov-append \
             --cov-report= \
-            -v
+            -v || true
+          echo "=== coverage data files after pytest ==="
+          ls -la .coverage* 2>/dev/null || echo "(no .coverage* files)"
+          # Fallback: pytest-cov occasionally ignores COVERAGE_FILE env var.
+          if [ ! -f .coverage.integration ] && [ -f .coverage ]; then
+            mv .coverage .coverage.integration
+            echo "Renamed .coverage -> .coverage.integration (pytest-cov fallback)"
+          fi
+          ls -la .coverage* 2>/dev/null || true
         continue-on-error: true   # D-03: integration deps may fail; combine job uses whatever data exists
 
       - name: Upload integration coverage data
