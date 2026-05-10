@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Web Search + Multi-Agent Debate + Coverage Lift
 status: verifying
-stopped_at: Phase 21 plans created (6 plans, TDD mode); ready for execution
-last_updated: "2026-05-10T11:57:51.748Z"
-last_activity: 2026-05-10 — Wave 4 shipped (Plan 20-05 SC5 gate + human-verify approved; Phase 20 acceptance roll-up landed)
+stopped_at: Phase 21 Wave 1 — Plan 21-01 shipped (verifier settings foundation); Plan 21-02 in flight
+last_updated: "2026-05-10T12:30:00.000Z"
+last_activity: 2026-05-10 — Plan 21-01 shipped (Settings.verifier_model + verifier_provider; D-05/P-09)
 progress:
   total_phases: 3
   completed_phases: 1
-  total_plans: 11
-  completed_plans: 5
-  percent: 45
+  total_plans: 17
+  completed_plans: 6
+  percent: 35
 ---
 
 # STATE — EnterpriseRAG (v1.5 planning)
@@ -90,8 +90,8 @@ None.
 
 ## Session Continuity
 
-**Last updated:** 2026-05-10 — Phase 20 Plan 20-02 shipped
-**Stopped at:** Phase 21 plans created (6 plans, TDD mode); ready for execution
-**Next action:** `/gsd-execute-phase 20` resumes at Wave 3 — Plans 20-03 (TDD: AGENT_TOOL_ALLOWLIST + planner-picks integration test) and 20-04 (execute: static/ui.js URL=<host> branch) run in parallel
+**Last updated:** 2026-05-10 — Phase 21 Plan 21-01 shipped (verifier settings foundation)
+**Stopped at:** Phase 21 Wave 1 — Plan 21-01 complete; Plan 21-02 RED already landed (commit a2cfdcf), GREEN/REFACTOR pending
+**Next action:** Continue Phase 21 Wave 1 (Plan 21-02 GREEN), then Wave 2 (Plan 21-03 Verifier class)
 
-**Planned Phase:** 20 (WebSearchTool Real Implementation (Tavily)) — 5 plans, 2 complete (20-01, 20-02) — 2026-05-10
+**Planned Phase:** 21 (AGENT-05 Multi-Agent Debate / Sub-Agent Verifier) — 6 plans, 1 complete (21-01) — 2026-05-10
