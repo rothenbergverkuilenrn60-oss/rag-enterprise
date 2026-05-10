@@ -15,11 +15,11 @@ Twelve checkable requirements grouped into three categories. Each maps to exactl
 
 ### Web Search Tool (AGENT)
 
-- [ ] **AGENT-10**: `services/agent/tools/web_search.py::WebSearchTool.run()` body replaced — calls `AsyncTavilyClient.search()` from `tavily-python>=0.7.24,<0.8`. Async-throughout (no sync client in async pipeline). Settings exposed: `tavily_api_key: str = ""`, `tavily_search_depth: str = "basic"`, `tavily_max_results: int = 5`. Settings read from env via Pydantic Settings; key never echoed in logs / errors / SSE frames. Phase 20.
+- [x] **AGENT-10**: `services/agent/tools/web_search.py::WebSearchTool.run()` body replaced — calls `AsyncTavilyClient.search()` from `tavily-python>=0.7.24,<0.8`. Async-throughout (no sync client in async pipeline). Settings exposed: `tavily_api_key: str = ""`, `tavily_search_depth: str = "basic"`, `tavily_max_results: int = 5`. Settings read from env via Pydantic Settings; key never echoed in logs / errors / SSE frames. Phase 20. ✓ Plan 20-01 (settings) + 20-02 (impl) shipped 2026-05-10.
 
-- [ ] **AGENT-11**: Tavily error handling implemented end-to-end. `@retry(stop=stop_after_attempt(3), wait=wait_random_exponential(multiplier=1, max=10), reraise=True)` on the search call. Final-attempt failure converts to typed `ToolResult(metadata={"error": True, "kind": "web_search_failed"})`. Tavily 429 → `kind="quota_exhausted"`. Empty `tavily_api_key` → `kind="tavily_disabled"`. No exception escapes `run()` into orchestrator. Phase 20.
+- [x] **AGENT-11**: Tavily error handling implemented end-to-end. `@retry(stop=stop_after_attempt(3), wait=wait_random_exponential(multiplier=1, max=10), reraise=True)` on the search call. Final-attempt failure converts to typed `ToolResult(metadata={"error": True, "kind": "web_search_failed"})`. Tavily 429 → `kind="quota_exhausted"` (via `tavily.UsageLimitExceededError`). Empty `tavily_api_key` → `kind="tavily_disabled"`. No exception escapes `run()` into orchestrator. Phase 20. ✓ Plan 20-02 shipped 2026-05-10 (15 unit tests, 94.8% coverage).
 
-- [ ] **AGENT-12**: Tavily response converts to `RetrievedChunk` shape so existing source-citation flow works without UI rewrite: `metadata.source = url`, `metadata.title = title`, `metadata.chunk_type = "web"`, `metadata.page_number = None`. `static/ui.js` updated to render `URL=<host>` instead of `页=?` when `chunk_type === "web"`. PDF source rendering unchanged. Phase 20.
+- [~] **AGENT-12**: Tavily response converts to `RetrievedChunk` shape so existing source-citation flow works without UI rewrite: `metadata.source = url`, `metadata.title = title`, `metadata.chunk_type = "web"`, `metadata.page_number = None`. `static/ui.js` updated to render `URL=<host>` instead of `页=?` when `chunk_type === "web"`. PDF source rendering unchanged. Phase 20. **Mapping side complete in Plan 20-02 (`_map_tavily_result` helper); UI render side remains in Plan 20-04.**
 
 - [ ] **AGENT-13**: `web_search` added to `AGENT_TOOL_ALLOWLIST` in `services/pipeline.py`. Planner's tool schema list now includes `web_search`. Integration test asserts that for a query unanswerable from the indexed knowledge base, the planner picks `web_search`; for an in-corpus query, it still picks `search_knowledge_base`. Phase 20.
 
@@ -78,10 +78,10 @@ Twelve checkable requirements grouped into three categories. Each maps to exactl
 
 | REQ-ID | Phase | Plans |
 |--------|-------|-------|
-| AGENT-10 | 20 — WebSearchTool Real Implementation (Tavily) | tbd (assigned during `/gsd-plan-phase 20`) |
-| AGENT-11 | 20 — WebSearchTool Real Implementation (Tavily) | tbd |
-| AGENT-12 | 20 — WebSearchTool Real Implementation (Tavily) | tbd |
-| AGENT-13 | 20 — WebSearchTool Real Implementation (Tavily) | tbd |
+| AGENT-10 | 20 — WebSearchTool Real Implementation (Tavily) | 20-01 (settings) + 20-02 (impl) ✓ |
+| AGENT-11 | 20 — WebSearchTool Real Implementation (Tavily) | 20-02 ✓ |
+| AGENT-12 | 20 — WebSearchTool Real Implementation (Tavily) | 20-02 (mapping side ✓) + 20-04 (UI render side) |
+| AGENT-13 | 20 — WebSearchTool Real Implementation (Tavily) | 20-03 |
 | AGENT-05 | 21 — AGENT-05 Multi-Agent Debate / Sub-Agent Verifier | tbd (assigned during `/gsd-plan-phase 21`) |
 | AGENT-14 | 21 — AGENT-05 Multi-Agent Debate / Sub-Agent Verifier | tbd |
 | AGENT-15 | 21 — AGENT-05 Multi-Agent Debate / Sub-Agent Verifier | tbd |

@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Web Search + Multi-Agent Debate + Coverage Lift
-status: Executing — Phase 20 Plan 1/5 complete
-stopped_at: Phase 20 Plan 20-01 complete (Tavily config foundation landed)
-last_updated: "2026-05-10T10:05:00.000Z"
-last_activity: 2026-05-10 — Phase 20 Plan 20-01 (Tavily config foundation) shipped
+status: Executing — Phase 20 Plan 2/5 complete
+stopped_at: Phase 20 Plan 20-02 complete (real Tavily WebSearchTool body landed)
+last_updated: "2026-05-10T09:15:18.000Z"
+last_activity: 2026-05-10 — Phase 20 Plan 20-02 (real WebSearchTool impl, RED→GREEN→REFACTOR) shipped
 progress:
   total_phases: 3
   completed_phases: 0
   total_plans: 5
-  completed_plans: 1
-  percent: 20
+  completed_plans: 2
+  percent: 40
 ---
 
 # STATE — EnterpriseRAG (v1.5 planning)
@@ -26,15 +26,15 @@ See: .planning/PROJECT.md (updated 2026-05-10 after v1.5 open)
 ## Current Position
 
 Phase: 20 — WebSearchTool Real Implementation (Tavily)
-Plan: 20-01 complete (1/5); next is 20-02 (web_search.py rewrite)
+Plan: 20-02 complete (2/5); next is Wave 3 (Plans 20-03 and 20-04 parallel)
 Status: Executing
-Last activity: 2026-05-10 — Plan 20-01 (Tavily config foundation) shipped — commits efc4fa8, 7fff13a
+Last activity: 2026-05-10 — Plan 20-02 (real WebSearchTool impl: RED→GREEN→REFACTOR) shipped — commits dd4e5af, edf7a67, 57485a1 (+ chore prep 4a10a91)
 
 ## Phase Overview
 
 | Phase | Name | REQ-IDs | Status |
 |-------|------|---------|--------|
-| 20 | WebSearchTool Real Implementation (Tavily) | AGENT-10, AGENT-11, AGENT-12, AGENT-13 | Executing — 1/5 plans complete |
+| 20 | WebSearchTool Real Implementation (Tavily) | AGENT-10, AGENT-11, AGENT-12, AGENT-13 | Executing — 2/5 plans complete |
 | 21 | AGENT-05 Multi-Agent Debate / Sub-Agent Verifier | AGENT-05, AGENT-14, AGENT-15 | Planning |
 | 22 | Per-Module 70% Coverage Lift | TEST-08, TEST-09, TEST-10, TEST-11, TEST-12 | Planning |
 
@@ -90,8 +90,8 @@ None.
 
 ## Session Continuity
 
-**Last updated:** 2026-05-10 — Phase 20 Plan 20-01 shipped
-**Stopped at:** Phase 20 Plan 20-01 complete (Tavily config foundation: 3 settings fields + dependency pin + .env.docker placeholder)
-**Next action:** `/gsd-execute-phase 20` resumes at Plan 20-02 (services/agent/tools/web_search.py rewrite — depends on 20-01)
+**Last updated:** 2026-05-10 — Phase 20 Plan 20-02 shipped
+**Stopped at:** Phase 20 Plan 20-02 complete (real Tavily WebSearchTool impl: 3 typed-error branches + tenacity-narrow retry + RetrievedChunk mapping + D-15 source-side redaction; 15 unit tests, 94.8% coverage)
+**Next action:** `/gsd-execute-phase 20` resumes at Wave 3 — Plans 20-03 (TDD: AGENT_TOOL_ALLOWLIST + planner-picks integration test) and 20-04 (execute: static/ui.js URL=<host> branch) run in parallel
 
-**Planned Phase:** 20 (WebSearchTool Real Implementation (Tavily)) — 5 plans, 1 complete (20-01) — 2026-05-10
+**Planned Phase:** 20 (WebSearchTool Real Implementation (Tavily)) — 5 plans, 2 complete (20-01, 20-02) — 2026-05-10
