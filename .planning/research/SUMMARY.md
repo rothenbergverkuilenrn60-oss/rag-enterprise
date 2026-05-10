@@ -1,76 +1,76 @@
-# Research Summary — EnterpriseRAG Hardening
+# SUMMARY — v1.5 Research Synthesis
 
-## Key Findings
+*Generated 2026-05-10 inline. Synthesizes STACK.md / FEATURES.md / ARCHITECTURE.md / PITFALLS.md.*
 
-### Stack
+## Stack additions
 
-- **All major dependencies already present** — PyMuPDF (images), asyncpg (pg), Redis (task queue). New additions only: `pgvector==0.3.6`, `SQLAlchemy==2.0.36`, `alembic==1.14.0`, `arq==0.26.1`, `presidio-analyzer`, `presidio-anonymizer`.
-- **PyMuPDF is AGPL-3.0** — on-premise enterprise deployment needs legal review for a commercial Artifex license before shipping image extraction.
-- **ARQ over asyncio.create_task** for async ingest tracking — ARQ provides retry and crash persistence; bare `create_task` silently drops exceptions on crash.
+- **`tavily-python>=0.7.24,<0.8`** — only new dependency; `AsyncTavilyClient` plugs into existing async pipeline; SDK handles auth, retry, JSON parsing
+- **No new packages** for AGENT-05 verifier (reuses v1.2 `BaseLLMClient.call_agentic_turn`) or coverage lift (existing pytest stack)
+- **Settings additions:** `tavily_api_key`, `tavily_search_depth="basic"`, `tavily_max_results=5`
+- **Env var routing:** `.env` (gitignored, real key) → `.env.docker` (`${TAVILY_API_KEY:-}` placeholder) → compose `env_file` → container → Pydantic Settings
 
-### Critical Decisions
+## Feature table stakes (must ship)
 
-| Decision | Choice | Rationale |
+1. **WebSearchTool real impl** — Tavily-backed, replaces v1.4 placeholder, joins `AGENT_TOOL_ALLOWLIST`; Tavily results convert to `RetrievedChunk` shape so existing source rendering works
+2. **AGENT-05 verifier role** — single-pass verifier sub-agent reads N peer answers + evidence chunks, returns consensus or disagreement; `req.debate=True` opt-in flag; SSE adds `verifier.start/complete/disagreement` events
+3. **Per-module 70% coverage** on `pipeline.py`, `llm_client.py`, `vector_store.py`, `retriever.py`, `extractor.py` — no production code changes (v1.3 D-04 lock)
+
+## Differentiators (defer to v1.6+)
+
+- Per-tenant Tavily domain allowlist + budget cap
+- Iterative peer debate (multi-round critique) — v1.5 ships single-pass verifier first
+- Web result caching in Redis (defeats freshness)
+- Memory tool (10x #1) — needs `/office-hours` to lock wedge
+- Code-acting / SQLTool (10x #4) — sandbox unresolved
+
+## Architecture integration points
+
+| New artifact | Touches | New? |
 |---|---|---|
-| pgvector index type | HNSW | IVFFlat degrades on incremental inserts; HNSW handles ingest continuously |
-| Multi-tenancy | Single table + PostgreSQL RLS | DB-level enforcement; misconfiguration cannot leak data across tenants |
-| Image embedding | Caption-then-embed (LLM vision → BGE-M3) | Keeps vector space uniform; CLIP is zero-cost fallback |
-| Async task queue | ARQ (Redis-backed) | Zero new infra; retry + persistence; same Redis already in stack |
-| PII timing | Before chunking (Stage 3) | PII split across chunk boundaries becomes undetectable |
-| JWT secret validation | Startup entropy check + denylist | Missing or weak secret = crash at boot, not silent runtime failure |
+| `services/agent/tools/web_search.py::WebSearchTool.run()` body | Tavily SDK call + `RetrievedChunk` mapping | Replaces existing placeholder |
+| `services/pipeline.py::AGENT_TOOL_ALLOWLIST` | Add `"web_search"` | Append to existing list |
+| `services/agent/verifier.py::Verifier` | New module | NEW |
+| `services/pipeline.py::SwarmQueryPipeline` | Conditional verifier hop after `asyncio.gather` peer fan-out | Modified existing |
+| `utils/models.py::GenerationRequest.debate` | New optional bool field | Additive |
+| `utils/models.py` AgentEvent subclasses | `VerifierStartEvent`, `VerifierCompleteEvent`, `VerifierDisagreementEvent` | NEW (extend ABC) |
+| `controllers/api.py::agent_run_stream` | Already passes events through | No code change |
+| `docs/agent-architecture.md` | Add 3 new event-schema subsections | Additive |
+| `tests/unit/test_*_coverage.py` | 5 new test files | NEW |
 
-### Build Order
+## Suggested build order
 
-1. **Fix pgvector backend** — HNSW index + missing methods + per-tenant registry (unblocks all other work)
-2. **Extend BaseVectorStore ABC** — add `ParentChunkStore` Protocol (parallel with step 1)
-3. **Security hardening** — JWT startup validation, Presidio PII, slowapi per-route decorators, RLS policy
-4. **Error handling sweep** — replace 50+ `except Exception` with narrow catches + done-callback on all `create_task` calls
-5. **Image extraction** — `ExtractedImage` model + PyMuPDF in Stage 2; image chunking in Stage 4
-6. **Async ingest tracking** — ARQ worker + `POST /ingest/async` + `GET /ingest/status/{job_id}`
-7. **Test coverage** — dependency_overrides + `cache_clear()` teardown; 80% floor across 18 services
-8. **Eval expansion** — `ragas.testset.TestsetGenerator` bootstrap; stratified 200-pair dataset
+**Phase 20** (smallest, highest leverage, ship first): WebSearchTool real impl + Tavily settings + UI render fix for `chunk_type="web"`. Independent of other v1.5 phases.
 
-### Top Pitfalls to Avoid
+**Phase 21** (depends on Phase 20 only for the AGENT_TOOL_ALLOWLIST update pattern, not behavior): AGENT-05 verifier role + new SSE events + docs extension. Reuses v1.4 `SwarmQueryPipeline` infrastructure.
 
-1. **IVFFlat index** — recall degrades with incremental inserts; use HNSW; set `work_mem='256MB'` or index build falls back to disk (10-100x slower)
-2. **Tenant data leakage** — retrieval endpoints missing tenant filter while chat endpoint has auth; enforce at vector store level, not API layer only
-3. **asyncio silent drops** — `create_task()` silently discards exceptions; always attach `add_done_callback`
-4. **slowapi middleware-only assumption** — middleware only handles the exception response; `@limiter.limit()` decorator required on every route; middleware is LIFO
-5. **Singleton leakage in tests** — `lru_cache` bleeds across tests; always call `cache_clear()` in teardown after `dependency_overrides.clear()`
-6. **HNSW vector UPDATE** — accumulates dead entries; always DELETE + INSERT; schedule periodic `REINDEX`
-7. **Eval contamination** — never generate QA pairs from documents already in the retrieval index; 20% holdout before any ingest
+**Phase 22** (independent, can run after 20 or in parallel in dev): Coverage lift on 5 modules; pure test work.
 
-### Eval Standards
+## Watch Out For (top 5)
 
-- **Minimum viable:** 50 pairs for CI smoke test; 200+ for meaningful regression detection
-- **RAGAS thresholds:** `faithfulness > 0.85`, `answer_relevancy > 0.80`, `context_precision > 0.75`, `context_recall > 0.70`
-- **Bootstrap path:** `ragas.testset.TestsetGenerator` → 200 synthetic pairs → human-review 20% sample → stratify by doc type, topic, answer length; include ~20% unanswerable questions
+1. **P-01 Tavily key leakage** — `.env` only, never planning docs / commits / SSE error frames. Pre-commit scans for `tvly-` prefix.
+2. **P-03 Tavily 5xx** — tenacity retry with `reraise=True`, then `_build_error_result` returning typed error `ToolResult` (do not raise into orchestrator). v1.4.2 pattern.
+3. **P-07 Verifier hallucination** — verifier system prompt forbids inventing facts; verdict requires `evidence_chunk_ids: list[str]`; empty evidence → treat as disagreement.
+4. **P-12 Mock-at-source regression** — Coverage lift MUST mock at consumer path (`services.<mod>.<dep>`), not source. v1.3 Phase 13 / 15 pattern.
+5. **P-18 Stale Redis cache after pipeline change** — every v1.5 phase SUMMARY includes `redis-cli --scan --pattern 'rag:query:*' | xargs redis-cli del` ops note. v1.4.2 lesson.
 
-## Implementation Guidance
+## Open questions deferred to phase discussions
 
-**pgvector migration:** `PgVectorStore` already exists but is incomplete — two missing methods and wrong index type. Completion task, not a rewrite. Run recall@10 comparison against Qdrant baseline before cutover; target within 5%.
+(Mirrored from STATE.md `Open Questions Carried into v1.5 Planning`.)
 
-**Security hardening:** JWT validation in FastAPI lifespan startup handler. Presidio PII in Stage 3, before chunking. `@limiter.limit()` on each route + `request: Request` as first parameter. Every admin route needs both auth and authz checks.
+1. WebSearch citation contract (URL/snippet → `RetrievedChunk` shape) — Phase 20 discuss
+2. WebSearch trigger condition (always-pickable vs only when KB empty) — Phase 20 plan
+3. AGENT-05 debate shape (verifier vs peer-debate) — RECOMMENDED single-pass verifier; confirm Phase 21 discuss
+4. AGENT-05 trigger (always-on vs opt-in) — RECOMMENDED opt-in `debate=true` flag; confirm Phase 21 discuss
+5. Coverage lift scope (per-class vs whole-file) — Phase 22 plan
+6. Tavily quota / fallback UX — Phase 20 plan
 
-**Error handling sweep:** Narrow exception types; always re-raise or log with full context. Attach `add_done_callback` to every `create_task`. Map domain exceptions to specific HTTP status codes.
+## v1.5 invariants (carried from v1.4 / v1.3)
 
-**Image extraction:** Extend `ExtractedContent` with `images: list[ExtractedImage]` in Stage 2. Caption via LLM vision in Stage 5; embed through existing BGE-M3; store raw bytes as base64 with `chunk_type="image"`.
-
-**Test coverage:** `app.dependency_overrides` + `cache_clear()` teardown as canonical pattern. Flush Redis between rate-limit tests — in-process state is shared.
-
-## Open Questions
-
-1. **PyMuPDF license:** Commercial Artifex license needed for enterprise on-premise? Blocks image extraction phase.
-2. **Async task queue:** ARQ full worker process (separate Docker service) or `asyncio.create_task + Redis` to avoid operational overhead?
-3. **Image embedding cost:** LLM captioning at ingest scale — is there a per-document budget, or should CLIP be the default?
-4. **Eval holdout set:** Are 20% of current documents available as eval-only, or does bootstrapping require entirely synthetic data?
-5. **RLS pool compatibility:** asyncpg pool must set `app.current_tenant` per-connection (not per-query) — needs verification against current pool config before RLS goes live.
-
-## Suggested Phase Structure
-
-| Phase | Focus | Key deliverables |
-|-------|-------|-----------------|
-| 1 | Foundation | pgvector: HNSW + missing methods + RLS + per-tenant registry |
-| 2 | Hardening | JWT startup validation, Presidio PII, slowapi per-route, error handling sweep, admin auth audit |
-| 3 | Features | Image extraction pipeline, async ingest tracking, test coverage to 80% |
-| 4 | Quality | Eval dataset 200+ pairs, RAGAS CI gates |
+- PostgreSQL RLS multi-tenancy preserved
+- `asyncio.gather` + `BaseException` isolation for parallel calls
+- Combined coverage `--fail-under=70` global floor (v1.5 strengthens it on 5 modules)
+- `diff-cover --fail-under=80` on touched files
+- Mock-at-consumer-path pattern (v1.3 Phase 13/15)
+- SSE event format unchanged: `event: <type>\ndata: <model_dump_json>\n\n`
+- Provider-neutral via `BaseLLMClient.call_agentic_turn` — verifier inherits this
+- v1.3 D-04 — no production code changes for coverage lift
