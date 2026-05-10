@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Web Search + Multi-Agent Debate + Coverage Lift
 status: executing
-stopped_at: "Phase 20 Wave 3 complete (Plan 20-03 allowlist+integration test, Plan 20-04 UI URL=<host> branch); Wave 4 next (Plan 20-05 SC5 secret gate + human-verify checkpoint)"
-last_updated: "2026-05-10T10:00:00.000Z"
-last_activity: "2026-05-10 — Wave 3 shipped: Plan 20-03 commits 3dddfb0/23b360a/6cca193, Plan 20-04 commits 3317949/d10f286/7d82692"
+stopped_at: "Phase 20 all 5 plans shipped (Wave 4 complete); awaiting verify_phase_goal + TDD review + security gate"
+last_updated: "2026-05-10T10:30:00.000Z"
+last_activity: "2026-05-10 — Wave 4 shipped: Plan 20-05 commits 7508fa5/6242293/72c2046 (human-verify approved); Phase 20 acceptance roll-up landed"
 progress:
   total_phases: 3
   completed_phases: 0
   total_plans: 5
-  completed_plans: 4
-  percent: 80
+  completed_plans: 5
+  percent: 100
 ---
 
 # STATE — EnterpriseRAG (v1.5 planning)
@@ -26,15 +26,15 @@ See: .planning/PROJECT.md (updated 2026-05-10 after v1.5 open)
 ## Current Position
 
 Phase: 20 — WebSearchTool Real Implementation (Tavily)
-Plan: 20-04 complete (4/5); Wave 4 next (Plan 20-05 SC5 secret gate + human-verify checkpoint)
-Status: Executing
-Last activity: 2026-05-10 — Wave 3 shipped (Plan 20-03 allowlist + integration test; Plan 20-04 UI URL=<host> branch with byte-identical CSS invariant)
+Plan: 5/5 complete; awaiting verify_phase_goal + TDD review + security gate
+Status: Verifying
+Last activity: 2026-05-10 — Wave 4 shipped (Plan 20-05 SC5 gate + human-verify approved; Phase 20 acceptance roll-up landed)
 
 ## Phase Overview
 
 | Phase | Name | REQ-IDs | Status |
 |-------|------|---------|--------|
-| 20 | WebSearchTool Real Implementation (Tavily) | AGENT-10, AGENT-11, AGENT-12, AGENT-13 | Executing — 4/5 plans complete |
+| 20 | WebSearchTool Real Implementation (Tavily) | AGENT-10, AGENT-11, AGENT-12, AGENT-13 | Verifying — 5/5 plans shipped |
 | 21 | AGENT-05 Multi-Agent Debate / Sub-Agent Verifier | AGENT-05, AGENT-14, AGENT-15 | Planning |
 | 22 | Per-Module 70% Coverage Lift | TEST-08, TEST-09, TEST-10, TEST-11, TEST-12 | Planning |
 
