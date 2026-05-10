@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Web Search + Multi-Agent Debate + Coverage Lift
 status: executing
-stopped_at: Phase 22 context gathered
-last_updated: "2026-05-10T13:58:31.802Z"
-last_activity: 2026-05-10 -- Phase 22 execution started
+stopped_at: Phase 22 complete; awaiting /gsd-verify-work 22
+last_updated: "2026-05-10T14:30:00.000Z"
+last_activity: 2026-05-10 — Phase 22 complete: per-module ≥70% gate hard-fail flip + TEST-08..12 closed
 progress:
   total_phases: 3
   completed_phases: 2
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-05-10 after v1.5 open)
 
 ## Current Position
 
-Phase: 22 (Per-Module 70% Coverage Lift) — EXECUTING
-Plan: 1 of 7
-Status: Executing Phase 22
-Last activity: 2026-05-10 -- Phase 22 execution started
+Phase: 22 (Per-Module 70% Coverage Lift) — COMPLETE; awaiting /gsd-verify-work 22
+Plan: 7 of 7 shipped
+Status: Verifying
+Last activity: 2026-05-10 — Phase 22 complete: per-module ≥70% gate hard-fail flip + TEST-08..12 closed
 
 ## Phase Overview
 
@@ -36,7 +36,7 @@ Last activity: 2026-05-10 -- Phase 22 execution started
 |-------|------|---------|--------|
 | 20 | WebSearchTool Real Implementation (Tavily) | AGENT-10, AGENT-11, AGENT-12, AGENT-13 | Verified — phase PASSED 2026-05-10 |
 | 21 | AGENT-05 Multi-Agent Debate / Sub-Agent Verifier | AGENT-05, AGENT-14, AGENT-15 | Verifying — 6/6 plans shipped |
-| 22 | Per-Module 70% Coverage Lift | TEST-08, TEST-09, TEST-10, TEST-11, TEST-12 | Planning |
+| 22 | Per-Module 70% Coverage Lift | TEST-08, TEST-09, TEST-10, TEST-11, TEST-12 | Complete ✓ |
 
 ## Accumulated Context
 
@@ -61,6 +61,7 @@ Last activity: 2026-05-10 -- Phase 22 execution started
 | `Planner` / `Executor` / `Synthesizer` triad behind frozen Pydantic V2 contracts | v1.4 Phase 16 | AGENT-05 verifier role plugs in as either an additional Executor pass or an additional planner-loop hop |
 | `BaseTool` ABC + `ToolRegistry` + `AGENT_TOOL_ALLOWLIST` constant in `services/pipeline.py` | v1.4 Phase 17 | WebSearchTool real impl swaps in behind the same ABC; allowlist updated to include `web_search` |
 | SSE event schema in `docs/agent-architecture.md` | v1.4 Phase 18 | AGENT-05 debate trace events extend the existing schema, do not introduce a new transport |
+| Per-module ≥70% floor on 5 v1.5-locked modules | v1.5 Phase 22 D-01..D-08 | CI `coverage-combine` job fails on regression in any of services/pipeline.py / generator/llm_client.py / vectorizer/vector_store.py / retriever/retriever.py / extractor/extractor.py |
 
 ### Open Questions Carried into v1.5 Planning
 
@@ -70,7 +71,7 @@ Last activity: 2026-05-10 -- Phase 22 execution started
 2. **WebSearch when knowledge base is empty vs supplements it.** Should `web_search` be planner-pickable for any query, or only when `search_knowledge_base` returns < N chunks? Decide in WebSearch phase plan.
 3. **AGENT-05 debate shape.** Two competing patterns: (a) verifier role (one extra sub-agent reads N answers, picks the best or flags disagreement); (b) peer debate (N sub-agents critique each other's answers iteratively). Recommend (a) for v1.5 — simpler, lower latency cap, same SSE event surface.
 4. **AGENT-05 trigger.** Always-on for swarm queries vs opt-in flag (`debate=true`)? Recommend opt-in for v1.5 to constrain blast radius and latency.
-5. **Coverage lift scope drift.** When `pipeline.py` covers AgentQueryPipeline + SwarmQueryPipeline + QueryPipeline (5500+ lines), 70% may force test bloat. Per-class breakdown vs whole-file? Decide in coverage-lift phase plan.
+5. **Coverage lift scope drift.** ✓ resolved per Phase 22 D-05 (whole-file ≥70%, no per-class breakdown; pipeline.py treated as single denominator). Plans 22-00..22-06 shipped 2026-05-10. CI gate hard-fail flip in 22-06.
 6. **Tavily quota / fallback.** What does the system do when Tavily rate-limits or 5xx? Tenacity retry with exponential backoff is the v1.0+ pattern; final-failure UX (return error chunk vs fall through to RAG-only) decided in plan.
 
 ### Blockers
@@ -90,8 +91,8 @@ None.
 
 ## Session Continuity
 
-**Last updated:** 2026-05-10 — Phase 21 Plan 21-06 shipped (docs/agent-architecture.md Event Schema Reference extension: ### Debate Mode + 3 verifier event subsections + backward-compat blockquote + 3 JS addEventListener lines; AGENT-15 / SC4 satisfied)
-**Stopped at:** Phase 22 context gathered
-**Next action:** Run `/gsd-verify-work 21` to gate Phase 21 acceptance against AGENT-05 / AGENT-14 / AGENT-15 + SC1-SC5; on green, advance to Phase 22 (Per-Module 70% Coverage Lift) discussion/planning.
+**Last updated:** 2026-05-10 — Phase 22 complete: per-module ≥70% gate hard-fail flip + TEST-08..12 closed (5 modules: pipeline 81.0%, llm_client 70.6%, vector_store 80.0%, retriever 85.0%, extractor 73.5%)
+**Stopped at:** Phase 22 complete; awaiting /gsd-verify-work 22
+**Next action:** Run `/gsd-verify-work 22` to gate Phase 22 acceptance against TEST-08..12 + SC1-SC5; on green, advance to v1.5 milestone close.
 
 **Planned Phase:** 22 (Per-Module 70% Coverage Lift) — 7 plans — 2026-05-10T13:55:59.905Z

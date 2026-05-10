@@ -33,15 +33,15 @@ Twelve checkable requirements grouped into three categories. Each maps to exactl
 
 ### Coverage Lift (TEST)
 
-- [ ] **TEST-08**: `services/pipeline.py` per-module coverage ≥ 70% (currently ~60-65%). New unit tests under `tests/unit/test_pipeline_coverage.py` (or extending existing) cover `AgentQueryPipeline.run` / `run_streaming` error branches, `SwarmQueryPipeline.run` synthesis path, `_dedup_chunks`, `_build_initial_messages`. Mock at consumer paths only (`services.pipeline.get_planner` etc.). No production-code changes (v1.3 D-04). Phase 22.
+- [x] **TEST-08**: `services/pipeline.py` per-module coverage ≥ 70% (currently ~60-65%). New unit tests under `tests/unit/test_pipeline_coverage.py` (or extending existing) cover `AgentQueryPipeline.run` / `run_streaming` error branches, `SwarmQueryPipeline.run` synthesis path, `_dedup_chunks`, `_build_initial_messages`. Mock at consumer paths only (`services.pipeline.get_planner` etc.). No production-code changes (v1.3 D-04). Phase 22.
 
-- [ ] **TEST-09**: `services/generator/llm_client.py` per-module coverage ≥ 70%. Reuses v1.2 wire fixtures (`tests/unit/fixtures/agent_parity/`) for happy-path; new tests cover `RateLimitError` (429) / `OverloadedError` / `RetryError` / `APIConnectionError` branches across both `AnthropicLLMClient.call_agentic_turn` and `OpenAILLMClient.call_agentic_turn`. Phase 22.
+- [x] **TEST-09**: `services/generator/llm_client.py` per-module coverage ≥ 70%. Reuses v1.2 wire fixtures (`tests/unit/fixtures/agent_parity/`) for happy-path; new tests cover `RateLimitError` (429) / `OverloadedError` / `RetryError` / `APIConnectionError` branches across both `AnthropicLLMClient.call_agentic_turn` and `OpenAILLMClient.call_agentic_turn`. Phase 22.
 
-- [ ] **TEST-10**: `services/vectorizer/vector_store.py` per-module coverage ≥ 70%. New tests cover `_build_filter_where` (table-driven over `page_number` int / string / null cases including the v1.4.2 fix), `metadata isinstance str` JSONB-decoding branch (line 347), and HNSW DDL idempotency (`CREATE INDEX IF NOT EXISTS` branch). Phase 22.
+- [x] **TEST-10**: `services/vectorizer/vector_store.py` per-module coverage ≥ 70%. New tests cover `_build_filter_where` (table-driven over `page_number` int / string / null cases including the v1.4.2 fix), `metadata isinstance str` JSONB-decoding branch (line 347), and HNSW DDL idempotency (`CREATE INDEX IF NOT EXISTS` branch). Phase 22.
 
-- [ ] **TEST-11**: `services/retriever/retriever.py` per-module coverage ≥ 70%. New tests cover `_to_retrieved_chunk` with the v1.4.2 `model_validate` auto-passthrough path (page_number / section_id round-trip), reranker SLA timeout fallback to passthrough (`_rerank_with_sla`), and `_expand_to_parent` `asyncpg.PostgresError` non-fatal branch. Phase 22.
+- [x] **TEST-11**: `services/retriever/retriever.py` per-module coverage ≥ 70%. New tests cover `_to_retrieved_chunk` with the v1.4.2 `model_validate` auto-passthrough path (page_number / section_id round-trip), reranker SLA timeout fallback to passthrough (`_rerank_with_sla`), and `_expand_to_parent` `asyncpg.PostgresError` non-fatal branch. Phase 22.
 
-- [ ] **TEST-12**: `services/extractor/extractor.py` per-module coverage ≥ 70%. New tests cover `is_scanned_pdf` 3-page-sample heuristic (text-rich vs scanned), `_detect_header_footer_texts` 10-page-cap branch, OCR-vs-native-extract router, and the v1.4.2 Tesseract OCR engine selection branch. Phase 22.
+- [x] **TEST-12**: `services/extractor/extractor.py` per-module coverage ≥ 70%. New tests cover `is_scanned_pdf` 3-page-sample heuristic (text-rich vs scanned), `_detect_header_footer_texts` 10-page-cap branch, OCR-vs-native-extract router, and the v1.4.2 Tesseract OCR engine selection branch. Phase 22.
 
 ---
 
@@ -85,10 +85,10 @@ Twelve checkable requirements grouped into three categories. Each maps to exactl
 | AGENT-05 | 21 — AGENT-05 Multi-Agent Debate / Sub-Agent Verifier | tbd (assigned during `/gsd-plan-phase 21`) |
 | AGENT-14 | 21 — AGENT-05 Multi-Agent Debate / Sub-Agent Verifier | tbd |
 | AGENT-15 | 21 — AGENT-05 Multi-Agent Debate / Sub-Agent Verifier | 21-02 (schemas) + 21-05 (wire emission + route dispatch) + 21-06 (doc extension) ✓ |
-| TEST-08  | 22 — Per-Module 70% Coverage Lift | tbd (assigned during `/gsd-plan-phase 22`) |
-| TEST-09  | 22 — Per-Module 70% Coverage Lift | tbd |
-| TEST-10  | 22 — Per-Module 70% Coverage Lift | tbd |
-| TEST-11  | 22 — Per-Module 70% Coverage Lift | tbd |
-| TEST-12  | 22 — Per-Module 70% Coverage Lift | tbd |
+| TEST-08  | 22 — Per-Module 70% Coverage Lift | 22-01 |
+| TEST-09  | 22 — Per-Module 70% Coverage Lift | 22-02 |
+| TEST-10  | 22 — Per-Module 70% Coverage Lift | 22-03 |
+| TEST-11  | 22 — Per-Module 70% Coverage Lift | 22-04 |
+| TEST-12  | 22 — Per-Module 70% Coverage Lift | 22-05 |
 
 **Coverage:** 12/12 requirements mapped to phases; every phase has ≥ 1 requirement; no orphans.
