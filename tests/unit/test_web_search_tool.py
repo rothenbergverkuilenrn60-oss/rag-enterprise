@@ -415,10 +415,12 @@ class TestWebSearchToolRun:
         assert retrying is not None, (
             "_tavily_search must be wrapped with @retry; .retry attribute missing"
         )
-        # stop=stop_after_attempt(3) — verify by repr of the stop strategy.
-        stop_repr = repr(retrying.stop)
-        assert "stop_after_attempt" in stop_repr
-        assert "3" in stop_repr
+        # stop=stop_after_attempt(3) — verify class name + max_attempt_number attr.
+        # Default repr of stop_after_attempt does not embed the count, so we
+        # introspect the attribute instead of substring-matching the repr.
+        stop = retrying.stop
+        assert stop.__class__.__name__ == "stop_after_attempt"
+        assert getattr(stop, "max_attempt_number", None) == 3
 
     def test_get_tavily_client_is_lazy_singleton(
         self, monkeypatch: pytest.MonkeyPatch
