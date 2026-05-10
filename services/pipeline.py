@@ -594,8 +594,10 @@ _SYNTHESIS_SYSTEM: str = """\
 MAX_ITERATIONS: int = 5
 
 # Explicit allowlist of tool names exposed to the planner LLM (AGENT-07).
-# WebSearchTool is registered but excluded here (placeholder — v1.5+).
-AGENT_TOOL_ALLOWLIST: list[str] = ["search_knowledge_base", "refine_search"]
+# Phase 20: web_search joins the allowlist with the real Tavily impl
+# (services/agent/tools/web_search.py). Empty TAVILY_API_KEY is a runtime
+# short-circuit per CONTEXT D-03 — no startup-time filtering here.
+AGENT_TOOL_ALLOWLIST: list[str] = ["search_knowledge_base", "refine_search", "web_search"]
 
 
 class AgentQueryPipeline:
