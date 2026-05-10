@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Web Search + Multi-Agent Debate + Coverage Lift
-status: "v1.5 milestone shipped — PR #4 awaiting CI + review"
-stopped_at: Phase 22 complete; awaiting /gsd-verify-work 22
-last_updated: "2026-05-10T16:11:32.134Z"
-last_activity: "2026-05-11 — v1.5 milestone PR #4 opened (gsd/v1.5-milestone -> master)"
+status: "v1.5 milestone shipped + archived; awaiting next-milestone open"
+stopped_at: v1.5 archived (PR #4 merged + milestone artifacts moved to milestones/)
+last_updated: "2026-05-11T00:55:00.000Z"
+last_activity: "2026-05-11 — v1.5 milestone archived: phase 20/21/22 dirs moved to milestones/v1.5-phases/, ROADMAP/REQUIREMENTS snapshotted, MILESTONES.md entry written"
 progress:
   total_phases: 3
   completed_phases: 3
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-10 after v1.5 open)
 
 **Core value:** Every query returns a grounded, auditable answer — no hallucinations, no silent failures, no security gaps.
-**Current focus:** v1.5 milestone shipped — PR #4 awaiting CI + review
+**Current focus:** v1.5 archived; next-milestone open paused per user
 
 ## Current Position
 
-Phase: 22 (Per-Module 70% Coverage Lift) — COMPLETE; awaiting /gsd-verify-work 22
-Plan: 7 of 7 shipped
-Status: v1.5 milestone shipped — PR #4 awaiting CI + review
-Last activity: 2026-05-11 — v1.5 milestone PR #4 opened (gsd/v1.5-milestone -> master)
+Phase: — (between milestones)
+Plan: v1.5 archived (18/18 plans shipped across phases 20/21/22)
+Status: v1.5 milestone archived; awaiting next-milestone open
+Last activity: 2026-05-11 — v1.5 milestone archived: phase 20/21/22 dirs moved to milestones/v1.5-phases/, ROADMAP/REQUIREMENTS snapshotted, MILESTONES.md entry written
 
 ## Phase Overview
 
@@ -91,8 +91,8 @@ None.
 
 ## Session Continuity
 
-**Last updated:** 2026-05-10 — Phase 22 complete: per-module ≥70% gate hard-fail flip + TEST-08..12 closed (5 modules: pipeline 81.0%, llm_client 70.6%, vector_store 80.0%, retriever 85.0%, extractor 73.5%)
-**Stopped at:** v1.5 milestone shipped — PR #4 (gsd/v1.5-milestone → master) awaiting CI + review
-**Next action:** Watch PR #4 CI (coverage-combine job + 5 new per-module gates); on merge, run `/gsd-complete-milestone` to archive v1.5 and open v1.6.
+**Last updated:** 2026-05-11 — v1.5 milestone archived: PR #4 merged (squash `c410a45`); phase 20/21/22 directories moved to `milestones/v1.5-phases/`; `milestones/v1.5-ROADMAP.md` + `milestones/v1.5-REQUIREMENTS.md` snapshots written; MILESTONES.md entry appended (with v1.4 backfill); ROADMAP.md v1.5 section collapsed into `<details>` and Progress table phases 20/21/22 marked Complete ✓.
+**Stopped at:** v1.5 archived; awaiting next-milestone open (paused per user)
+**Next action:** Open v1.6 with `/gsd-new-milestone` when ready. Optional: `/gsd-extract-learnings` (v1.5 patterns), Docker Build CI fix (paddleocr ABI), STATE carry-forward todos (asyncpg RLS, PyMuPDF AGPL).
 
-**Planned Phase:** 22 (Per-Module 70% Coverage Lift) — 7 plans — 2026-05-10T13:55:59.905Z
+**Planned Phase:** —

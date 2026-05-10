@@ -10,6 +10,8 @@ v1.1 Retrieval Depth & Frontend shipped: closed the image-only-PDF retrieval gap
 
 v1.2 Agentic Layer + Swarm shipped: `agent_mode=True` now executes the real tool-use loop on both OpenAI and Anthropic providers. `BaseLLMClient.call_agentic_turn` abstraction added; Anthropic-only fallback removed; `asyncio.gather` parallel burst executes N ≥ 2 tool calls concurrently per turn.
 
+v1.5 Web Search + Multi-Agent Debate + Coverage Lift shipped: replaced the v1.4 `WebSearchTool` placeholder with a real Tavily-backed implementation behind the same `BaseTool` ABC; introduced AGENT-05 verifier sub-agent that runs after `SwarmQueryPipeline`'s peer fan-out when `req.debate=True` and surfaces evidence-supported divergence; raised five high-traffic modules above per-module ≥70% line coverage and wired CI to enforce a per-module floor on combined coverage data.
+
 ## Current State
 
 - ✅ **v1.0 Hardening** shipped 2026-04-27 — [archive](milestones/v1.0-ROADMAP.md)
@@ -17,22 +19,37 @@ v1.2 Agentic Layer + Swarm shipped: `agent_mode=True` now executes the real tool
 - ✅ **v1.2 Agentic Layer + Swarm** shipped 2026-05-08 — [archive](milestones/v1.2-ROADMAP.md)
 - ✅ **v1.3 Fork Swarm, NLU & Quality** shipped 2026-05-09 — [archive](milestones/v1.3-ROADMAP.md)
 - ✅ **v1.4 Agent-First Architecture Inversion** shipped 2026-05-10 — [archive](milestones/v1.4-ROADMAP.md)
+- ✅ **v1.5 Web Search + Multi-Agent Debate + Coverage Lift** shipped 2026-05-11 — [archive](milestones/v1.5-ROADMAP.md)
 
-## Current Milestone: v1.5 Web Search + Multi-Agent Debate + Coverage Lift
+## Next Milestone
 
-**Goal:** Replace v1.4's WebSearchTool placeholder with a Tavily-backed real implementation; introduce AGENT-05 multi-agent debate / sub-agent verify (10x roadmap #2); lift 5 large modules above per-module ≥ 70% coverage. The agent gains a non-RAG tool that actually queries the live web, the swarm gains a verify/debate dimension on top of v1.3's parallel fan-out, and the coverage gate strengthens on the modules that have carried the most behavior.
+**Status:** between milestones — v1.6 not yet opened.
 
-**Target features:**
-- **WebSearchTool real impl** — Tavily SDK behind the v1.4 `BaseTool` interface; promoted from placeholder into `AGENT_TOOL_ALLOWLIST`; planner can pick it for queries the knowledge base cannot answer
-- **AGENT-05 multi-agent debate / sub-agent verify** — extends v1.3 `SwarmQueryPipeline` with a verifier role (or peer-debate phase) so independent sub-agents cross-check answers before synthesis; the debate / verify trace surfaces in the existing SSE event stream
-- **Per-module 70% coverage lift** — bring `services/pipeline.py`, `services/generator/llm_client.py`, `services/vectorizer/vector_store.py`, `services/retriever/retriever.py`, `services/extractor/extractor.py` above 70% via consumer-path mocks (v1.3 Phase 13/15 pattern); no production code logic changes
+When ready, run `/gsd-new-milestone` to scope v1.6. Candidate seeds (carried forward from v1.5 STATE):
+- Memory tool (10x roadmap #1) — needs `/office-hours` first (per-tenant scope, RAG-vs-tool boundary, eviction policy)
+- Code-acting / SQLTool (10x roadmap #4) — sandbox selection (subprocess+seccomp / Docker / E2B / WASM) unresolved
+- UI-03 React/Vue full migration; TEST-07 mutation testing; UI-02 first-deploy browser smoke
+- Per-module floor raise (>70%) or branch-coverage activation (Phase 22 D-08 follow-up)
+- asyncpg pool RLS production verification; PyMuPDF AGPL commercial licensing
+- Docker Build CI fix (paddleocr / paddlex / paddlepaddle ABI churn — currently `continue-on-error: true`)
 
-**Deferred to v1.6+:**
-- Memory tool (10x roadmap #1) — needs `/office-hours` to lock the wedge (per-tenant scope, RAG-vs-tool boundary, eviction policy)
-- Code-acting / SQLTool (10x roadmap #4) — sandbox selection (subprocess+seccomp / Docker / E2B / WASM) and security model unresolved
-- UI-03 React/Vue full migration, TEST-07 mutation testing, UI-02 first-deploy browser smoke
+## Previous Milestone (Archived): v1.5 Web Search + Multi-Agent Debate + Coverage Lift
+
+**Shipped:** 2026-05-11 (PR #4, squash `c410a45`).
+
+<details>
+<summary>v1.5 milestone scope (collapsed — see <a href="milestones/v1.5-ROADMAP.md">archive</a> for full snapshot)</summary>
+
+**Goal:** Replace v1.4's WebSearchTool placeholder with a Tavily-backed real implementation; introduce AGENT-05 multi-agent debate / sub-agent verify (10x roadmap #2); lift 5 large modules above per-module ≥ 70% coverage.
+
+**Delivered:**
+- **WebSearchTool real impl** — Tavily SDK behind the v1.4 `BaseTool` interface; promoted from placeholder into `AGENT_TOOL_ALLOWLIST`; planner picks it when KB returns < N chunks
+- **AGENT-05 verifier sub-agent** — extends v1.3 `SwarmQueryPipeline` with a verifier hop on `req.debate=True`; 3 new SSE event types extend v1.4 schema; latency bounded by `max(peer) + verifier`, not `sum`
+- **Per-module 70% coverage lift** — `services/pipeline.py` 42.7→81.0%, `services/generator/llm_client.py` 53.0→70.6%, `services/vectorizer/vector_store.py` 44.2→80.0%, `services/retriever/retriever.py` 34.5→85.0%, `services/extractor/extractor.py` 37.3→73.5%; CI hard-fail per-module gates with run-all-then-fail (D-02/D-08); zero production `.py` changes (CF-01)
 
 Tavily key handling: stored in `.env` only (gitignored); `.env.docker` references via `${TAVILY_API_KEY:-}`; never written into planning docs or commits.
+
+</details>
 
 ## Core Value
 
@@ -216,4 +233,4 @@ Every query returns a grounded, auditable answer — no hallucinations, no silen
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-10 — v1.5 Web Search + Multi-Agent Debate + Coverage Lift milestone opened*
+*Last updated: 2026-05-11 — v1.5 Web Search + Multi-Agent Debate + Coverage Lift milestone shipped + archived*

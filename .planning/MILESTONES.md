@@ -84,3 +84,48 @@
 **Known deferred items:** 3 v1.4 follow-ups documented in v1.3-MILESTONE-AUDIT.md — (1) extract `_execute_tool_call` to shared helper between SwarmQueryPipeline + AgentQueryPipeline, (2) browser smoke test for UI-02 visual regression at first deploy, (3) lift 5 large modules (pipeline, llm_client, vector_store, retriever, extractor) above per-module 70% via deep mocking or live-service integration tests.
 
 **Archive:** [milestones/v1.3-ROADMAP.md](milestones/v1.3-ROADMAP.md) · [milestones/v1.3-REQUIREMENTS.md](milestones/v1.3-REQUIREMENTS.md) · [milestones/v1.3-MILESTONE-AUDIT.md](milestones/v1.3-MILESTONE-AUDIT.md)
+
+---
+
+## v1.4 Agent-First Architecture Inversion — 2026-05-10
+
+**Shipped:** 2026-05-10
+**Phases:** 16–19 | **Plans:** (see ROADMAP archive) | **Commits:** (stacked — PR #3)
+**Timeline:** 2026-05-09 → 2026-05-10 (2 days)
+
+**Delivered:** Inverted the architecture so the agent runtime is the project's core — `Planner` / `Executor` / `Synthesizer` triad behind frozen Pydantic V2 contracts; `BaseTool` ABC + `ToolRegistry` + `AGENT_TOOL_ALLOWLIST` constant; SSE event schema documented in `docs/agent-architecture.md`; v1.4 release tagged. Agentic RAG becomes one tool the agent calls.
+
+**Key accomplishments:**
+1. `Planner` / `Executor` / `Synthesizer` triad behind frozen Pydantic V2 contracts (Phase 16, AGENT-06/AGENT-09/NLU-03)
+2. `BaseTool` ABC + `ToolRegistry` + `AGENT_TOOL_ALLOWLIST` constant in `services/pipeline.py` (Phase 17)
+3. Structured SSE event stream on `POST /api/v1/agent/v1/run/stream` — six event types (`planner.plan` / `tool.span.start|end|error` / `executor.parallel` / `synthesizer.final`); each carries `trace_id`, monotonic `seq`, `ts_ms` (Phase 18, AGENT-04)
+4. `docs/agent-architecture.md` Event Schema Reference + agent-first docs / demo / release ceremony (Phase 19, AGENT-08)
+
+**Known deferred items:** None at close (per ROADMAP).
+
+**Archive:** [milestones/v1.4-ROADMAP.md](milestones/v1.4-ROADMAP.md) · [milestones/v1.4-REQUIREMENTS.md](milestones/v1.4-REQUIREMENTS.md)
+
+---
+
+## v1.5 Web Search + Multi-Agent Debate + Coverage Lift — 2026-05-11
+
+**Shipped:** 2026-05-11
+**Phases:** 20–22 | **Plans:** 18 | **Commits:** 1 (squash — PR #4); 78 individual commits before squash
+**Timeline:** 2026-05-08 → 2026-05-11 (4 days)
+**Audit:** none (skipped — three phases each individually verify-work PASSED)
+
+**Delivered:** Replaced the v1.4 `WebSearchTool` placeholder with a real Tavily-backed implementation behind the same `BaseTool` ABC; introduced a single-pass verifier sub-agent that runs after `SwarmQueryPipeline`'s peer fan-out when `req.debate=True` and surfaces evidence-supported divergence; raised five high-traffic modules above per-module ≥70% line coverage and wired CI to enforce a per-module floor on combined coverage data.
+
+**Key accomplishments:**
+1. **Tavily WebSearch real impl** (Phase 20, AGENT-10..13) — `services/tools/web_search_tool.py` Tavily SDK adapter behind `BaseTool` ABC; tenacity retry + typed error results; planner picks `web_search` when KB returns < N chunks; results map to `RetrievedChunk` so existing source-citation UI renders unchanged (byte-identical static UI assets vs `d9ffc0a`); 15/15 unit + 4/4 planner-pick integration tests
+2. **AGENT-05 verifier sub-agent** (Phase 21, AGENT-05/14/15) — `services/agent/verifier.py` `Verifier` class + `VerifierVerdict` Pydantic V2 contract with CF-04 forced-disagree on empty evidence; verifier hop gated on `req.debate` at `services/pipeline.py:1314-1469`; 3 new SSE event types (`verifier.start`/`.complete`/`.disagreement`) extend the v1.4 schema; `synthesizer.final` remains terminal; latency bounded by `max(peer) + verifier`, not `sum` (3 peers × 0.3s + verifier 0.2s → asserts `450 < elapsed_ms < 700`)
+3. **Per-module 70% coverage lift** (Phase 22, TEST-08..12) — five new test files (159 tests) lift `services/pipeline.py` 42.7% → 81.0%, `services/generator/llm_client.py` 53.0% → 70.6%, `services/vectorizer/vector_store.py` 44.2% → 80.0%, `services/retriever/retriever.py` 34.5% → 85.0%, `services/extractor/extractor.py` 37.3% → 73.5%; consumer-path mocks only (CF-02); zero production `.py` changes (CF-01)
+4. **CI per-module hard-fail floor** (Phase 22 D-08) — `.github/workflows/ci.yml` `coverage-combine` job: 5 hard-fail per-module gates with run-all-then-fail semantics (D-02); replaces 22-00's warning-only staging; combined coverage gate raised effectiveness from "average-around-able" to "module-by-module enforced"
+5. **`debate=False` byte-identical to v1.3 swarm** — verifier never invoked, no `agent_05` audit-detail key, `_llm.chat.await_count == 2` (decompose+synth, no verifier hop) — backward-compat lock honored
+6. **Open Q#5 closed per Phase 22 D-05** — `pipeline.py` measured as a whole-file ≥70% target (no per-class breakdown; long-standing v1.3 question resolved)
+
+**Known deferred items:** Docker Build Validation in CI still `continue-on-error: true` (paddleocr / paddlex / paddlepaddle ABI churn — pre-existing v1.1 bootstrap exception, not v1.5 scope). MyPy still `continue-on-error: true` (~70 pre-existing errors). Carry-forward todos: asyncpg pool RLS production verification, PyMuPDF AGPL commercial licensing, Phase 9/14 visual diff at first deploy.
+
+**In-flight CI fixes during ship:** ruff I001/E402/F841 (commit `0e49bc4`); `actions/upload-artifact@v4` `include-hidden-files: true` for `.coverage*` dotfiles (commit `d41425e`); `.coverage` → `.coverage.unit/integration` rename fallback (`d6cc54c`).
+
+**Archive:** [milestones/v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md) · [milestones/v1.5-REQUIREMENTS.md](milestones/v1.5-REQUIREMENTS.md)
