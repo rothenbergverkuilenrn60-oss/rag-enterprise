@@ -36,19 +36,9 @@ RUN pip install --upgrade pip wheel \
     && pip wheel --no-cache-dir --wheel-dir /wheels -r requirements.txt \
     && pip wheel --no-cache-dir --wheel-dir /wheels -r requirements-eval.txt
 
-# ─── PaddleOCR model prefetch — Phase 7 OCR-01/02 ────────────────────────────
-# Install paddlepaddle + paddleocr from the wheels we just built, then
-# instantiate PPStructureV3 once to download model weights (~600MB-1.2GB).
-# Models materialise into /root/.paddlex/official_models which the runtime
-# stage copies across — so production containers never need network access
-# to do OCR (research notes cold-start downloads are 10–60s and flaky behind
-# enterprise proxies).
-RUN pip install --no-cache-dir --find-links=/wheels \
-        paddlepaddle==3.0.0 \
-        "paddleocr==3.1.*" \
-    && python -c "from paddleocr import PPStructureV3; PPStructureV3(use_doc_orientation_classify=False, use_doc_unwarping=False)" \
-    && du -sh /root/.paddlex \
-    && ls /root/.paddlex/official_models
+# ─── PaddleOCR removed: upstream paddleocr/paddlex ABI churn breaks build.
+# OCR is provided by Tesseract at runtime (apt-installed below); see
+# services/extractor/extractor.py for the Tesseract-first fallback path.
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -95,14 +85,9 @@ COPY requirements.txt requirements-eval.txt ./
 RUN pip install --no-cache-dir --find-links=/wheels -r requirements.txt -r requirements-eval.txt \
     && rm -rf /wheels
 
-# ─── PaddleOCR baked models — Phase 7 OCR-02 acceptance #3 ───────────────────
-# Copy the model cache from the builder stage so the runtime image never needs
-# network access to do OCR. Path is owned by raguser (uid 1001) so the
-# non-root runtime user can read it. PADDLE_PDX_CACHE_HOME is the documented
-# PaddleX cache override — setting it explicitly makes the location independent
-# of $HOME resolution under USER raguser.
-COPY --from=builder --chown=raguser:raguser /root/.paddlex /home/raguser/.paddlex
-ENV PADDLE_PDX_CACHE_HOME=/home/raguser/.paddlex
+# ─── PaddleOCR baked models removed (upstream ABI churn). OCR provided by
+# Tesseract installed in the apt block above; PaddleOCR fallback path in
+# services/extractor/extractor.py degrades gracefully.
 
 # 复制应用代码（最后一层，保证代码变更不重建依赖层）
 # ─── UI-01 / Phase 9 ─── static/ui.html 由此 COPY 覆盖（无 .dockerignore 过滤），
