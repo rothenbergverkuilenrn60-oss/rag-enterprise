@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Web Search + Multi-Agent Debate + Coverage Lift
 status: verifying
-stopped_at: Phase 21 Wave 2 — Plan 21-04 shipped (parallel with 21-03 in-flight); Wave 3 (Plan 21-05) ready once 21-03 lands
-last_updated: "2026-05-10T13:30:00.000Z"
-last_activity: 2026-05-10 — Plan 21-04 GREEN shipped (_synthesize divergence kwarg + _format_disagree helper + _DISAGREE_BANNER_TEMPLATE constant; D-03/D-04/Pitfall P-08)
+stopped_at: Phase 21 Wave 2 complete (21-03 + 21-04 shipped in parallel); Wave 3 (Plan 21-05) ready
+last_updated: "2026-05-10T13:45:00.000Z"
+last_activity: 2026-05-10 — Plan 21-03 GREEN shipped (Verifier class + _VERIFIER_SYSTEM Candidate A + Pattern 6 JSON parse + CF-04 forced-disagree inside verify(); D-01/CF-03/CF-04/D-07/P-02/P-09 + BLOCKER 3 TYPE_CHECKING circular-import fix)
 progress:
   total_phases: 3
   completed_phases: 1
   total_plans: 17
-  completed_plans: 8
-  percent: 47
+  completed_plans: 9
+  percent: 53
 ---
 
 # STATE — EnterpriseRAG (v1.5 planning)
@@ -90,8 +90,8 @@ None.
 
 ## Session Continuity
 
-**Last updated:** 2026-05-10 — Phase 21 Plan 21-02 shipped (VerifierVerdict + 3 events + GenerationRequest.debate)
-**Stopped at:** Phase 21 Wave 1 complete (Plan 21-01 + Plan 21-02 shipped); Wave 2 (Plan 21-03 Verifier class) ready
-**Next action:** Begin Phase 21 Wave 2 — Plan 21-03 (Verifier sub-agent class consuming VerifierVerdict)
+**Last updated:** 2026-05-10 — Phase 21 Plan 21-03 shipped (Verifier sub-agent class + Pattern 6 JSON parse + CF-04 forced-disagree inside verify())
+**Stopped at:** Phase 21 Wave 2 complete (Plan 21-03 + Plan 21-04 shipped in parallel); Wave 3 (Plan 21-05 SwarmQueryPipeline verifier-hop integration) ready
+**Next action:** Begin Phase 21 Wave 3 — Plan 21-05 (SwarmQueryPipeline.run verifier hop after asyncio.gather; emits 3 SSE events; D-06 try/except wraps Verifier.verify() call site)
 
-**Planned Phase:** 21 (AGENT-05 Multi-Agent Debate / Sub-Agent Verifier) — 6 plans, 2 complete (21-01, 21-02) — 2026-05-10
+**Planned Phase:** 21 (AGENT-05 Multi-Agent Debate / Sub-Agent Verifier) — 6 plans, 4 complete (21-01, 21-02, 21-03, 21-04) — 2026-05-10
