@@ -497,14 +497,20 @@ class OpenAILLMClient(BaseLLMClient):
             else:
                 full_messages.extend(translated)
 
-        resp = await self._client.chat.completions.create(
-            model=self._model,
-            messages=full_messages,
-            tools=openai_tools,
-            parallel_tool_calls=parallel_tool_calls,
-            max_tokens=max_tokens,
-            temperature=0.0,
-        )
+        # Verifier path (text-only) passes tools=[]. Strict OpenAI-compat hosts
+        # (Groq, DashScope, free.v36.cm) reject `tools=[]` and `parallel_tool_calls`
+        # without tools. Skip both kwargs when tools is empty so verifier reaches
+        # the LLM. Real OpenAI accepts either form (#bug-verifier-empty-tools).
+        create_kwargs: dict[str, Any] = {
+            "model":       self._model,
+            "messages":    full_messages,
+            "max_tokens":  max_tokens,
+            "temperature": 0.0,
+        }
+        if openai_tools:
+            create_kwargs["tools"] = openai_tools
+            create_kwargs["parallel_tool_calls"] = parallel_tool_calls
+        resp = await self._client.chat.completions.create(**create_kwargs)
         _report_usage(resp, "openai", model=self._model)
 
         choice = resp.choices[0]

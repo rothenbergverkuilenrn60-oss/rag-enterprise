@@ -421,17 +421,23 @@ async def test_text_only_stop_reason_extracts_text(mock_pipeline, gen_req):
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_max_iterations_is_5(mock_pipeline, gen_req):
-    """LLM returns tool_use 5 times in a row → loop terminates after 5; no exception."""
+    """LLM returns tool_use 5 times → loop terminates at 5, then 1 forced no-tools synthesis."""
     tc = _tool_call("c", query="q")
     mock_pipeline._llm.call_agentic_turn.side_effect = [
         _turn(tool_calls=[tc], stop_reason="tool_use"),
-    ] * 10  # provide more than enough so we don't StopIteration
+    ] * 5 + [
+        _turn(text="forced final answer", stop_reason="text_only"),
+    ] * 5  # 6th call is forced synthesis; pad the rest
 
     mock_pipeline._retriever.retrieve.return_value = ([_chunk("c1")], {})
 
     resp = await mock_pipeline.run(gen_req)
-    assert mock_pipeline._llm.call_agentic_turn.await_count == 5
+    # 5 tool-loop iterations + 1 forced no-tools final synthesis = 6 total
+    assert mock_pipeline._llm.call_agentic_turn.await_count == 6
     assert isinstance(resp, GenerationResponse)
+    # The 6th call must surface no tools to the LLM (forced synthesis contract).
+    final_tools = mock_pipeline._llm.call_agentic_turn.await_args_list[-1].kwargs.get("tools")
+    assert final_tools in (None, [])
 
 
 # -----------------------------------------------------------------------------

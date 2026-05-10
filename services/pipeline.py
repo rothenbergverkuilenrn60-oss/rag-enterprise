@@ -641,20 +641,30 @@ class AgentQueryPipeline:
     """
 
     _AGENT_SYSTEM = """\
-你是企业知识库的智能问答助手。通过工具自主检索知识库，逐步构建完整回答。
+你是企业智能问答助手。通过工具自主检索知识库或外部网络，逐步构建完整回答。
+
+<tools>
+  - search_knowledge_base / refine_search：检索企业知识库（首选，企业内部内容）。
+  - web_search：检索外部互联网（Tavily）。仅在以下情况使用：
+    a) 知识库返回空或明显无关；
+    b) 问题明显涉及实时信息（最新发布、新闻、当前价格、天气、近期事件等）；
+    c) 用户明确要求"上网搜"或"查外网"。
+    其他情况优先用 search_knowledge_base。
+</tools>
 
 <strategy>
   1. 先拆解问题：识别需要回答哪些子问题，每个子问题对应一次工具调用。
   2. 搜索词要具体：用关键术语而非完整句子（如"产假天数"优于"员工产假有多少天"）。
-  3. 初次结果不够时：换角度用 refine_search 缩小范围（换词、加限定词）。
-  4. 收集到足够信息后再回答，不要在信息不完整时提前作答。
-  5. 多跳问题需多轮检索：先找前提条件，再找具体规定。
+  3. 知识库初次结果不够时：换角度用 refine_search（换词、加限定词）。
+  4. 知识库确实查不到 + 问题涉及外部/实时信息：调用 web_search。
+  5. 收集到足够信息后再回答，不要在信息不完整时提前作答。
+  6. 多跳问题需多轮检索：先找前提条件，再找具体规定。
 </strategy>
 
 <rules>
-  1. 仅基于检索结果作答，不引入外部知识。
-  2. 每个结论标注来源（如 [来源1]）。
-  3. 知识库中确实没有相关信息时，明确说明，不猜测。
+  1. 基于检索结果作答（知识库优先，web_search 次之），不引入未验证的外部知识。
+  2. 每个结论标注来源：知识库结果用 [来源N]；web_search 结果用 [Web: <host>]。
+  3. 任何工具都没找到相关信息时，明确说明，不猜测。
   4. 回答简洁准确，避免重复已知信息。
 </rules>
 """
@@ -729,6 +739,33 @@ class AgentQueryPipeline:
                     "content":     output.content,
                 })
         return tool_results
+
+    async def _force_final_answer(
+        self,
+        planner: Any,
+        messages: list[dict[str, Any]],
+    ) -> str:
+        """No-tools synthesis when MAX_ITERATIONS exhausts without a terminal plan.
+
+        Why: without this, the loop exits with ``answer=""`` and the user sees
+        an empty response despite collected chunks.
+        """
+        nudge = (
+            "已达到最大工具调用次数。请基于上述工具结果直接给出最终答案，"
+            "不要再调用任何工具。若信息不足，明确说明并停止。"
+        )
+        forced = list(messages) + [{"role": "user", "content": nudge}]
+        try:
+            plan: ToolPlan = await planner.plan_from_messages(
+                forced,
+                tools=None,
+                system=self._AGENT_SYSTEM,
+            )
+        except (NotImplementedError, anthropic.APIError, openai.APIError,
+                httpx.HTTPError, asyncio.TimeoutError) as exc:
+            logger.error(f"[Agent] forced final synthesis failed: {exc!r}")
+            return "抱歉，智能助手已达最大检索次数但未能给出完整答案。"
+        return plan.rationale or "抱歉，智能助手未能基于检索结果生成答案。"
 
     @staticmethod
     def _dedup_chunks(
@@ -840,6 +877,10 @@ class AgentQueryPipeline:
             tool_results = self._build_tool_results(plan, raw_outputs, all_chunks)
             all_chunks = self._dedup_chunks(all_chunks)  # dedup ONCE per turn, post-gather
             messages.append({"role": "user", "content": tool_results})
+        else:
+            # Loop exhausted without terminal plan — force final synthesis.
+            logger.warning(f"[Agent] MAX_ITERATIONS={MAX_ITERATIONS} reached; forcing final answer")
+            answer = await self._force_final_answer(planner, messages)
 
         return await self._persist_turn(req, answer, all_chunks, trace_id, t0, parallelism_factors)
 
@@ -977,6 +1018,10 @@ class AgentQueryPipeline:
             tool_results = self._build_tool_results(plan, collected, all_chunks)
             all_chunks = self._dedup_chunks(all_chunks)
             messages.append({"role": "user", "content": tool_results})
+        else:
+            # Loop exhausted without terminal plan — force final synthesis.
+            logger.warning(f"[Agent:stream] MAX_ITERATIONS={MAX_ITERATIONS} reached; forcing final answer")
+            answer = await self._force_final_answer(planner, messages)
 
         # Synthesizer.final — emitted regardless of how loop ended
         # (terminal-plan, error, max-iter).

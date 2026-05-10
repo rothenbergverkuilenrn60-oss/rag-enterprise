@@ -145,6 +145,37 @@ async def _tavily_search(query: str) -> dict[str, Any]:
 # Tavily-result → RetrievedChunk mapper (extracted for isolated coverage)
 # ---------------------------------------------------------------------------
 
+_WEB_SNIPPET_MAX_CHARS: int = 600
+
+
+def _format_results_content(query: str, chunks: list[RetrievedChunk]) -> str:
+    """Render web-search chunks into a planner-visible content string.
+
+    Why: the planner LLM only sees ``ToolResult.content``; chunk bodies in
+    ``ToolResult.chunks`` are downstream-only. Returning just a count makes
+    the planner re-search blindly until MAX_ITERATIONS, with empty answer.
+    """
+    if not chunks:
+        return (
+            f'Web search returned 0 result(s) for query "{query}". '
+            "No external matches found — do not retry the same query; "
+            "either answer from prior knowledge with an explicit caveat, "
+            "or stop and tell the user nothing was found."
+        )
+    lines: list[str] = [f"Web search returned {len(chunks)} result(s):", ""]
+    for i, c in enumerate(chunks, start=1):
+        title = c.metadata.title or "(no title)"
+        url = c.metadata.source or ""
+        snippet = (c.content or "").strip()
+        if len(snippet) > _WEB_SNIPPET_MAX_CHARS:
+            snippet = snippet[:_WEB_SNIPPET_MAX_CHARS] + "…"
+        lines.append(f"[{i}] {title} — {url}")
+        if snippet:
+            lines.append(snippet)
+        lines.append("")
+    return "\n".join(lines).rstrip()
+
+
 def _map_tavily_result(result: dict[str, Any]) -> RetrievedChunk:
     """Map one Tavily ``results[i]`` dict to a ``RetrievedChunk`` per D-09..D-12.
 
@@ -247,7 +278,7 @@ class WebSearchTool(BaseTool):
 
         latency_ms = int((time.perf_counter() - t0) * 1000)
         return ToolResult(
-            content=f"Web search returned {len(chunks)} result(s).",
+            content=_format_results_content(query_str, chunks),
             chunks=chunks,
             metadata={
                 "latency_ms": latency_ms,

@@ -198,7 +198,7 @@ services:
       context: .
       dockerfile: Dockerfile
       target: runtime
-    image: rag-enterprise:latest
+    image: rag-enterprise:v1.5-baked
     <<: [*restart-policy, *default-logging]
     env_file: .env.docker
     networks:
@@ -237,7 +237,7 @@ services:
       context: .
       dockerfile: Dockerfile
       target: runtime
-    image: rag-enterprise:latest
+    image: rag-enterprise:v1.5-baked
     command: arq services.ingest_worker.WorkerSettings
     <<: [*restart-policy, *default-logging]
     env_file: .env.docker

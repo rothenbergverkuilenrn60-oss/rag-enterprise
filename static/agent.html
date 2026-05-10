@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>EnterpriseRAG · Agent Playground</title>
+<link rel="stylesheet" href="/ui/agent.css">
+</head>
+<body>
+<header>
+  <h1>Agent Playground</h1>
+  <nav>
+    <a href="/ui/">← Basic RAG UI</a>
+    <a href="/docs">Swagger</a>
+  </nav>
+</header>
+
+<main>
+  <section id="controls">
+    <label class="row">
+      <span>Tenant ID</span>
+      <input id="tenant" type="text" value="" placeholder="(empty for default tenant)">
+    </label>
+
+    <fieldset class="modes">
+      <legend>Mode</legend>
+      <label><input type="radio" name="mode" value="basic">Basic RAG</label>
+      <label><input type="radio" name="mode" value="agent" checked>agent_mode</label>
+      <label><input type="radio" name="mode" value="swarm">swarm_mode</label>
+      <label><input type="radio" name="mode" value="debate">swarm + debate</label>
+    </fieldset>
+
+    <label class="row">
+      <span>top_k</span>
+      <input id="topk" type="number" value="6" min="1" max="20">
+    </label>
+
+    <label class="row">
+      <span>Query</span>
+      <textarea id="q" rows="3" placeholder="例：请分别说明前雾灯、倒车灯、转向信号灯三种灯具的安装高度规定"></textarea>
+    </label>
+
+    <div class="actions">
+      <button id="send">Run</button>
+      <button id="clear" class="secondary">Clear</button>
+      <span id="status" class="status idle">idle</span>
+    </div>
+  </section>
+
+  <section id="hints">
+    <details>
+      <summary>Sample queries</summary>
+      <ul>
+        <li><code>basic</code> — 知识库内容是什么 (KB 是 GB4785-2019 汽车外部照明国标)</li>
+        <li><code>agent_mode</code> — 前照灯的安装高度要求</li>
+        <li><code>swarm_mode</code> — 比较前雾灯和倒车灯的安装高度</li>
+        <li><code>swarm + debate</code> — 请分别说明前雾灯、倒车灯、转向信号灯三种灯具的安装高度规定</li>
+        <li><code>web_search</code> 触发：用 web_search 工具查 OpenAI 2026 最新发布</li>
+      </ul>
+    </details>
+  </section>
+
+  <section id="timeline">
+    <h2>Event Timeline</h2>
+    <div id="events"></div>
+  </section>
+
+  <section id="answer-panel" class="hidden">
+    <h2>Final Answer</h2>
+    <div id="answer"></div>
+    <details>
+      <summary>Sources (<span id="src-count">0</span>)</summary>
+      <div id="sources"></div>
+    </details>
+  </section>
+
+  <section id="debug">
+    <details>
+      <summary>Raw event JSON (for debugging)</summary>
+      <pre id="raw"></pre>
+    </details>
+  </section>
+</main>
+
+<script src="/ui/agent.js"></script>
+</body>
+</html>
