@@ -244,3 +244,84 @@ def test_route_does_not_change_query_stream(
     # Original format: data: tok\n\n — no event: prefix anywhere
     assert "event:" not in r.text
     assert "data: [DONE]" in r.text  # legacy sentinel still present
+
+
+# ---------------------------------------------------------------------------
+# Phase 21 / Plan 21-05 — BLOCKER 2 fix: route dispatches to swarm pipeline
+# when req.swarm_mode=True so verifier events reach the SSE wire (SC3 / AGENT-15)
+# ---------------------------------------------------------------------------
+
+def test_swarm_debate_events_reach_route(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """SC3 / AGENT-15 wire-truthfulness — verify the /agent/v1/run/stream
+    route dispatches to SwarmQueryPipeline.run_streaming when
+    `req.swarm_mode=True`, so the 3 verifier events + terminal
+    synthesizer.final reach the SSE body.
+
+    BEFORE Plan 21-05 Task 3: route unconditionally calls
+    `get_agent_pipeline()`; this monkeypatch on `get_swarm_pipeline` is never
+    hit; body has NO `event: verifier.*` lines → assertion fails.
+    """
+    from utils.models import (
+        SynthesizerFinalEvent,
+        VerifierCompleteEvent,
+        VerifierDisagreementEvent,
+        VerifierStartEvent,
+    )
+
+    async def _fake_run_streaming(req: GenerationRequest) -> AsyncIterator[AgentEvent]:
+        yield VerifierStartEvent(
+            trace_id="t1", seq=0, ts_ms=0,
+            peer_count=2, model="claude",
+        )
+        yield VerifierDisagreementEvent(
+            trace_id="t1", seq=1, ts_ms=0,
+            reason="peers_diverge", summary="x",
+            evidence_chunk_ids=["c1"], peer_count=2,
+        )
+        yield VerifierCompleteEvent(
+            trace_id="t1", seq=2, ts_ms=0,
+            verdict="disagree", evidence_chunk_count=1, latency_ms=100,
+        )
+        yield SynthesizerFinalEvent(
+            trace_id="t1", seq=3, ts_ms=0,
+            answer="final", sources_count=1,
+        )
+
+    class _FakeSwarmPipe:
+        def run_streaming(self, req: GenerationRequest) -> AsyncIterator[AgentEvent]:
+            return _fake_run_streaming(req)
+
+    # Patch the route module's BOUND name (Plan 21-05 Task 1 plan-checker
+    # mandate — `from services.pipeline import ..., get_swarm_pipeline` binds
+    # the symbol at controllers.api at import time).
+    monkeypatch.setattr(
+        "controllers.api.get_swarm_pipeline",
+        lambda: _FakeSwarmPipe(),
+    )
+    # Also patch get_agent_pipeline — pre-Task-3 the route falls through to
+    # this branch unconditionally; we must keep it from constructing a real
+    # AgentQueryPipeline (which would load embedding models). After Task 3 it
+    # MUST NOT be called when req.swarm_mode=True, but we patch defensively
+    # so the test fails on the substantive assertion (event missing) rather
+    # than on a setup-side construction error.
+    monkeypatch.setattr(
+        "controllers.api.get_agent_pipeline",
+        lambda: _StubAgentPipeline(_stub_events()),
+    )
+
+    body = {
+        "query": "q",
+        "session_id": "s",
+        "top_k": 5,
+        "swarm_mode": True,
+        "debate": True,
+    }
+    r = client.post("/api/v1/agent/v1/run/stream", json=body)
+    assert r.status_code == 200, r.text
+    text = r.text
+    assert "event: verifier.start" in text, "verifier.start not on the wire"
+    assert "event: verifier.disagreement" in text, "verifier.disagreement not on the wire"
+    assert "event: verifier.complete" in text, "verifier.complete not on the wire"
+    assert "event: synthesizer.final" in text, "synthesizer.final not terminal on wire"
