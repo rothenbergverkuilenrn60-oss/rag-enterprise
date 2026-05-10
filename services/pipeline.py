@@ -89,6 +89,7 @@ from utils.models import (
     ToolSpanEndEvent,
     ToolSpanErrorEvent,
     ToolSpanStartEvent,
+    VerifierVerdict,   # Phase 21 / Plan 21-02 — kwarg type for _synthesize (D-04)
 )
 from utils.observability import start_span
 
@@ -587,6 +588,16 @@ _SYNTHESIS_SYSTEM: str = """\
 4. 答案必须使用中文。
 5. 不得编造未在子答案中出现的信息。
 """
+
+# Phase 21 / D-03 / Pitfall P-08 — locked Chinese disagreement banner.
+# Hoisted to a module-level constant so a future v1.6+ i18n routing change
+# is a single-symbol edit (no scattered string literals to chase).
+# Test contract (`test_format_disagree_exact_template_substitution`) asserts
+# byte-identity against this exact string; do not edit without updating tests.
+_DISAGREE_BANNER_TEMPLATE: str = (
+    "⚠️ 子代理间存在分歧（{N} 个同伴中的 {M} 个提出差异回答）。"
+    "以上回答基于验证者引用的证据（{chunk_count} 个块）。"
+)
 
 # Module-level constant (AGENT-06 / CONTEXT.md D-12).
 # The cap is enforced by the orchestrator outer loop; Executor runs exactly
@@ -1159,12 +1170,39 @@ class SwarmQueryPipeline:
         original_query: str,
         sub_questions: list[str],
         answers: list[str],
+        verifier_verdict: VerifierVerdict | None = None,   # Phase 21 / D-04
     ) -> str:
         """Synthesize sub-agent answers into final response (D-04, Pitfall 5).
 
         Short-circuits to graceful-degradation string when all sub-agents failed,
         avoiding a wasted LLM call (Pitfall 5).
+
+        Phase 21 / D-04: when ``verifier_verdict`` is supplied AND its verdict
+        is ``"disagree"``, short-circuit to ``_format_disagree`` (zero LLM
+        calls — the verifier's ``proposed_answer`` IS the user-visible answer
+        per D-01/D-02). All other branches (kwarg omitted, kwarg ``None``,
+        verdict ``"agree"``) fall through to the EXISTING synthesis body so
+        SC5/CF-08 byte-identity holds for the non-debate path.
         """
+        # Phase 21 / D-04 — divergence dispatch (zero LLM calls; uses
+        # verifier.proposed_answer as the user-visible answer per D-01/D-02).
+        # Runs BEFORE the Pitfall-5 graceful-degrade check: a verifier verdict
+        # supersedes the all-sub-agents-failed fallback (in practice Plan 21-05
+        # only invokes the verifier when at least one peer succeeded, so the
+        # ordering is observationally equivalent — this is just cleaner to read).
+        if verifier_verdict is not None and verifier_verdict.verdict == "disagree":
+            # D-04 verbatim signature: _format_disagree(verdict, sub_results).
+            # Reconstruct minimal _SubAgentResult placeholders from the answers
+            # list so peer_count == len(answers). The chunks/turns/tool_calls_count
+            # fields are not consumed by _format_disagree (only len(sub_results)
+            # is read), so empty placeholders suffice. This keeps Plan 21-05's
+            # call site simple — no need to plumb the original `successful` list.
+            sub_results = [
+                _SubAgentResult(answer=a, turns=0, tool_calls_count=0, chunks=[])
+                for a in answers
+            ]
+            return self._format_disagree(verifier_verdict, sub_results)
+
         # Pitfall 5: skip LLM if every sub-agent failed.
         if answers and all(
             a.startswith("[Sub-agent ") and " failed:" in a
@@ -1188,6 +1226,31 @@ class SwarmQueryPipeline:
             temperature=0.1,
             task_type="generate",
         )
+
+    @staticmethod
+    def _format_disagree(
+        verdict: VerifierVerdict,
+        sub_results: list[_SubAgentResult],
+    ) -> str:
+        """Phase 21 / D-04 / D-03 / P-08 — format the divergence answer.
+
+        Signature matches CONTEXT D-04 verbatim (``_format_disagree(verdict,
+        sub_results)``); ``peer_count`` is computed inside as
+        ``len(sub_results)``. Returns ``f"{verdict.proposed_answer}\\n\\n{banner}"``
+        where the banner is the locked ``_DISAGREE_BANNER_TEMPLATE`` constant
+        with ``N`` / ``M`` / ``chunk_count`` substituted.
+
+        N=M is intentional in v1.5: every successful peer is treated as having
+        "diverged from the verified consensus" (coarse-grain count). Per-peer
+        divergence tracking is a v1.6+ topic per CONTEXT deferred-list.
+        """
+        peer_count = len(sub_results)
+        banner = _DISAGREE_BANNER_TEMPLATE.format(
+            N=peer_count,
+            M=peer_count,
+            chunk_count=len(verdict.evidence_chunk_ids),
+        )
+        return f"{verdict.proposed_answer}\n\n{banner}"
 
     async def run(self, req: GenerationRequest) -> GenerationResponse:
         """Top-level swarm execution (AGENT-03).
