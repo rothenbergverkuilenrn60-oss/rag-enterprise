@@ -31,6 +31,8 @@ import pytest
 
 from services.agent.tools import WebSearchTool, get_tool_registry
 from services.agent.tools.web_search import (
+    _ERROR_CONTENT,
+    _map_tavily_result,
     _tavily_search,
     get_tavily_client,
 )
@@ -437,3 +439,48 @@ class TestWebSearchToolRun:
         a = get_tavily_client()
         b = get_tavily_client()
         assert a is b
+
+
+# ---------------------------------------------------------------------------
+# REFACTOR-introduced helper coverage (Task 3)
+# ---------------------------------------------------------------------------
+
+
+class TestWebSearchToolHelpers:
+    def test_error_content_dict_keys_are_the_three_documented_kinds(self) -> None:
+        """``_ERROR_CONTENT`` is the single source of truth for D-13 strings.
+
+        Drift between this dict and the run() error branches would mean the
+        planner LLM receives inconsistent re-plan guidance. Asserting key
+        identity makes future additions explicit.
+        """
+        assert set(_ERROR_CONTENT.keys()) == {
+            "tavily_disabled",
+            "quota_exhausted",
+            "web_search_failed",
+        }
+        # Each entry is a non-empty user-facing string.
+        for kind, msg in _ERROR_CONTENT.items():
+            assert isinstance(msg, str) and msg, f"empty content for {kind!r}"
+
+    def test_map_tavily_result_produces_expected_shape(self) -> None:
+        """``_map_tavily_result`` round-trips one Tavily JSON dict to a chunk."""
+        result = {
+            "title": "Page",
+            "url": "https://example.org/path",
+            "content": "snippet text",
+            "score": 0.42,
+        }
+        chunk = _map_tavily_result(result)
+        expected_id = (
+            "web:" + hashlib.sha1(b"https://example.org/path").hexdigest()[:16]
+        )
+        assert chunk.chunk_id == expected_id
+        assert chunk.doc_id == "web"
+        assert chunk.content == "snippet text"
+        assert chunk.metadata.source == "https://example.org/path"
+        assert chunk.metadata.title == "Page"
+        assert chunk.metadata.chunk_type == "web"
+        assert chunk.metadata.page_number is None
+        assert chunk.final_score == pytest.approx(0.42)
+        assert chunk.retrieval_method == "web"

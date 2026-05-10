@@ -21,6 +21,10 @@ Module-public symbols:
     decorator-marker target.
   * ``get_tavily_client`` — process-wide ``AsyncTavilyClient`` singleton
     factory (lazy-init, mirrors ``get_tool_registry`` shape).
+  * ``_ERROR_CONTENT`` — single source of truth for the three D-13
+    user-facing error strings keyed by error kind.
+  * ``_map_tavily_result`` — Tavily result dict → RetrievedChunk mapper
+    (extracted for isolated coverage; wired to ``run()``'s happy path).
 """
 
 from __future__ import annotations
@@ -57,6 +61,27 @@ _WEB_SEARCH_PARAMETERS_SCHEMA: dict[str, Any] = {
         },
     },
     "required": ["query"],
+}
+
+# ---------------------------------------------------------------------------
+# D-13 user-facing error strings — single source of truth
+# ---------------------------------------------------------------------------
+#
+# Centralized so the literal text appears once per kind across the module.
+# Tests assert the dict's key set is exactly the three documented kinds;
+# Plan 20-03 integration test reads these strings to verify the planner
+# sees the correct re-plan guidance on each typed-error branch.
+
+_ERROR_CONTENT: dict[str, str] = {
+    "tavily_disabled": (
+        "Web search not configured. Answer from the knowledge base only."
+    ),
+    "quota_exhausted": (
+        "Web search quota exhausted today. Answer from the knowledge base only."
+    ),
+    "web_search_failed": (
+        "Web search temporarily unavailable. Answer from the knowledge base only."
+    ),
 }
 
 
@@ -109,6 +134,35 @@ async def _tavily_search(query: str) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# Tavily-result → RetrievedChunk mapper (extracted for isolated coverage)
+# ---------------------------------------------------------------------------
+
+def _map_tavily_result(result: dict[str, Any]) -> RetrievedChunk:
+    """Map one Tavily ``results[i]`` dict to a ``RetrievedChunk`` per D-09..D-12.
+
+    chunk_id is a stable sha1[:16] hash of the URL so dedup across waves
+    is straightforward. ``content`` is the Tavily snippet verbatim (no
+    title prefix, no URL append) — D-12 contract; faithfulness-eval
+    semantics preserved.
+    """
+    url = result.get("url", "")
+    chunk_id = f"web:{hashlib.sha1(url.encode('utf-8')).hexdigest()[:16]}"
+    return RetrievedChunk(
+        chunk_id=chunk_id,
+        doc_id="web",
+        content=result.get("content", ""),
+        metadata=ChunkMetadata(
+            source=url,
+            title=result.get("title", ""),
+            chunk_type="web",
+            page_number=None,
+        ),
+        final_score=float(result.get("score", 0.0)),
+        retrieval_method="web",
+    )
+
+
+# ---------------------------------------------------------------------------
 # Tool class — replaces the Phase 17 placeholder body
 # ---------------------------------------------------------------------------
 
@@ -138,18 +192,9 @@ class WebSearchTool(BaseTool):
         # any network call, BEFORE get_tavily_client invocation. Spy in
         # tests verifies the factory is NEVER called on this path.
         if not settings.tavily_api_key:
-            return ToolResult(
-                content=(
-                    "Web search not configured. "
-                    "Answer from the knowledge base only."
-                ),
-                chunks=[],
-                metadata={
-                    "error": True,
-                    "kind": "tavily_disabled",
-                    "latency_ms": int((time.perf_counter() - t0) * 1000),
-                },
-                is_error=True,
+            return self._error_result(
+                kind="tavily_disabled",
+                latency_ms=int((time.perf_counter() - t0) * 1000),
             )
 
         # ── 2. Real call via tenacity-wrapped helper ───────────────────────
@@ -157,92 +202,40 @@ class WebSearchTool(BaseTool):
             resp = await _tavily_search(query_str)
         except UsageLimitExceededError as exc:
             # 429 — Tavily SDK's typed quota exception (NOT httpx.HTTPStatusError).
-            # Log class name only — D-15 forbids serializing exc message which
-            # may contain proxy-echoed Authorization header bytes.
-            latency_ms = int((time.perf_counter() - t0) * 1000)
+            # Log class name only; D-15 forbids serializing the message body
+            # which may carry proxy-echoed Authorization header bytes.
             logger.error(
                 f"[WebSearchTool] tavily {exc.__class__.__name__} (429 quota)"
             )
-            return ToolResult(
-                content=(
-                    "Web search quota exhausted today. "
-                    "Answer from the knowledge base only."
-                ),
-                chunks=[],
-                metadata={
-                    "error": True,
-                    "kind": "quota_exhausted",
-                    "latency_ms": latency_ms,
-                },
-                is_error=True,
+            return self._error_result(
+                kind="quota_exhausted",
+                latency_ms=int((time.perf_counter() - t0) * 1000),
             )
         except httpx.HTTPStatusError as exc:
-            # 5xx after 3 retries — exhausted retry boundary. Log status code
+            # 5xx after 3 retries — retry boundary exhausted. Log status code
             # only; never the response headers or body (D-15 redaction).
-            latency_ms = int((time.perf_counter() - t0) * 1000)
             status = exc.response.status_code if exc.response is not None else 0
             logger.error(
                 f"[WebSearchTool] tavily {exc.__class__.__name__} status={status}"
             )
-            return ToolResult(
-                content=(
-                    "Web search temporarily unavailable. "
-                    "Answer from the knowledge base only."
-                ),
-                chunks=[],
-                metadata={
-                    "error": True,
-                    "kind": "web_search_failed",
-                    "latency_ms": latency_ms,
-                },
-                is_error=True,
+            return self._error_result(
+                kind="web_search_failed",
+                latency_ms=int((time.perf_counter() - t0) * 1000),
             )
         except (httpx.HTTPError, TimeoutError) as exc:
             # Transport-layer failures (ConnectError, ReadTimeout, etc.) +
-            # the SDK's tavily.errors.TimeoutError (subclass of builtin
-            # Exception, NOT TimeoutError). Same kind/content as 5xx —
-            # opaque to the planner, retried by tenacity, then surfaced.
-            latency_ms = int((time.perf_counter() - t0) * 1000)
+            # the SDK's tavily.errors.TimeoutError. Same kind/content as 5xx.
             logger.error(
                 f"[WebSearchTool] tavily transport-error: {exc.__class__.__name__}"
             )
-            return ToolResult(
-                content=(
-                    "Web search temporarily unavailable. "
-                    "Answer from the knowledge base only."
-                ),
-                chunks=[],
-                metadata={
-                    "error": True,
-                    "kind": "web_search_failed",
-                    "latency_ms": latency_ms,
-                },
-                is_error=True,
+            return self._error_result(
+                kind="web_search_failed",
+                latency_ms=int((time.perf_counter() - t0) * 1000),
             )
 
         # ── 3. Happy-path mapping (D-09..D-12) ─────────────────────────────
         results = resp.get("results", []) if isinstance(resp, dict) else []
-        chunks: list[RetrievedChunk] = []
-        for r in results:
-            url = r.get("url", "")
-            chunk_id = (
-                f"web:{hashlib.sha1(url.encode('utf-8')).hexdigest()[:16]}"
-            )
-            chunks.append(
-                RetrievedChunk(
-                    chunk_id=chunk_id,
-                    doc_id="web",
-                    content=r.get("content", ""),
-                    metadata=ChunkMetadata(
-                        source=url,
-                        title=r.get("title", ""),
-                        chunk_type="web",
-                        page_number=None,
-                    ),
-                    final_score=float(r.get("score", 0.0)),
-                    retrieval_method="web",
-                )
-            )
+        chunks: list[RetrievedChunk] = [_map_tavily_result(r) for r in results]
 
         latency_ms = int((time.perf_counter() - t0) * 1000)
         return ToolResult(
@@ -253,4 +246,23 @@ class WebSearchTool(BaseTool):
                 "query": query_str,
                 "chunk_count": len(chunks),
             },
+        )
+
+    @staticmethod
+    def _error_result(*, kind: str, latency_ms: int) -> ToolResult:
+        """Construct a typed-error ToolResult (D-13/D-14/D-15 contract).
+
+        ``kind`` is one of the three documented error kinds; the user-facing
+        ``content`` text is looked up from ``_ERROR_CONTENT`` so the literal
+        string appears once per kind in the module.
+        """
+        return ToolResult(
+            content=_ERROR_CONTENT[kind],
+            chunks=[],
+            metadata={
+                "error": True,
+                "kind": kind,
+                "latency_ms": latency_ms,
+            },
+            is_error=True,
         )
