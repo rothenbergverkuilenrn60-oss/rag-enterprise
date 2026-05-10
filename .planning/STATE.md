@@ -7,7 +7,7 @@ stopped_at: ""
 last_updated: "2026-05-10T07:30:00.000Z"
 last_activity: 2026-05-10 — Milestone v1.5 started
 progress:
-  total_phases: 0
+  total_phases: 3
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -32,7 +32,11 @@ Last activity: 2026-05-10 — Milestone v1.5 started
 
 ## Phase Overview
 
-Phases will be populated by `/gsd-new-milestone` roadmapper after requirements are defined.
+| Phase | Name | REQ-IDs | Status |
+|-------|------|---------|--------|
+| 20 | WebSearchTool Real Implementation (Tavily) | AGENT-10, AGENT-11, AGENT-12, AGENT-13 | Planning |
+| 21 | AGENT-05 Multi-Agent Debate / Sub-Agent Verifier | AGENT-05, AGENT-14, AGENT-15 | Planning |
+| 22 | Per-Module 70% Coverage Lift | TEST-08, TEST-09, TEST-10, TEST-11, TEST-12 | Planning |
 
 ## Accumulated Context
 

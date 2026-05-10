@@ -76,19 +76,19 @@ Twelve checkable requirements grouped into three categories. Each maps to exactl
 
 ## Traceability
 
-(Populated by `/gsd-new-milestone` roadmap step.)
-
 | REQ-ID | Phase | Plans |
 |--------|-------|-------|
-| AGENT-10 | 20 | tbd |
-| AGENT-11 | 20 | tbd |
-| AGENT-12 | 20 | tbd |
-| AGENT-13 | 20 | tbd |
-| AGENT-05 | 21 | tbd |
-| AGENT-14 | 21 | tbd |
-| AGENT-15 | 21 | tbd |
-| TEST-08  | 22 | tbd |
-| TEST-09  | 22 | tbd |
-| TEST-10  | 22 | tbd |
-| TEST-11  | 22 | tbd |
-| TEST-12  | 22 | tbd |
+| AGENT-10 | 20 — WebSearchTool Real Implementation (Tavily) | tbd (assigned during `/gsd-plan-phase 20`) |
+| AGENT-11 | 20 — WebSearchTool Real Implementation (Tavily) | tbd |
+| AGENT-12 | 20 — WebSearchTool Real Implementation (Tavily) | tbd |
+| AGENT-13 | 20 — WebSearchTool Real Implementation (Tavily) | tbd |
+| AGENT-05 | 21 — AGENT-05 Multi-Agent Debate / Sub-Agent Verifier | tbd (assigned during `/gsd-plan-phase 21`) |
+| AGENT-14 | 21 — AGENT-05 Multi-Agent Debate / Sub-Agent Verifier | tbd |
+| AGENT-15 | 21 — AGENT-05 Multi-Agent Debate / Sub-Agent Verifier | tbd |
+| TEST-08  | 22 — Per-Module 70% Coverage Lift | tbd (assigned during `/gsd-plan-phase 22`) |
+| TEST-09  | 22 — Per-Module 70% Coverage Lift | tbd |
+| TEST-10  | 22 — Per-Module 70% Coverage Lift | tbd |
+| TEST-11  | 22 — Per-Module 70% Coverage Lift | tbd |
+| TEST-12  | 22 — Per-Module 70% Coverage Lift | tbd |
+
+**Coverage:** 12/12 requirements mapped to phases; every phase has ≥ 1 requirement; no orphans.

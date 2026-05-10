@@ -6,7 +6,8 @@
 - ✅ **v1.1 Retrieval Depth & Frontend** — Phases 7–10 (shipped 2026-05-08) — [archive](milestones/v1.1-ROADMAP.md)
 - ✅ **v1.2 Agentic Layer + Swarm** — Phase 11 (shipped 2026-05-08) — [archive](milestones/v1.2-ROADMAP.md)
 - ✅ **v1.3 Fork Swarm, NLU & Quality** — Phases 12–15 (shipped 2026-05-09) — [archive](milestones/v1.3-ROADMAP.md)
-- 🚢 **v1.4 Agent-First Architecture Inversion** — Phases 16–19 (implementation-complete 2026-05-10; release tag pending PR merge)
+- ✅ **v1.4 Agent-First Architecture Inversion** — Phases 16–19 (shipped 2026-05-10) — [archive](milestones/v1.4-ROADMAP.md)
+- 🟢 **v1.5 Web Search + Multi-Agent Debate + Coverage Lift** — Phases 20–22 (IN PLANNING, opened 2026-05-10)
 
 ## Phases
 
@@ -57,7 +58,52 @@ See [milestones/v1.3-ROADMAP.md](milestones/v1.3-ROADMAP.md) for full phase deta
 
 </details>
 
-## v1.4 Agent-First Architecture Inversion (Phases 16–19) — IN PLANNING (opened 2026-05-09)
+## v1.5 Web Search + Multi-Agent Debate + Coverage Lift (Phases 20–22) — IN PLANNING (opened 2026-05-10)
+
+**Milestone goal:** Replace v1.4's `WebSearchTool` placeholder with a Tavily-backed real implementation; introduce AGENT-05 multi-agent debate / sub-agent verify on top of v1.3 `SwarmQueryPipeline`; lift 5 large modules above per-module ≥ 70% coverage.
+
+### Phase 20: WebSearchTool Real Implementation (Tavily)
+**Goal:** Replace v1.4's `WebSearchTool` placeholder body with a Tavily-backed real implementation. Add `web_search` to `AGENT_TOOL_ALLOWLIST` so the planner can pick it. Map Tavily search results to `RetrievedChunk` so existing source-citation flow works without UI rewrite. Update the static UI to render `URL=<host>` for `chunk_type="web"` instead of `页=?`. End-to-end Tavily integration with tenacity retry + typed error results, no exceptions escaping into the orchestrator.
+**Requirements:** AGENT-10, AGENT-11, AGENT-12, AGENT-13
+**Depends on:** Phase 17 (v1.4 `BaseTool` + `ToolRegistry` + `AGENT_TOOL_ALLOWLIST`), Phase 19 (`docs/agent-architecture.md` Authoring Tools section as the implementation pattern)
+**Canonical refs:** `services/agent/tools/web_search.py` (replace placeholder body), `services/pipeline.py:598` (`AGENT_TOOL_ALLOWLIST`), `static/ui.js` (chunk_type rendering), `requirements.txt` (pin `tavily-python`), `.env.docker` (key placeholder)
+**Success Criteria:**
+1. `WebSearchTool.run()` issues async Tavily search via `AsyncTavilyClient`; happy-path returns `ToolResult(content, chunks, metadata)` with chunks shaped as `RetrievedChunk(metadata=ChunkMetadata(source=url, title=title, chunk_type="web", page_number=None), content=snippet)`.
+2. Tavily errors handled at three levels: 5xx/timeout → `kind="web_search_failed"`, 429 → `kind="quota_exhausted"`, missing/empty key → `kind="tavily_disabled"`. Tenacity 3-attempt exponential backoff on transient failures; final-attempt failure converts to typed error `ToolResult` (no raise into orchestrator).
+3. `AGENT_TOOL_ALLOWLIST` includes `web_search`; planner schemas include the tool; integration test asserts an unanswerable-from-KB query causes the planner to pick `web_search` and an in-corpus query still picks `search_knowledge_base`.
+4. `static/ui.js` source rendering: when `chunk_type === "web"`, displays `URL=<host>` (extracted from `metadata.source`) instead of `页=?`; PDF source rendering unchanged. UI smoke test verifies a mixed query renders both source types correctly.
+5. TAVILY_API_KEY never appears in git history, planning docs, logs, or SSE error frames; pre-commit / repo grep confirms absence of `tvly-` prefix in tracked files; `.env` is gitignored; `.env.docker` uses `${TAVILY_API_KEY:-}` substitution.
+
+### Phase 21: AGENT-05 Multi-Agent Debate / Sub-Agent Verifier
+**Goal:** Introduce a single-pass verifier sub-agent that runs after `SwarmQueryPipeline`'s `asyncio.gather` peer fan-out when `req.debate=True`. Verifier reads N peer answers + their cited evidence chunks and emits a structured `VerifierVerdict` (agree / disagree). On disagreement, the synthesizer composes a final response that surfaces the divergence and the evidence-supported answer. Three new SSE event types extend the v1.4 schema; `synthesizer.final` remains terminal. Latency stays bounded by `max(peer) + verifier`, not `sum`.
+**Requirements:** AGENT-05, AGENT-14, AGENT-15
+**Depends on:** Phase 12 (v1.3 `SwarmQueryPipeline`), Phase 16 (v1.4 `Planner`/`Executor`/`Synthesizer` triad), Phase 18 (v1.4 SSE event schema in `docs/agent-architecture.md`)
+**Canonical refs:** `services/pipeline.py::SwarmQueryPipeline` (verifier hop integration), `services/generator/llm_client.py::BaseLLMClient.call_agentic_turn` (provider-neutral verifier LLM call), `utils/models.py` (new `VerifierVerdict`, `VerifierStartEvent`, `VerifierCompleteEvent`, `VerifierDisagreementEvent` Pydantic V2 frozen models), `controllers/api.py::agent_run_stream` (event passthrough), `docs/agent-architecture.md` (Event Schema Reference extension)
+**Success Criteria:**
+1. `services/agent/verifier.py::Verifier` class implemented; `verify(peer_answers: list[SubAgentAnswer], evidence: list[RetrievedChunk]) → VerifierVerdict`; uses `BaseLLMClient.call_agentic_turn` text-only (no tools); system prompt forbids inventing facts; `verdict == "agree"` with empty `evidence_chunk_ids` is forced to disagreement.
+2. `GenerationRequest.debate: bool = False` opt-in field added; `SwarmQueryPipeline.run()` appends verifier hop after `asyncio.gather` peer fan-out when `req.debate=True`; existing swarm behavior unchanged when `debate=False`. Latency assertion in integration test: `total ≤ max(peer_latency) + verifier_latency + small_overhead`, NOT `sum(peer_latency)` and NOT `N × verifier_latency`.
+3. Three new SSE event types added (`VerifierStartEvent`, `VerifierCompleteEvent`, `VerifierDisagreementEvent`) as Pydantic V2 frozen subclasses of `AgentEvent`; events emit through existing `/api/v1/agent/v1/run/stream` route; wire format unchanged; `synthesizer.final` remains terminal in all paths.
+4. `docs/agent-architecture.md` Event Schema Reference extended with three new subsections + example payloads; backward-compat note documents that debate-mode events are additive and non-debate flows unchanged.
+5. v1.3 invariants intact under integration test: PostgreSQL RLS isolates tenants; audit log records verifier sub-agent calls with same fields as v1.3 swarm; combined coverage stays ≥ 70%; no production code changes when `debate=False`.
+
+### Phase 22: Per-Module 70% Coverage Lift
+**Goal:** Lift five large modules — `services/pipeline.py`, `services/generator/llm_client.py`, `services/vectorizer/vector_store.py`, `services/retriever/retriever.py`, `services/extractor/extractor.py` — above per-module ≥ 70% coverage. New tests only; no production-code changes (v1.3 D-04 lock). Mock at consumer paths (`services.<mod>.<dep>`) per v1.3 Phase 13/15 pattern. Existing combined-coverage `--fail-under=70` global floor strengthened on these modules so per-module measurement now matches global.
+**Requirements:** TEST-08, TEST-09, TEST-10, TEST-11, TEST-12
+**Depends on:** Phase 13 (v1.3 mock-at-consumer pattern), Phase 15 (combine job topology, parallel=false), Phase 16 / 17 / 18 / 20 / 21 (test new code paths added in v1.4 + v1.5)
+**Canonical refs:** `tests/unit/test_*_coverage.py` (new files; one per module), v1.2 wire fixtures at `tests/unit/fixtures/agent_parity/`, `pyproject.toml [tool.coverage.run]`, `pytest.ini`
+**Success Criteria:**
+1. `services/pipeline.py` per-module coverage ≥ 70% under `coverage report --fail-under=70`. New tests cover `AgentQueryPipeline.run`/`run_streaming` error branches, `SwarmQueryPipeline` synthesis path (debate=False), `_dedup_chunks`, `_build_initial_messages`. Mock at consumer paths only.
+2. `services/generator/llm_client.py` per-module coverage ≥ 70%. Reuses v1.2 wire fixtures for happy-path; new tests cover `RateLimitError` (429) / `OverloadedError` / `RetryError` / `APIConnectionError` branches across both `AnthropicLLMClient.call_agentic_turn` and `OpenAILLMClient.call_agentic_turn`.
+3. `services/vectorizer/vector_store.py` per-module coverage ≥ 70%. New tests cover `_build_filter_where` (table-driven over `page_number` int / string / null sentinel cases), JSONB `isinstance(metadata, str)` decoding branch (line 347), HNSW DDL idempotency.
+4. `services/retriever/retriever.py` per-module coverage ≥ 70%. New tests cover `_to_retrieved_chunk` `ChunkMetadata.model_validate` auto-passthrough (page_number / section_id round-trip), reranker SLA timeout fallback to `PassthroughReranker` (`_rerank_with_sla`), `_expand_to_parent` `asyncpg.PostgresError` non-fatal warning branch.
+5. `services/extractor/extractor.py` per-module coverage ≥ 70%. New tests cover `is_scanned_pdf` 3-page-sample heuristic (text-rich vs scanned PDF cases), `_detect_header_footer_texts` 10-page-cap branch, OCR-vs-native-extract router, Tesseract OCR engine selection branch (v1.4.2 fix). All 5 modules pass `coverage report --fail-under=70` simultaneously; no production-code changes; `diff-cover --fail-under=80` passes on all touched test files.
+
+<details>
+<summary>✅ v1.4 Agent-First Architecture Inversion (Phases 16–19) — SHIPPED 2026-05-10</summary>
+
+See [milestones/v1.4-ROADMAP.md](milestones/v1.4-ROADMAP.md) for the snapshot at milestone close. Phase details follow for in-tree traceability.
+
+## v1.4 Agent-First Architecture Inversion (Phases 16–19) — SHIPPED 2026-05-10
 
 **Milestone goal:** Invert the architecture so the agent runtime is the project's core (planner + executor + tool registry), and agentic RAG becomes one tool the agent calls. Source design doc: `~/.gstack/projects/rothenbergverkuilenrn60-oss-rag-enterprise/ubuntu-gsd-v1.3-milestone-design-20260509-163809.md` (Approach A — incremental refactor, no framework lock-in).
 
@@ -131,6 +177,8 @@ Plans:
 - [x] 19-07-PLAN.md — Wave 1 (execute, parallel with 19-01): CHANGELOG.md (keep-a-changelog v1.0..v1.4) + docs/v1.4-design.md (verbatim copy of gstack milestone-design)
 - [x] 19-08-PLAN.md — Wave 6 (execute, autonomous: false): draft v1.4 release-notes-v1.4.md + release-tag-commands.md; user runs the ceremony post-PR-merge per D-12
 
+</details>
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -154,3 +202,6 @@ Plans:
 | 17. Tool Abstraction + RetrieveTool | v1.4 | 3/3 | Complete ✓ | 2026-05-09 |
 | 18. SSE Planner Trace Event Stream | v1.4 | 5/5 | Complete ✓ | 2026-05-09 |
 | 19. Agent-First Docs + Demo + Release | v1.4 | 8/8 | Complete ✓ | 2026-05-10 |
+| 20. WebSearchTool Real Implementation (Tavily) | v1.5 | 0/0 | Planning | — |
+| 21. AGENT-05 Multi-Agent Debate / Sub-Agent Verifier | v1.5 | 0/0 | Planning | — |
+| 22. Per-Module 70% Coverage Lift | v1.5 | 0/0 | Planning | — |
