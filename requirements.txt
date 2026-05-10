@@ -96,10 +96,10 @@ opentelemetry-exporter-otlp==1.29.0
 # paddlepaddle==3.0.0  # Docker-only (baked via Dockerfile); transitive paddlex[ie] conflicts with openai==1.59.6 pin
 # paddleocr==3.1.*     # Docker-only (Phase 7 OCR-01 production engine); CI uses Tesseract fallback per services/extractor/extractor.py
 
-# 方案B：Tesseract（轻量回退；系统包通过 Dockerfile 安装：tesseract-ocr-chi-sim）
-# pytesseract==0.3.13
-# Pillow==11.0.0
-# 还需要系统级安装: apt-get install -y tesseract-ocr tesseract-ocr-chi-sim
+# 方案B：Tesseract（v1.4.1 起作为 primary OCR engine — paddleocr 上游 ABI churn 已从
+# Dockerfile 移除）。系统包：apt-get install -y tesseract-ocr tesseract-ocr-chi-sim
+pytesseract==0.3.13
+# Pillow 由 transitive deps 引入（opencv-python / huggingface-hub），不重复 pin
 
 # ══════════════════════════════════════════════════════════════════════════════
 # STAGE 5 — 异步任务队列（ARQ / Redis）

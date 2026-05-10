@@ -181,8 +181,9 @@ _GB_HEADING_RE = re.compile(
     r"^(\d+(?:\.\d+)*)\s+([一-鿿]\S.*?)\s*$",
     re.MULTILINE,
 )
-# OCR page-marker — Phase 7 ocr_engine prepends "[第N页·OCR]\n" to each page (D-01).
-_OCR_PAGE_MARKER_RE = re.compile(r"\[第(\d+)页·OCR\]\n?")
+# OCR page-marker — Phase 7 ocr_engine prepends "[第N页·OCR]\n" or
+# "[第N页·Tesseract]\n" (Tesseract fallback path, post-v1.4.1) to each page.
+_OCR_PAGE_MARKER_RE = re.compile(r"\[第(\d+)页·(?:OCR|Tesseract)\]\n?")
 
 
 def _strip_ocr_markers_with_pages(body_text: str) -> tuple[str, dict[int, int]]:
