@@ -785,7 +785,7 @@ class AgentQueryPipeline:
                 plan: ToolPlan = await planner.plan_from_messages(
                     messages,
                     tools=get_tool_registry().schemas_for(
-                        self._llm.provider_name,
+                        "anthropic",
                         names=AGENT_TOOL_ALLOWLIST,
                     ),
                     system=self._AGENT_SYSTEM,
@@ -858,7 +858,7 @@ class AgentQueryPipeline:
                 plan: ToolPlan = await planner.plan_from_messages(
                     messages,
                     tools=get_tool_registry().schemas_for(
-                        self._llm.provider_name,
+                        "anthropic",
                         names=AGENT_TOOL_ALLOWLIST,
                     ),
                     system=self._AGENT_SYSTEM,
@@ -1085,7 +1085,7 @@ class SwarmQueryPipeline:
                 turn = await self._llm.call_agentic_turn(
                     messages=messages,
                     tools=get_tool_registry().schemas_for(
-                        self._llm.provider_name,
+                        "anthropic",
                         names=AGENT_TOOL_ALLOWLIST,
                     ),
                     system=AgentQueryPipeline._AGENT_SYSTEM,
