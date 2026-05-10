@@ -37,7 +37,7 @@ The Synthesizer composes the final answer. Hybrid retrieval (pgvector + BM25
 calls. The same registry that ships `RetrieveTool` is designed for MCP tool
 discovery to replace it later without changing callsites.
 
-Full architectural thesis: [docs/v1.4-design.md](https://github.com/<owner>/<repo>/blob/v1.4.0/docs/v1.4-design.md) (Approach A — incremental refactor, no framework lock-in).
+Full architectural thesis: [docs/v1.4-design.md](https://github.com/rothenbergverkuilenrn60-oss/rag-enterprise/blob/v1.4.0/docs/v1.4-design.md) (Approach A — incremental refactor, no framework lock-in).
 
 ## What changed
 
@@ -56,7 +56,7 @@ consumed by both `SwarmQueryPipeline` and the new `Executor` —
 `execute_tool_call` in `services/agent/`).
 
 Closes AGENT-06, AGENT-09, NLU-03.
-See [Phase 16 SUMMARY](https://github.com/<owner>/<repo>/blob/v1.4.0/.planning/phases/16-planner-executor-extraction/16-03-SUMMARY.md).
+See [Phase 16 SUMMARY](https://github.com/rothenbergverkuilenrn60-oss/rag-enterprise/blob/v1.4.0/.planning/phases/16-planner-executor-extraction/16-03-SUMMARY.md).
 
 ### Phase 17 — Tool abstraction + RetrieveTool
 
@@ -69,10 +69,10 @@ preserved on existing test fixtures (no recall/rank regression).
 
 `Executor` dispatches strictly through the registry; no direct imports of
 tool classes by name in pipeline code. Tool authoring guide stub at
-[docs/agent-architecture.md#authoring-tools](https://github.com/<owner>/<repo>/blob/v1.4.0/docs/agent-architecture.md#authoring-tools) with one runnable example.
+[docs/agent-architecture.md#authoring-tools](https://github.com/rothenbergverkuilenrn60-oss/rag-enterprise/blob/v1.4.0/docs/agent-architecture.md#authoring-tools) with one runnable example.
 
 Closes AGENT-07.
-See [Phase 17 SUMMARY](https://github.com/<owner>/<repo>/blob/v1.4.0/.planning/phases/17-tool-abstraction-retrievetool/17-03-SUMMARY.md).
+See [Phase 17 SUMMARY](https://github.com/rothenbergverkuilenrn60-oss/rag-enterprise/blob/v1.4.0/.planning/phases/17-tool-abstraction-retrievetool/17-03-SUMMARY.md).
 
 ### Phase 18 — SSE planner-trace event stream
 
@@ -95,7 +95,7 @@ Latency assertion: agentic queries with N parallel tools complete in
 (4 × 0.5 s tools complete in 450..700 ms wall-time).
 
 Closes AGENT-04.
-See [Phase 18 SUMMARY](https://github.com/<owner>/<repo>/blob/v1.4.0/.planning/phases/18-sse-planner-trace-event-stream/18-03-SUMMARY.md).
+See [Phase 18 SUMMARY](https://github.com/rothenbergverkuilenrn60-oss/rag-enterprise/blob/v1.4.0/.planning/phases/18-sse-planner-trace-event-stream/18-03-SUMMARY.md).
 
 ### Phase 19 — Agent-first docs + demo + release
 
@@ -113,16 +113,16 @@ Asciinema cast embedded near the top showing the SSE event timeline with
 visible parallel fan-out.
 
 Closes AGENT-08.
-See [Phase 19 SUMMARY](https://github.com/<owner>/<repo>/blob/v1.4.0/.planning/phases/19-agent-first-docs-demo-release/19-08-SUMMARY.md).
+See [Phase 19 SUMMARY](https://github.com/rothenbergverkuilenrn60-oss/rag-enterprise/blob/v1.4.0/.planning/phases/19-agent-first-docs-demo-release/19-08-SUMMARY.md).
 
 ## Demo
 
-Replay locally: [`docs/demo.cast`](https://github.com/<owner>/<repo>/blob/v1.4.0/docs/demo.cast). Run `asciinema play docs/demo.cast` (asciinema only required to PLAY the cast — the demo itself does not depend on it).
+Replay locally: [`docs/demo.cast`](https://github.com/rothenbergverkuilenrn60-oss/rag-enterprise/blob/v1.4.0/docs/demo.cast). Run `asciinema play docs/demo.cast` (asciinema only required to PLAY the cast — the demo itself does not depend on it).
 
 From a clean checkout:
 
 ```bash
-git clone https://github.com/<owner>/<repo>.git && cd <repo>
+git clone https://github.com/rothenbergverkuilenrn60-oss/rag-enterprise.git && cd <repo>
 make demo-agent
 ```
 
@@ -153,7 +153,7 @@ Docker stack required.
 - **SSE event schema:** the 6-event surface is locked; future minor
   versions may add fields (additive) but will not rename or remove existing
   ones. Subscribe via `EventSource` (consumer snippet in
-  [docs/agent-architecture.md#consuming-the-stream](https://github.com/<owner>/<repo>/blob/v1.4.0/docs/agent-architecture.md#consuming-the-stream)).
+  [docs/agent-architecture.md#consuming-the-stream](https://github.com/rothenbergverkuilenrn60-oss/rag-enterprise/blob/v1.4.0/docs/agent-architecture.md#consuming-the-stream)).
 
 ## Roadmap (next)
 
@@ -165,13 +165,13 @@ Deferred to v1.5+:
 - OpenTelemetry-style trace propagation (Phase 18 D-08 — currently 8-hex `trace_id`)
 - GitHub Actions auto-tag workflow
 
-See [.planning/ROADMAP.md](https://github.com/<owner>/<repo>/blob/v1.4.0/.planning/ROADMAP.md) for the full forward plan.
+See [.planning/ROADMAP.md](https://github.com/rothenbergverkuilenrn60-oss/rag-enterprise/blob/v1.4.0/.planning/ROADMAP.md) for the full forward plan.
 
 ## Acknowledgements
 
-v1.0..v1.3 milestones: see [CHANGELOG.md](https://github.com/<owner>/<repo>/blob/v1.4.0/CHANGELOG.md).
-Per-milestone roadmaps archived under [.planning/milestones/](https://github.com/<owner>/<repo>/tree/v1.4.0/.planning/milestones/).
+v1.0..v1.3 milestones: see [CHANGELOG.md](https://github.com/rothenbergverkuilenrn60-oss/rag-enterprise/blob/v1.4.0/CHANGELOG.md).
+Per-milestone roadmaps archived under [.planning/milestones/](https://github.com/rothenbergverkuilenrn60-oss/rag-enterprise/tree/v1.4.0/.planning/milestones/).
 
 ---
 
-Full diff: `v1.3.0...v1.4.0` ([compare](https://github.com/<owner>/<repo>/compare/v1.3.0...v1.4.0)).
+Full diff: `v1.3.0...v1.4.0` ([compare](https://github.com/rothenbergverkuilenrn60-oss/rag-enterprise/compare/v1.3.0...v1.4.0)).

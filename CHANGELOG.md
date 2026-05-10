@@ -59,9 +59,9 @@ Initial release — production-grade RAG platform. See [v1.0 milestone roadmap](
 - Phase 5 — Async Ingest Tracking: `POST /ingest/async` returns `task_id`; ARQ/Redis worker; poll status via `GET /ingest/status/{task_id}`.
 - Phase 6 — Test Coverage and Eval: 200 stratified RAGAS QA pairs; `faithfulness > 0.85`, `answer_relevancy > 0.80` gates.
 
-[Unreleased]: https://github.com/<owner>/<repo>/compare/v1.4.0...HEAD
-[1.4.0]:      https://github.com/<owner>/<repo>/compare/v1.3.0...v1.4.0
-[1.3.0]:      https://github.com/<owner>/<repo>/compare/v1.2.0...v1.3.0
-[1.2.0]:      https://github.com/<owner>/<repo>/compare/v1.1.0...v1.2.0
-[1.1.0]:      https://github.com/<owner>/<repo>/compare/v1.0.0...v1.1.0
-[1.0.0]:      https://github.com/<owner>/<repo>/releases/tag/v1.0.0
+[Unreleased]: https://github.com/rothenbergverkuilenrn60-oss/rag-enterprise/compare/v1.4.0...HEAD
+[1.4.0]:      https://github.com/rothenbergverkuilenrn60-oss/rag-enterprise/compare/v1.3.0...v1.4.0
+[1.3.0]:      https://github.com/rothenbergverkuilenrn60-oss/rag-enterprise/compare/v1.2.0...v1.3.0
+[1.2.0]:      https://github.com/rothenbergverkuilenrn60-oss/rag-enterprise/compare/v1.1.0...v1.2.0
+[1.1.0]:      https://github.com/rothenbergverkuilenrn60-oss/rag-enterprise/compare/v1.0.0...v1.1.0
+[1.0.0]:      https://github.com/rothenbergverkuilenrn60-oss/rag-enterprise/releases/tag/v1.0.0
