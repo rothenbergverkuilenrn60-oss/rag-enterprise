@@ -82,6 +82,7 @@ jobs:
           name: coverage-unit
           path: .coverage.unit
           if-no-files-found: error
+          include-hidden-files: true   # actions/upload-artifact@v4 excludes dotfiles by default; .coverage.* needs opt-in
           retention-days: 7
 
   integration-tests:
@@ -142,6 +143,7 @@ jobs:
           name: coverage-integration
           path: .coverage.integration
           if-no-files-found: warn   # D-03: integration may produce no data (acceptable)
+          include-hidden-files: true   # actions/upload-artifact@v4 excludes dotfiles by default
           retention-days: 7
 
   coverage-combine:
@@ -255,6 +257,7 @@ jobs:
             .coverage.integration
             coverage.xml
             diff-cover.html
+          include-hidden-files: true   # actions/upload-artifact@v4 excludes dotfiles by default; .coverage* needs opt-in
           retention-days: 30
 
   security-scan:
