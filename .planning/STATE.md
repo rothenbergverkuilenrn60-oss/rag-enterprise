@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Web Search + Multi-Agent Debate + Coverage Lift
 status: verifying
-stopped_at: Phase 21 Wave 1 — Plan 21-01 shipped (verifier settings foundation); Plan 21-02 in flight
-last_updated: "2026-05-10T12:30:00.000Z"
-last_activity: 2026-05-10 — Plan 21-01 shipped (Settings.verifier_model + verifier_provider; D-05/P-09)
+stopped_at: Phase 21 Wave 1 — Plan 21-01 + Plan 21-02 shipped; Wave 2 (Plan 21-03 Verifier class) ready
+last_updated: "2026-05-10T13:00:00.000Z"
+last_activity: 2026-05-10 — Plan 21-02 GREEN shipped (VerifierVerdict + 3 events + GenerationRequest.debate; D-01/D-08/D-09/D-10)
 progress:
   total_phases: 3
   completed_phases: 1
   total_plans: 17
-  completed_plans: 6
-  percent: 35
+  completed_plans: 7
+  percent: 41
 ---
 
 # STATE — EnterpriseRAG (v1.5 planning)
@@ -90,8 +90,8 @@ None.
 
 ## Session Continuity
 
-**Last updated:** 2026-05-10 — Phase 21 Plan 21-01 shipped (verifier settings foundation)
-**Stopped at:** Phase 21 Wave 1 — Plan 21-01 complete; Plan 21-02 RED already landed (commit a2cfdcf), GREEN/REFACTOR pending
-**Next action:** Continue Phase 21 Wave 1 (Plan 21-02 GREEN), then Wave 2 (Plan 21-03 Verifier class)
+**Last updated:** 2026-05-10 — Phase 21 Plan 21-02 shipped (VerifierVerdict + 3 events + GenerationRequest.debate)
+**Stopped at:** Phase 21 Wave 1 complete (Plan 21-01 + Plan 21-02 shipped); Wave 2 (Plan 21-03 Verifier class) ready
+**Next action:** Begin Phase 21 Wave 2 — Plan 21-03 (Verifier sub-agent class consuming VerifierVerdict)
 
-**Planned Phase:** 21 (AGENT-05 Multi-Agent Debate / Sub-Agent Verifier) — 6 plans, 1 complete (21-01) — 2026-05-10
+**Planned Phase:** 21 (AGENT-05 Multi-Agent Debate / Sub-Agent Verifier) — 6 plans, 2 complete (21-01, 21-02) — 2026-05-10
