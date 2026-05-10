@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Agent-First Architecture Inversion
-status: implementation-complete
-stopped_at: Phase 19 complete (AGENT-08, VERIFICATION PASSED 5/5 SCs); v1.4 release ceremony drafted, tag pending PR merge
-last_updated: "2026-05-10T00:00:00.000Z"
-last_activity: 2026-05-10
+status: shipped
+stopped_at: v1.4 milestone shipped — PR #3 merged to master (a01e5d6); tag v1.4.0 cut; GitHub release published
+last_updated: "2026-05-10T01:47:22.000Z"
+last_activity: 2026-05-10 — v1.4 milestone shipped (tag v1.4.0)
 progress:
   total_phases: 4
   completed_phases: 4
