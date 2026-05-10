@@ -173,6 +173,37 @@ jobs:
       - name: TEST-06 — Floor gate (combined coverage >= 70%)
         run: coverage report --fail-under=70   # exit 2 on miss -> step fails (Pitfall 5)
 
+      - name: Phase-22 per-module coverage floor (warning-only at 22-00; flips to hard-fail at 22-06)
+        # D-01: 5 separate `coverage report --include=...` invocations against combined data
+        # D-02: run-all-then-fail — accumulate statuses, do NOT exit non-zero yet (gates flip in plan 22-06)
+        # D-08: warning-only during 22-00..22-05 milestone window so CI stays green
+        # D-04: gates run on combined `.coverage` (downstream of `coverage combine` step above)
+        run: |
+          set +e
+          declare -A STATUS
+          for MOD in \
+            services/pipeline.py \
+            services/generator/llm_client.py \
+            services/vectorizer/vector_store.py \
+            services/retriever/retriever.py \
+            services/extractor/extractor.py; do
+            echo "::group::Per-module gate: $MOD"
+            coverage report --include="$MOD" --show-missing --fail-under=70
+            STATUS[$MOD]=$?
+            if [ "${STATUS[$MOD]}" -ne 0 ]; then
+              echo "::warning file=$MOD::Per-module coverage <70% (warning-only until plan 22-06 flips to hard-fail)"
+            else
+              echo "PASS: $MOD ≥70%"
+            fi
+            echo "::endgroup::"
+          done
+          # Phase 22 D-08: do NOT exit non-zero yet. Plan 22-06 removes this comment + adds: exit $(( $(IFS=+; echo "$((${STATUS[*]:-0}))") > 0 ? 1 : 0 ))
+          echo "Per-module gate summary (warning-only):"
+          for MOD in "${!STATUS[@]}"; do
+            echo "  $MOD: exit=${STATUS[$MOD]}"
+          done
+          exit 0
+
       - name: Generate coverage.xml for diff-cover
         run: coverage xml -o coverage.xml
 
