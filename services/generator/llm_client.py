@@ -103,6 +103,71 @@ def _anthropic_model_for_task(task_type: str, default_model: str) -> str:
     return default_model  # generate / thinking / default → Sonnet/Opus（由配置决定）
 
 
+def _translate_tool_result_message(
+    message: dict[str, Any],
+) -> list[dict[str, Any]] | None:
+    """Translate Anthropic-shape tool_result message to OpenAI tool-message shape.
+
+    v1.4.2 — fixes Groq/DeepSeek/Qwen HTTP 400 on iter≥2 of agent tool-use loop.
+
+    Project convention (per pipeline.py:816 + Anthropic API): tool results are
+    packed into a single ``user`` role message with ``content`` as a list of
+    ``{type:"tool_result", tool_use_id, content}`` blocks.
+
+    OpenAI Chat Completions API requires one ``{role:"tool", tool_call_id,
+    content:str}`` message per tool result. Strict OpenAI-compat servers
+    (Groq, DeepSeek, Qwen via DashScope) reject the Anthropic shape with::
+
+        400 - "messages.N.content.0.type": value is not one of the allowed
+              values ['text', 'image_url', 'document']
+
+    Returns:
+        ``None`` if the message is not an Anthropic tool_result wrapper —
+        caller passes it through unchanged.
+        A list of OpenAI tool messages (one per ``tool_result`` block) if the
+        message IS a tool_result wrapper. Each output message has the shape::
+
+            {"role": "tool", "tool_call_id": <str>, "content": <str>}
+
+        Per OpenAI spec, ``content`` must be a string. If the inbound block's
+        ``content`` is itself a list (Anthropic content blocks), the textual
+        parts are joined; non-text blocks are stringified to their JSON.
+    """
+    if message.get("role") != "user":
+        return None
+    content = message.get("content")
+    if not isinstance(content, list):
+        return None
+    if not all(
+        isinstance(b, dict) and b.get("type") == "tool_result"
+        for b in content
+    ):
+        return None
+
+    out: list[dict[str, Any]] = []
+    for block in content:
+        tool_use_id = block.get("tool_use_id") or block.get("id") or ""
+        block_content = block.get("content", "")
+        if isinstance(block_content, str):
+            text = block_content
+        elif isinstance(block_content, list):
+            parts: list[str] = []
+            for inner in block_content:
+                if isinstance(inner, dict) and inner.get("type") == "text":
+                    parts.append(str(inner.get("text", "")))
+                else:
+                    parts.append(json.dumps(inner, ensure_ascii=False))
+            text = "\n".join(parts)
+        else:
+            text = json.dumps(block_content, ensure_ascii=False)
+        out.append({
+            "role":         "tool",
+            "tool_call_id": tool_use_id,
+            "content":      text,
+        })
+    return out
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # Abstract Base
 # ══════════════════════════════════════════════════════════════════════════════
@@ -419,7 +484,18 @@ class OpenAILLMClient(BaseLLMClient):
 
         # OpenAI puts system in the messages list, not a separate kwarg.
         full_messages: list[dict[str, Any]] = [{"role": "system", "content": system}]
-        full_messages.extend(messages)
+        # Translate Anthropic-shape tool_result messages to OpenAI tool-message
+        # shape (v1.4.2): pipeline.py emits {role:"user", content:[{type:"tool_result",
+        # tool_use_id, content}]} per project convention; OpenAI Chat Completions
+        # requires {role:"tool", tool_call_id, content:str} — one message per result.
+        # Strict OpenAI-compat servers (Groq, DeepSeek, Qwen) reject the
+        # Anthropic shape with HTTP 400 ("content type tool_result not allowed").
+        for m in messages:
+            translated = _translate_tool_result_message(m)
+            if translated is None:
+                full_messages.append(m)
+            else:
+                full_messages.extend(translated)
 
         resp = await self._client.chat.completions.create(
             model=self._model,

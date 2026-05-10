@@ -61,4 +61,6 @@ def test_index_html_symlink_serves_ui_html(client: TestClient) -> None:
     """D-09: GET /ui/ resolves index.html → ui.html symlink."""
     r = client.get("/ui/")
     assert r.status_code == 200
-    assert "RAG 查询界面" in r.text
+    # v1.4.2: heading reframed to "Agent 查询界面" (Planner / Executor / Synthesizer
+    # is the project's core; agentic RAG is one tool — README + ROADMAP narrative).
+    assert "Agent 查询界面" in r.text
