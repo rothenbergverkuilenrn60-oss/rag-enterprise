@@ -285,6 +285,13 @@ class Settings(BaseSettings):
     llm_max_tokens:     int   = 2048
     llm_context_window: int   = 8192   # 粗略估算上下文窗口，超出时截断输入
     llm_stream:         bool  = True
+    # Verifier sub-agent (Phase 21, AGENT-05) ──────────────────────────────────
+    # verifier_provider="openai"|"anthropic" overrides peer provider; None = reuse.
+    # verifier_model is reserved (per-call model override not wired in v1.5; see
+    # 21-RESEARCH.md Pitfall P-09 / Assumption A3). Plan 21-05 logs it in audit
+    # metadata; Plan 21-03 does NOT consume verifier_model in v1.5.
+    verifier_model:    str | None = None
+    verifier_provider: Literal["openai", "anthropic"] | None = None
 
     # ══════════════════════════════════════════════════════════════════════════
     # Swarm（Fork-Agent — AGENT-03）
