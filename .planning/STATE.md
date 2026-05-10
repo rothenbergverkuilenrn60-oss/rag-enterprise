@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Web Search + Multi-Agent Debate + Coverage Lift
 status: verifying
-stopped_at: Phase 21 Wave 3 complete (21-05 SwarmQueryPipeline run_streaming primary generator + thin run() wrapper + audit metadata + route dispatch); Wave 4 (Plan 21-06 docs) ready
-last_updated: "2026-05-10T12:42:28.000Z"
-last_activity: 2026-05-10 — Plan 21-05 GREEN shipped (SwarmQueryPipeline.run_streaming PRIMARY async generator + thin run() drainer + verifier hop in _run_with_state + agent_05 audit namespace + controllers/api.py route dispatch; W5/W8 fix + BLOCKER 2 fix; 8 unit + 1 SC3 route + 1 SC2 integration test land)
+stopped_at: Phase 21 Wave 4 complete (21-06 docs/agent-architecture.md Event Schema Reference extension shipped); Phase 21 ready for /gsd-verify-work
+last_updated: "2026-05-10T13:30:00.000Z"
+last_activity: 2026-05-10 — Plan 21-06 shipped (docs/agent-architecture.md +148/-1 — ### Debate Mode + 3 verifier event subsections + LOCKED-phrasing backward-compat blockquote + 3 JS addEventListener lines; doc-vs-code parity gate DOC-CODE-PARITY: OK; 9-JSON-block parse OK; AGENT-15 / SC4 satisfied; Phase 21 6/6 plans complete)
 progress:
   total_phases: 3
   completed_phases: 1
   total_plans: 17
-  completed_plans: 10
-  percent: 59
+  completed_plans: 11
+  percent: 65
 ---
 
 # STATE — EnterpriseRAG (v1.5 planning)
@@ -25,17 +25,17 @@ See: .planning/PROJECT.md (updated 2026-05-10 after v1.5 open)
 
 ## Current Position
 
-Phase: 20 — WebSearchTool Real Implementation (Tavily)
-Plan: 5/5 complete; awaiting verify_phase_goal + TDD review + security gate
+Phase: 21 — AGENT-05 Multi-Agent Debate / Sub-Agent Verifier
+Plan: 6/6 complete; awaiting /gsd-verify-work 21 (AGENT-05 / AGENT-14 / AGENT-15 + SC1-SC5)
 Status: Verifying
-Last activity: 2026-05-10 — Wave 4 shipped (Plan 20-05 SC5 gate + human-verify approved; Phase 20 acceptance roll-up landed)
+Last activity: 2026-05-10 — Wave 4 shipped (Plan 21-06 docs/agent-architecture.md Event Schema Reference extension; AGENT-15 / SC4 satisfied; Phase 21 6/6 plans complete)
 
 ## Phase Overview
 
 | Phase | Name | REQ-IDs | Status |
 |-------|------|---------|--------|
-| 20 | WebSearchTool Real Implementation (Tavily) | AGENT-10, AGENT-11, AGENT-12, AGENT-13 | Verifying — 5/5 plans shipped |
-| 21 | AGENT-05 Multi-Agent Debate / Sub-Agent Verifier | AGENT-05, AGENT-14, AGENT-15 | Planning |
+| 20 | WebSearchTool Real Implementation (Tavily) | AGENT-10, AGENT-11, AGENT-12, AGENT-13 | Verified — phase PASSED 2026-05-10 |
+| 21 | AGENT-05 Multi-Agent Debate / Sub-Agent Verifier | AGENT-05, AGENT-14, AGENT-15 | Verifying — 6/6 plans shipped |
 | 22 | Per-Module 70% Coverage Lift | TEST-08, TEST-09, TEST-10, TEST-11, TEST-12 | Planning |
 
 ## Accumulated Context
@@ -90,8 +90,8 @@ None.
 
 ## Session Continuity
 
-**Last updated:** 2026-05-10 — Phase 21 Plan 21-05 shipped (SwarmQueryPipeline run_streaming primary async generator + thin run() drainer + verifier hop + route dispatch; W5/W8 + BLOCKER 2 plan-checker iteration-1 fixes)
-**Stopped at:** Phase 21 Wave 3 complete (Plan 21-05); Wave 4 (Plan 21-06 docs/CHANGELOG/migration) ready
-**Next action:** Begin Phase 21 Wave 4 — Plan 21-06 (docs/CHANGELOG/migration; the 3 verifier event subclasses are wire-truthful via the route dispatch verified by test_swarm_debate_events_reach_route — Plan 21-06 narrative for `### Debate Mode` can mention the route dispatch explicitly)
+**Last updated:** 2026-05-10 — Phase 21 Plan 21-06 shipped (docs/agent-architecture.md Event Schema Reference extension: ### Debate Mode + 3 verifier event subsections + backward-compat blockquote + 3 JS addEventListener lines; AGENT-15 / SC4 satisfied)
+**Stopped at:** Phase 21 Wave 4 complete (Plan 21-06); all 6 plans shipped; Phase 21 ready for /gsd-verify-work 21
+**Next action:** Run `/gsd-verify-work 21` to gate Phase 21 acceptance against AGENT-05 / AGENT-14 / AGENT-15 + SC1-SC5; on green, advance to Phase 22 (Per-Module 70% Coverage Lift) discussion/planning.
 
-**Planned Phase:** 21 (AGENT-05 Multi-Agent Debate / Sub-Agent Verifier) — 6 plans, 5 complete (21-01, 21-02, 21-03, 21-04, 21-05) — 2026-05-10
+**Planned Phase:** 21 (AGENT-05 Multi-Agent Debate / Sub-Agent Verifier) — 6 plans, 6 complete (21-01, 21-02, 21-03, 21-04, 21-05, 21-06) — 2026-05-10

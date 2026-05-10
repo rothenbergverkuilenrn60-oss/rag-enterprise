@@ -29,7 +29,7 @@ Twelve checkable requirements grouped into three categories. Each maps to exactl
 
 - [ ] **AGENT-14**: `GenerationRequest` gains `debate: bool = False` opt-in field. `SwarmQueryPipeline.run()` (and streaming sibling if applicable) appends a verifier hop after the existing `asyncio.gather` peer fan-out when `req.debate=True`. End-to-end latency stays bounded by `max(peer_latency) + verifier_latency` (single verifier call, not N). Existing swarm behavior unchanged when `debate=False`. Phase 21.
 
-- [ ] **AGENT-15**: Three new SSE event types added to `utils/models.py` as Pydantic V2 frozen subclasses of `AgentEvent`: `VerifierStartEvent`, `VerifierCompleteEvent`, `VerifierDisagreementEvent`. Events emit through the existing `/api/v1/agent/v1/run/stream` route — wire format unchanged (`event: <type>\ndata: <model_dump_json>\n\n`). `synthesizer.final` remains the terminal event. `docs/agent-architecture.md` Event Schema Reference extended with three new subsections + example payloads. Phase 21.
+- [x] **AGENT-15**: Three new SSE event types added to `utils/models.py` as Pydantic V2 frozen subclasses of `AgentEvent`: `VerifierStartEvent`, `VerifierCompleteEvent`, `VerifierDisagreementEvent`. Events emit through the existing `/api/v1/agent/v1/run/stream` route — wire format unchanged (`event: <type>\ndata: <model_dump_json>\n\n`). `synthesizer.final` remains the terminal event. `docs/agent-architecture.md` Event Schema Reference extended with three new subsections + example payloads. Phase 21. ✓ shipped 2026-05-10 (21-02 schemas + 21-05 wire emission/route dispatch + 21-06 doc extension).
 
 ### Coverage Lift (TEST)
 
@@ -84,7 +84,7 @@ Twelve checkable requirements grouped into three categories. Each maps to exactl
 | AGENT-13 | 20 — WebSearchTool Real Implementation (Tavily) | 20-03 |
 | AGENT-05 | 21 — AGENT-05 Multi-Agent Debate / Sub-Agent Verifier | tbd (assigned during `/gsd-plan-phase 21`) |
 | AGENT-14 | 21 — AGENT-05 Multi-Agent Debate / Sub-Agent Verifier | tbd |
-| AGENT-15 | 21 — AGENT-05 Multi-Agent Debate / Sub-Agent Verifier | tbd |
+| AGENT-15 | 21 — AGENT-05 Multi-Agent Debate / Sub-Agent Verifier | 21-02 (schemas) + 21-05 (wire emission + route dispatch) + 21-06 (doc extension) ✓ |
 | TEST-08  | 22 — Per-Module 70% Coverage Lift | tbd (assigned during `/gsd-plan-phase 22`) |
 | TEST-09  | 22 — Per-Module 70% Coverage Lift | tbd |
 | TEST-10  | 22 — Per-Module 70% Coverage Lift | tbd |
