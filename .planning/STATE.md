@@ -84,7 +84,7 @@ None.
 - [ ] PyMuPDF AGPL license: resolve commercial licensing for on-premise deployments
 - [ ] Phase 9/14 visual diff vs v1.0 + Docker live build (deferred to first deploy)
 - [ ] Phase 10/15 live PR through CI confirms `coverage-combine` job + HTML artifact (natural confirmation on first PR)
-- [ ] Push tags `v1.1`, `v1.2`, `v1.3` to origin (currently local-only)
+- [x] Push tags `v1.1`, `v1.2`, `v1.3` to origin — verified on origin 2026-05-11 (already pushed by prior milestone PRs)
 - [ ] v1.6+ follow-up: Memory tool (10x roadmap #1) — needs `/office-hours` first
 - [ ] v1.6+ follow-up: Code-acting / SQLTool (10x roadmap #4) — sandbox selection unresolved
 - [ ] v1.6+ follow-up: UI-03 React/Vue full migration; TEST-07 mutation testing; UI-02 first-deploy browser smoke test
