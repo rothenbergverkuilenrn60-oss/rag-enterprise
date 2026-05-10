@@ -15,12 +15,14 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
-        # Exclude exactly one allowlisted file: the redaction-test fixture in
-        # tests/unit/test_web_search_tool.py legitimately contains the literal
-        # `tvly-LEAK` (asserting the redaction code does NOT propagate it).
-        # This `exclude` mirrors the smoke-test allowlist in
-        # tests/unit/test_secret_redaction_smoke.py:_ALLOWLIST exactly,
-        # preserving regex strength against arbitrary `tvly-X` content
+        # Exclude allowlisted paths. Mirrors smoke-test allowlists in
+        # tests/unit/test_secret_redaction_smoke.py (_ALLOWLIST + _ALLOWLIST_DIR_PREFIXES)
+        # exactly, preserving regex strength against arbitrary `tvly-X` content
         # elsewhere in the tree (revision 2026-05-10, locked via Plan 20-05
         # Task 3 resolution: --exclude path-based, NOT regex-tightening).
-        exclude: ^tests/unit/test_web_search_tool\.py$
+        #
+        # Allowlisted:
+        #   - tests/unit/test_web_search_tool.py: `tvly-LEAK` redaction fixture (Plan 20-02)
+        #   - .planning/: doc references to the regex + `tvly-LEAK` (planning prose only;
+        #     code review catches real-key paste; smoke test mirrors this prefix)
+        exclude: ^(tests/unit/test_web_search_tool\.py|\.planning/)
