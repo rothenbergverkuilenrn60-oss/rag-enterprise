@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -15,7 +16,7 @@ import pytest
 
 from services.audit.audit_service import AuditEvent
 from services.memory.memory_service import MemoryContext
-from services.pipeline import SwarmQueryPipeline
+from services.pipeline import SwarmQueryPipeline, _SubAgentResult
 from utils.models import (
     AgenticTurn,
     ChunkMetadata,
@@ -23,6 +24,7 @@ from utils.models import (
     GenerationResponse,
     RetrievedChunk,
     ToolCall,
+    VerifierVerdict,
 )
 
 
@@ -360,3 +362,138 @@ async def test_coordinator_uses_main_model_not_haiku(
     # Synthesis call should also use main model.
     synth_call = mock_pipeline._llm.chat.await_args_list[1]
     assert synth_call.kwargs.get("task_type") == "generate"
+
+
+# ─── Phase 21 — _synthesize divergence branch ─────────────────────────────
+#
+# Plan 21-04 (TDD): _synthesize gains an optional `verifier_verdict` kwarg
+# (D-04). When verdict == "disagree", route through `_format_disagree` which
+# emits the locked D-03 Chinese banner using `_DISAGREE_BANNER_TEMPLATE`
+# (Pitfall P-08 single-symbol-edit). Default / agree paths stay BYTE-IDENTICAL
+# to v1.4 swarm (SC5/CF-08). Disagree branch makes ZERO additional LLM calls.
+
+# Verbatim D-03 banner (locked-string contract; the test below proves
+# byte-identity against this string).
+_DISAGREE_BANNER_LOCKED: str = (
+    "⚠️ 子代理间存在分歧（{N} 个同伴中的 {M} 个提出差异回答）。"
+    "以上回答基于验证者引用的证据（{chunk_count} 个块）。"
+)
+
+
+def _verdict(
+    verdict: str = "disagree",
+    proposed_answer: str = "verifier ans",
+    evidence_chunk_ids: list[str] | None = None,
+    reasoning: str = "r",
+) -> VerifierVerdict:
+    return VerifierVerdict(
+        verdict=verdict,  # type: ignore[arg-type]
+        evidence_chunk_ids=evidence_chunk_ids if evidence_chunk_ids is not None else ["c1", "c2"],
+        reasoning=reasoning,
+        proposed_answer=proposed_answer,
+        latency_ms=100,
+    )
+
+
+def _peer(answer: str = "a", chunks: list[RetrievedChunk] | None = None) -> _SubAgentResult:
+    return _SubAgentResult(answer=answer, turns=1, tool_calls_count=0, chunks=chunks or [])
+
+
+# Case 1 (B-24, SC5) — default kwarg = byte-identity with v1.4 swarm.
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_synthesize_default_kwarg_byte_identical(
+    mock_pipeline: SwarmQueryPipeline,
+) -> None:
+    """`verifier_verdict=None` (default) MUST hit the existing synthesis body
+    byte-identically: exactly one `_llm.chat` await, returns its output."""
+    # Inspect-guard: if the kwarg is absent from the signature, the test fails
+    # loudly even if the behavioural path would pass vacuously.
+    assert "verifier_verdict" in inspect.signature(SwarmQueryPipeline._synthesize).parameters
+
+    mock_pipeline._llm.chat = AsyncMock(return_value="synthesized output")
+    result = await mock_pipeline._synthesize("q", ["sq1"], ["a1"])
+
+    assert mock_pipeline._llm.chat.await_count == 1
+    assert result == "synthesized output"
+
+
+# Case 2 (B-25) — agree-with-evidence falls through to standard synthesis.
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_synthesize_agree_kwarg_byte_identical(
+    mock_pipeline: SwarmQueryPipeline,
+) -> None:
+    """`verifier_verdict.verdict == "agree"` MUST behave exactly like the
+    default-kwarg path (consensus answer comes from `_llm.chat`)."""
+    mock_pipeline._llm.chat = AsyncMock(return_value="synthesized output")
+    result = await mock_pipeline._synthesize(
+        "q", ["sq1"], ["a1"], verifier_verdict=_verdict(verdict="agree"),
+    )
+
+    assert mock_pipeline._llm.chat.await_count == 1
+    assert result == "synthesized output"
+
+
+# Case 3 (B-26) — disagree path: ZERO LLM calls, returns `_format_disagree(...)`.
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_synthesize_disagree_uses_proposed_answer_no_llm(
+    mock_pipeline: SwarmQueryPipeline,
+) -> None:
+    """Disagree dispatch MUST NOT touch `_llm.chat` and MUST surface the
+    verifier's proposed_answer + the locked banner with N=M=len(answers)."""
+    # AsyncMock side_effect raises if `_llm.chat` is awaited — proves zero calls.
+    mock_pipeline._llm.chat = AsyncMock(
+        side_effect=AssertionError("must NOT call _llm.chat on disagree"),
+    )
+    result = await mock_pipeline._synthesize(
+        "q",
+        ["sq1", "sq2"],
+        ["a1", "a2"],
+        verifier_verdict=_verdict(
+            verdict="disagree",
+            proposed_answer="evidence-led answer",
+            evidence_chunk_ids=["c1", "c2", "c3"],
+        ),
+    )
+
+    # `proposed_answer` is the user-visible answer, prefix.
+    assert result.startswith("evidence-led answer")
+    # Locked Chinese banner present.
+    assert "⚠️ 子代理间存在分歧" in result
+    # chunk_count substitution from len(verdict.evidence_chunk_ids).
+    assert "3 个块" in result
+    # peer_count == len(answers) → N=M=2.
+    assert "2 个同伴中的 2 个提出差异回答" in result
+
+
+# Case 4 (B-27) — exact-template substitution; LOCKED-string contract.
+@pytest.mark.unit
+def test_format_disagree_exact_template_substitution() -> None:
+    """`_format_disagree` returns EXACT byte-identical output against the locked
+    D-03 string. Failing test surfaces any future template drift."""
+    out = SwarmQueryPipeline._format_disagree(
+        _verdict(verdict="disagree", proposed_answer="ans", evidence_chunk_ids=["c1"]),
+        sub_results=[_peer(), _peer(), _peer()],
+    )
+    assert out == (
+        "ans\n\n"
+        "⚠️ 子代理间存在分歧（3 个同伴中的 3 个提出差异回答）。"
+        "以上回答基于验证者引用的证据（1 个块）。"
+    )
+
+
+# Case 5 (Pitfall P-08) — module-level constant exists with expected placeholders.
+@pytest.mark.unit
+def test_format_disagree_module_constant_present() -> None:
+    """`_DISAGREE_BANNER_TEMPLATE` MUST live at module level so any future
+    v1.6+ i18n routing change is a single-symbol edit (Pitfall P-08)."""
+    from services.pipeline import _DISAGREE_BANNER_TEMPLATE
+
+    assert isinstance(_DISAGREE_BANNER_TEMPLATE, str)
+    assert "{N}" in _DISAGREE_BANNER_TEMPLATE
+    assert "{M}" in _DISAGREE_BANNER_TEMPLATE
+    assert "{chunk_count}" in _DISAGREE_BANNER_TEMPLATE
+    # Cross-check: byte-identity against the locked D-03 reference string.
+    assert _DISAGREE_BANNER_TEMPLATE == _DISAGREE_BANNER_LOCKED
