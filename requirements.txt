@@ -50,6 +50,9 @@ sentence-transformers==3.3.1 # HuggingFace BGE-M3 / Reranker
 openai==1.59.6               # OpenAI Embedding / Chat
 anthropic==0.43.0            # Anthropic Claude
 
+# ── Web search ────────────────────────────────────────────────────────────────
+tavily-python>=0.7.24,<0.8   # Tavily AsyncTavilyClient (Phase 20, AGENT-10)
+
 # 向量数据库客户端
 chromadb==0.6.3              # Chroma（开发/PoC）
 asyncpg==0.30.0              # pgvector (PostgreSQL)
