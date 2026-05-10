@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Web Search + Multi-Agent Debate + Coverage Lift
-status: executing
+status: "v1.5 milestone shipped — PR #4 awaiting CI + review"
 stopped_at: Phase 22 complete; awaiting /gsd-verify-work 22
-last_updated: "2026-05-10T14:30:00.000Z"
-last_activity: 2026-05-10 — Phase 22 complete: per-module ≥70% gate hard-fail flip + TEST-08..12 closed
+last_updated: "2026-05-10T16:11:32.134Z"
+last_activity: "2026-05-11 — v1.5 milestone PR #4 opened (gsd/v1.5-milestone -> master)"
 progress:
   total_phases: 3
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 18
-  completed_plans: 11
-  percent: 61
+  completed_plans: 18
+  percent: 100
 ---
 
 # STATE — EnterpriseRAG (v1.5 planning)
@@ -21,21 +21,21 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-10 after v1.5 open)
 
 **Core value:** Every query returns a grounded, auditable answer — no hallucinations, no silent failures, no security gaps.
-**Current focus:** Phase 22 — Per-Module 70% Coverage Lift
+**Current focus:** v1.5 milestone shipped — PR #4 awaiting CI + review
 
 ## Current Position
 
 Phase: 22 (Per-Module 70% Coverage Lift) — COMPLETE; awaiting /gsd-verify-work 22
 Plan: 7 of 7 shipped
-Status: Verifying
-Last activity: 2026-05-10 — Phase 22 complete: per-module ≥70% gate hard-fail flip + TEST-08..12 closed
+Status: v1.5 milestone shipped — PR #4 awaiting CI + review
+Last activity: 2026-05-11 — v1.5 milestone PR #4 opened (gsd/v1.5-milestone -> master)
 
 ## Phase Overview
 
 | Phase | Name | REQ-IDs | Status |
 |-------|------|---------|--------|
 | 20 | WebSearchTool Real Implementation (Tavily) | AGENT-10, AGENT-11, AGENT-12, AGENT-13 | Verified — phase PASSED 2026-05-10 |
-| 21 | AGENT-05 Multi-Agent Debate / Sub-Agent Verifier | AGENT-05, AGENT-14, AGENT-15 | Verifying — 6/6 plans shipped |
+| 21 | AGENT-05 Multi-Agent Debate / Sub-Agent Verifier | AGENT-05, AGENT-14, AGENT-15 | Verified — phase PASSED 2026-05-10 |
 | 22 | Per-Module 70% Coverage Lift | TEST-08, TEST-09, TEST-10, TEST-11, TEST-12 | Complete ✓ |
 
 ## Accumulated Context
@@ -92,7 +92,7 @@ None.
 ## Session Continuity
 
 **Last updated:** 2026-05-10 — Phase 22 complete: per-module ≥70% gate hard-fail flip + TEST-08..12 closed (5 modules: pipeline 81.0%, llm_client 70.6%, vector_store 80.0%, retriever 85.0%, extractor 73.5%)
-**Stopped at:** Phase 22 complete; awaiting /gsd-verify-work 22
-**Next action:** Run `/gsd-verify-work 22` to gate Phase 22 acceptance against TEST-08..12 + SC1-SC5; on green, advance to v1.5 milestone close.
+**Stopped at:** v1.5 milestone shipped — PR #4 (gsd/v1.5-milestone → master) awaiting CI + review
+**Next action:** Watch PR #4 CI (coverage-combine job + 5 new per-module gates); on merge, run `/gsd-complete-milestone` to archive v1.5 and open v1.6.
 
 **Planned Phase:** 22 (Per-Module 70% Coverage Lift) — 7 plans — 2026-05-10T13:55:59.905Z
