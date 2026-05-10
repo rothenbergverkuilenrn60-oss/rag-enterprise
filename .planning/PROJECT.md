@@ -16,27 +16,23 @@ v1.2 Agentic Layer + Swarm shipped: `agent_mode=True` now executes the real tool
 - ✅ **v1.1 Retrieval Depth & Frontend** shipped 2026-05-08 — [archive](milestones/v1.1-ROADMAP.md)
 - ✅ **v1.2 Agentic Layer + Swarm** shipped 2026-05-08 — [archive](milestones/v1.2-ROADMAP.md)
 - ✅ **v1.3 Fork Swarm, NLU & Quality** shipped 2026-05-09 — [archive](milestones/v1.3-ROADMAP.md)
+- ✅ **v1.4 Agent-First Architecture Inversion** shipped 2026-05-10 — [archive](milestones/v1.4-ROADMAP.md)
 
-## Current Milestone: v1.4 Agent-First Architecture Inversion
+## Current Milestone: v1.5 Web Search + Multi-Agent Debate + Coverage Lift
 
-**Goal:** Invert the architecture so the agent runtime is the project's core (planner + executor + tool registry), and agentic RAG becomes one tool the agent calls. Today's v1.3 layout is "RAG-first, agent-as-mode" — four parallel pipelines with `AgentQueryPipeline` as one option. v1.4 makes the agent loop primary and wraps `QueryPipeline.run()` as `RetrieveTool`.
+**Goal:** Replace v1.4's WebSearchTool placeholder with a Tavily-backed real implementation; introduce AGENT-05 multi-agent debate / sub-agent verify (10x roadmap #2); lift 5 large modules above per-module ≥ 70% coverage. The agent gains a non-RAG tool that actually queries the live web, the swarm gains a verify/debate dimension on top of v1.3's parallel fan-out, and the coverage gate strengthens on the modules that have carried the most behavior.
 
 **Target features:**
-- Planner + Executor extraction inside the existing `AgentQueryPipeline` (no greenfield rewrite, no framework lock-in)
-- Tool abstraction with `RetrieveTool` (wraps hybrid retrieval + RRF + rerank) + ≥1 additional skeletal tool to prove pluggability
-- SSE planner trace event stream (`planner.plan` / `tool.span` / `executor.parallel`) on the streaming endpoint, with documented event schemas
-- Agent-first README rewrite, architecture doc, and reproducible multi-hop demo (`make demo-agent`)
+- **WebSearchTool real impl** — Tavily SDK behind the v1.4 `BaseTool` interface; promoted from placeholder into `AGENT_TOOL_ALLOWLIST`; planner can pick it for queries the knowledge base cannot answer
+- **AGENT-05 multi-agent debate / sub-agent verify** — extends v1.3 `SwarmQueryPipeline` with a verifier role (or peer-debate phase) so independent sub-agents cross-check answers before synthesis; the debate / verify trace surfaces in the existing SSE event stream
+- **Per-module 70% coverage lift** — bring `services/pipeline.py`, `services/generator/llm_client.py`, `services/vectorizer/vector_store.py`, `services/retriever/retriever.py`, `services/extractor/extractor.py` above 70% via consumer-path mocks (v1.3 Phase 13/15 pattern); no production code logic changes
 
-**Carry-forwards merged into main line:**
-- AGENT-04 (SSE for agentic + swarm) → folded into the planner-trace event stream
-- NLU-03 (query intent auto-route) → subsumed by the planner (intent classification becomes planner output)
-- `_execute_tool_call` shared-helper extraction → done as part of the Phase 16 refactor
+**Deferred to v1.6+:**
+- Memory tool (10x roadmap #1) — needs `/office-hours` to lock the wedge (per-tenant scope, RAG-vs-tool boundary, eviction policy)
+- Code-acting / SQLTool (10x roadmap #4) — sandbox selection (subprocess+seccomp / Docker / E2B / WASM) and security model unresolved
+- UI-03 React/Vue full migration, TEST-07 mutation testing, UI-02 first-deploy browser smoke
 
-**Deferred to v1.5+:**
-- AGENT-05 (multi-agent debate / sub-agent verify) — 10x roadmap #2
-- UI-03 (React/Vue full migration), TEST-07 (mutation testing), per-module 70% lift on 5 large modules, UI-02 first-deploy browser smoke test
-
-Source design doc: `~/.gstack/projects/rothenbergverkuilenrn60-oss-rag-enterprise/ubuntu-gsd-v1.3-milestone-design-20260509-163809.md` (Approach A — incremental refactor, recommended).
+Tavily key handling: stored in `.env` only (gitignored); `.env.docker` references via `${TAVILY_API_KEY:-}`; never written into planning docs or commits.
 
 ## Core Value
 
@@ -98,26 +94,33 @@ Every query returns a grounded, auditable answer — no hallucinations, no silen
 - ✓ CI 3-job coverage topology: `unit-tests` writes `.coverage.unit`, `integration-tests` writes `.coverage.integration` with `--cov-append` + `continue-on-error: true`, new `coverage-combine` job runs `combine + report --fail-under=70 + diff-cover`; pyproject `[tool.coverage.*]` config (`fail_under = 70`, `show_missing = true`, `parallel = false`) (TEST-04) — v1.3
 - ✓ Combined coverage 53.2% → 71.9% (+18.7pp); 20 services/ modules below 70% at v1.2 close received new unit test files (one happy + one error path each); `coverage report --fail-under=70` exits 0 (TEST-06) — v1.3
 
+**v1.4 Agent-First Architecture Inversion**
+- ✓ `AgentQueryPipeline` refactored into `Planner` + `Executor` + `Synthesizer` collaborators; preserves v1.2/v1.3 multi-tenant, audit, JWT, RLS invariants (AGENT-06) — v1.4 Phase 16
+- ✓ `_execute_tool_call` extracted to shared helper used by both `SwarmQueryPipeline` and the new `Executor` (AGENT-09) — v1.4 Phase 16
+- ✓ Query intent classification subsumed by planner's `ToolPlan` output (no separate `IntentRouter` class) (NLU-03) — v1.4 Phase 16
+- ✓ `BaseTool` ABC + `ToolRegistry` + `RetrieveTool` (`search_knowledge_base`) + `RefinedRetrieveTool` (`refine_search`) shipped; `WebSearchTool` placeholder registered but excluded from `AGENT_TOOL_ALLOWLIST` (AGENT-07) — v1.4 Phase 17
+- ✓ SSE planner trace event stream at `POST /api/v1/agent/v1/run/stream`: `planner.plan`, `tool.span.start/end/error`, `executor.parallel`, `synthesizer.final`; schemas documented in `docs/agent-architecture.md` (AGENT-04) — v1.4 Phase 18
+- ✓ Agent-first README rewrite + `docs/agent-architecture.md` (planner/executor model + tool authoring + SSE event schema) + `make demo-agent` target + recorded `docs/demo.cast` (AGENT-08) — v1.4 Phase 19
+
 ### Active
 
-**v1.4 Agent-First Architecture Inversion**
-- [ ] **AGENT-06**: Refactor `AgentQueryPipeline` into `Planner` + `Executor` + `Synthesizer` collaborators; preserve v1.2/v1.3 multi-tenant, audit, JWT, RLS invariants — Phase 16
-- [ ] **AGENT-09**: Extract `_execute_tool_call` to shared helper used by both `SwarmQueryPipeline` and the new `Executor` — Phase 16
-- [ ] **NLU-03**: Query intent classification subsumed by the planner output (no separate router); planner decides whether to fan out, single-hop retrieve, or short-circuit — Phase 16
-- [ ] **AGENT-07**: Define `Tool` protocol; wrap `QueryPipeline.run()` as `RetrieveTool` (hybrid + RRF + rerank stays internal); register ≥1 additional skeletal tool (`WebSearchTool` or `SQLTool`) to prove pluggability via static registry — Phase 17
-- [ ] **AGENT-04**: SSE planner trace event stream on `/query/stream` (and/or new `/agent/v1/run/stream`): `planner.plan`, `tool.span` (start/end/error with timing), `executor.parallel` marker, `synthesizer.final`; schemas documented in `docs/agent-architecture.md` — Phase 18
-- [ ] **AGENT-08**: Agent-first README rewrite (architecture lead with agent, RAG framed as one tool); `docs/agent-architecture.md` covering planner/executor model + tool authoring + SSE event schema; `make demo-agent` target running multi-hop demo end-to-end; recorded asciinema/gif of parallel fan-out — Phase 19
+**v1.5 Web Search + Multi-Agent Debate + Coverage Lift** (requirements scoped during this milestone open — REQ-IDs assigned in REQUIREMENTS.md)
 
-**Carried over (not v1.4-scoped, still tracked):**
+- [ ] WebSearchTool real implementation (Tavily SDK, replacing v1.4 placeholder, joins `AGENT_TOOL_ALLOWLIST`)
+- [ ] AGENT-05: multi-agent debate / sub-agent verify on top of v1.3 `SwarmQueryPipeline` (10x roadmap #2)
+- [ ] Per-module 70% coverage on 5 large modules: `pipeline.py`, `llm_client.py`, `vector_store.py`, `retriever.py`, `extractor.py`
+
+**v1.4 Agent-First Architecture Inversion (now validated, moved below)**
+
+**Carried over (not v1.5-scoped, still tracked):**
 - [ ] asyncpg pool + RLS: verify `app.current_tenant` per-connection in production pool
 - [ ] PyMuPDF AGPL license: resolve commercial licensing for on-premise deployments
 - [ ] Phase 9/14 visual diff vs v1.0 + Docker live build (deferred to first deploy)
 - [ ] Phase 10/15 live PR through CI confirms `coverage-combine` job + HTML artifact (natural confirmation on first PR)
 - [ ] Push tags `v1.1`, `v1.2`, `v1.3` to origin (currently local-only)
-- [ ] PR #1 + PR #2 + PR #3 (v1.3) review + merge
-- [ ] v1.5+ follow-up: lift 5 large modules above per-module 70% (pipeline, llm_client, vector_store, retriever, extractor)
-- [ ] v1.5+ follow-up: AGENT-05 multi-agent debate / sub-agent verify (10x roadmap #2)
-- [ ] v1.5+ follow-up: UI-03 React/Vue full migration; TEST-07 mutation testing; UI-02 first-deploy browser smoke test
+- [ ] v1.6+ follow-up: Memory tool (10x roadmap #1) — needs `/office-hours` first
+- [ ] v1.6+ follow-up: Code-acting / SQLTool (10x roadmap #4) — sandbox selection unresolved
+- [ ] v1.6+ follow-up: UI-03 React/Vue full migration; TEST-07 mutation testing; UI-02 first-deploy browser smoke test
 
 ### Out of Scope
 
@@ -213,4 +216,4 @@ Every query returns a grounded, auditable answer — no hallucinations, no silen
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-09 — v1.4 Agent-First Architecture Inversion milestone opened*
+*Last updated: 2026-05-10 — v1.5 Web Search + Multi-Agent Debate + Coverage Lift milestone opened*

@@ -1,140 +1,113 @@
-# Architecture Research
+# ARCHITECTURE — v1.5 integration with v1.4 agent runtime
 
-## Summary
+*Generated 2026-05-10 inline. Supersedes prior milestone research.*
 
-The codebase already has a `BaseVectorStore` ABC with a pgvector backend — it's incomplete (two missing methods) and uses a single global singleton (breaks multi-tenancy). The migration is a completion task, not a rewrite. Image extraction belongs in Stage 2 of the ingestion pipeline alongside existing text/table/OCR extraction. Async task tracking maps cleanly to existing Redis infrastructure with a `job:{id}` key pattern.
+## Existing architecture (v1.4 close)
 
-## Vector Store Abstraction Layer
-
-**Already exists:** `services/vectorizer/vector_store.py` defines `BaseVectorStore` ABC with `QdrantVectorStore`, `PgVectorStore`, and `ChromaVectorStore` implementations.
-
-**`PgVectorStore` is incomplete — two missing methods:**
-
-`upsert_parent_chunks()` and `fetch_parent_chunks()` are called by the retriever but only implemented on `QdrantVectorStore`. They are not in the ABC.
-
-**Fix:** Either extend the `BaseVectorStore` ABC (preferred) or define a `ParentChunkStore` Protocol for capability detection:
-
-```python
-class ParentChunkStore(Protocol):
-    async def upsert_parent_chunks(self, chunks: list[Chunk]) -> None: ...
-    async def fetch_parent_chunks(self, ids: list[str]) -> list[Chunk]: ...
+```
+HTTP Request
+    │
+    ▼
+controllers/api.py
+    ├─ POST /api/v1/query?agent_mode=true   → AgentQueryPipeline.run() (non-stream)
+    ├─ POST /api/v1/agent/v1/run/stream     → AgentQueryPipeline.run_streaming() (SSE)
+    └─ POST /api/v1/query?swarm_mode=true   → SwarmQueryPipeline.run() (parallel sub-agents)
+                       │
+                       ▼
+              services/pipeline.py
+                       │
+       ┌───────────────┼───────────────┐
+       ▼               ▼               ▼
+   Planner         Executor       Synthesizer (= LLM terminal turn)
+       │               │
+       ▼               ▼
+  call_agentic   ToolRegistry
+   _turn          .get(name).run()
+                       │
+                       ▼
+                  BaseTool subclass
+                  (RetrieveTool, RefinedRetrieveTool, WebSearchTool[placeholder])
 ```
 
-**Current `PgVectorStore` gaps:**
-1. Uses `ivfflat` index → switch to HNSW
-2. Missing `upsert_parent_chunks` / `fetch_parent_chunks`
-3. No per-tenant table namespacing
+## v1.5 architectural changes
 
-## pgvector Multi-Tenancy
+### Change 1 — WebSearchTool real impl (Phase 20 candidate)
 
-**Current approach (Qdrant):** separate collection per tenant — strong isolation, simple.
+**Touch points:**
+- `services/agent/tools/web_search.py` — replace placeholder `run()` body with `AsyncTavilyClient.search()` call
+- `services/pipeline.py:598` — add `"web_search"` to `AGENT_TOOL_ALLOWLIST`
+- `utils/config.py` — add Tavily settings fields
+- `requirements.txt` — pin `tavily-python>=0.7.24,<0.8`
+- `services/agent/tools/web_search.py` — convert Tavily response → `RetrievedChunk` list inside `ToolResult.chunks`
+- `services/generator/generator.py` — UI source rendering already reads `metadata.source` / `metadata.title` so web sources render with no UI change
 
-**pgvector options:**
+**No changes needed in:**
+- `Planner` — will pick `web_search` tool from registry once allowlist permits
+- `Executor` — already dispatches via `ToolRegistry`; no tool-specific code
+- SSE event schema — `tool.span.start/end/error` already covers web_search
+- Frontend `static/ui.js` — already iterates `sources[]` reading `metadata.page_number ?? "?"`; web sources will show `页=?` because there is no page (acceptable; page-not-applicable for web)
 
-| Strategy | Isolation | Complexity | Recommended |
-|----------|-----------|------------|-------------|
-| Separate table per tenant | Strong | High (migrations) | No |
-| Schema per tenant | Strong | Medium | No |
-| Single table + tenant_id filter | Weak (if misconfigured) | Low | Yes + RLS |
-| Single table + RLS | Strong | Medium | **Yes** |
-
-**Recommendation:** Single `embeddings` table + PostgreSQL Row-Level Security (RLS):
-```sql
-ALTER TABLE embeddings ENABLE ROW LEVEL SECURITY;
-CREATE POLICY tenant_isolation ON embeddings
-    USING (tenant_id = current_setting('app.current_tenant')::uuid);
+**Data flow:**
+```
+Planner picks "web_search" → Executor dispatches → WebSearchTool.run(args={"query": ..., "max_results": ...})
+  → AsyncTavilyClient.search(...) → Tavily REST → response dict
+  → for r in response["results"]: build RetrievedChunk(metadata=ChunkMetadata(source=r["url"], title=r["title"], chunk_type="web", page_number=None), content=r["content"])
+  → ToolResult(content=formatted_text, chunks=chunks, metadata={"latency_ms", "query", "tavily_response_time"})
 ```
 
-Set `app.current_tenant` at connection setup per request. RLS enforced at DB level — misconfigurations don't leak data.
+### Change 2 — AGENT-05 verifier role (Phase 21 candidate)
 
-## Singleton Factory → Per-Tenant Registry
+**Touch points:**
+- `services/pipeline.py::SwarmQueryPipeline` — add `run_with_verifier()` method OR add verifier hop inside existing `run()` gated by `req.debate`
+- `utils/models.py::GenerationRequest` — add `debate: bool = False` field
+- `utils/models.py` — add `VerifierStartEvent`, `VerifierCompleteEvent`, `VerifierDisagreementEvent` (extend AgentEvent ABC)
+- `services/agent/verifier.py` (new) — `Verifier` class with `verify(peer_answers: list[SubAgentAnswer], evidence: list[RetrievedChunk]) → VerifierVerdict`
+- `controllers/api.py::agent_run_stream` — yield new event types (no change to event-frame format)
+- `docs/agent-architecture.md` — extend Event Schema Reference with 3 new event types
 
-**Current problem:**
-```python
-@lru_cache()
-def get_vector_store() -> BaseVectorStore:
-    return PgVectorStore(...)  # ONE global instance
+**Verifier sub-agent design:**
+```
+SwarmQueryPipeline (existing v1.3):
+   coordinator → decompose → N sub-agents → asyncio.gather → synthesizer → answer
+                                                                     │
+                                                                     ▼ (v1.5 if req.debate=True)
+                                                              Verifier.verify(peer_answers, evidence)
+                                                                     │
+                                                                     ▼
+                                                           VerifierVerdict(consensus / disagreement)
+                                                                     │
+                                                                     ▼
+                                                              Final synthesizer call (revised)
 ```
 
-A single global instance with a per-request tenant filter is safe with RLS, but the factory must be aware of tenant context. **Fix:**
+The verifier is itself a `BaseLLMClient.call_agentic_turn` invocation — single-shot text-only (no tools). It reads each peer's answer + the chunks they cited, and returns a JSON verdict. If `verdict == "disagree"`, the verifier specifies which peers and why; the synthesizer then re-composes with the disagreement context surfaced.
 
-```python
-_store_registry: dict[str, BaseVectorStore] = {}
+**Why not a new tool:** The verifier reads peer answers, not external sources. Modeling it as a `Tool` would force it through the planner — wrong layer. It's a post-fan-out pipeline stage, like Synthesizer.
 
-async def get_vector_store(tenant_id: str) -> BaseVectorStore:
-    if tenant_id not in _store_registry:
-        _store_registry[tenant_id] = PgVectorStore(tenant_id=tenant_id)
-    return _store_registry[tenant_id]
-```
+### Change 3 — Coverage lift on 5 modules (Phase 22 candidate)
 
-## Image Extraction in Ingestion Pipeline
+**Touch points:**
+- `tests/unit/test_pipeline_coverage.py` (new or extend existing)
+- `tests/unit/test_llm_client_coverage.py` (extend with provider error branches)
+- `tests/unit/test_vector_store_coverage.py` (filter where + JSONB branches)
+- `tests/unit/test_retriever_coverage.py` (rerank SLA + parent_expand)
+- `tests/unit/test_extractor_coverage.py` (OCR vs native + header/footer)
+- **NO production code changes** (v1.3 D-04 lock)
 
-**Fits in Stage 2 (extractor),** not after chunking. The extractor already branches on PDF type.
+**Pattern (from v1.3 Phase 13/15):** Mock at consumer-path (`services.pipeline.get_X`), exercise real module code, only stub external boundaries.
 
-**ExtractedContent model extension:**
-```python
-@dataclass
-class ExtractedImage:
-    page: int
-    bytes: bytes
-    ext: str  # "png", "jpeg", etc.
-    caption: str | None = None  # filled by embedding stage
+## Data flow integrity
 
-@dataclass
-class ExtractedContent:
-    text: str
-    tables: list[Table]
-    images: list[ExtractedImage]  # NEW
-    metadata: dict
-```
+All v1.4 invariants preserved:
+- PostgreSQL RLS isolates tenants on every tool call (web_search has no DB access; AGENT-05 verifier reuses same pool)
+- Audit log carries trace_id + tenant_id + tool_name; web_search and verifier add new tool_name values, schema unchanged
+- JWT/auth middleware applies to new endpoints (none added — debate piggybacks on existing routes)
+- Combined coverage `--fail-under=70` global floor + per-module 70% on the 5 lifted modules
 
-**Pipeline flow with images:**
-```
-Stage 2 (extractor): PDF → text + tables + images (bytes)
-Stage 3 (PII):       scan text + image captions
-Stage 4 (chunker):   text chunks + image chunks (caption as text)
-Stage 5 (vectorizer): embed all chunks uniformly
-```
+## Suggested build order (informs roadmap)
 
-Image chunks use `chunk_type="image"` discriminator; raw bytes stored as base64 in chunk metadata.
+1. **WebSearchTool real impl** — independent, smallest, highest leverage; ship first to validate Tavily integration end-to-end
+2. **AGENT-05 verifier** — depends on v1.4 SwarmQueryPipeline being available (it is); ship second
+3. **Coverage lift** — independent of feature work; can run in parallel with #2 in dev, but bench separately to keep PR scope clean
 
-## Async Task Tracking Pattern
-
-**Job lifecycle:**
-```
-POST /ingest/async
-  → create job_id (UUID)
-  → store Redis key: job:{job_id} = {"status": "queued", "tenant_id": ...} TTL 86400
-  → enqueue background task
-  → return {"task_id": job_id, "status": "queued"}
-
-Background task runs:
-  → update Redis: status = "processing"
-  → run IngestionPipeline
-  → update Redis: status = "completed" | "failed", result/error
-
-GET /ingest/status/{job_id}
-  → read Redis key: job:{job_id}
-  → return status + result/error
-```
-
-**Redis key pattern:** `job:{job_id}` — use existing `utils/cache.py` Redis client, no new connection pool needed.
-
-**Implementation options:**
-1. **ARQ** (recommended for heavy load) — full task queue with retry, persistence, worker pool
-2. **asyncio.create_task + Redis** (simpler) — fire-and-forget with Redis for status; no retry on crash
-
-## Build Order
-
-1. **Fix pgvector backend** — HNSW index + missing methods + per-tenant registry (unblocks everything)
-2. **Extend BaseVectorStore ABC** — ParentChunkStore Protocol (parallel with 1)
-3. **Image extraction in Stage 2** — `ExtractedImage` model + PyMuPDF extraction (parallel with 1-2)
-4. **Image chunking in Stage 4** — depends on Stage 2 changes
-5. **Async job tracking** — independent of all above, can ship any time
-
-## Sources
-
-- pgvector RLS patterns: https://github.com/pgvector/pgvector
-- PostgreSQL RLS: https://www.postgresql.org/docs/current/ddl-rowsecurity.html
-- FastAPI background tasks: https://fastapi.tiangolo.com/tutorial/background-tasks/
-- ARQ: https://arq-docs.helpmanual.io/
+Phase numbering continues from 19: **Phase 20** = WebSearch, **Phase 21** = AGENT-05 verifier, **Phase 22** = Coverage lift.

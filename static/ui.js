@@ -25,7 +25,10 @@
       (j.data.sources || []).forEach((s, i) => {
         const m = s.metadata || {};
         const score = s.final_score || s.rerank_score || s.rrf_score || s.dense_score || 0;
-        h += '<div class="source"><div class="meta">来源' + (i+1) + ' · 页=' + (m.page_number ?? '?') + ' · 类型=' + (m.chunk_type || '?') + ' · score=' + score.toFixed(3) + '</div>';
+        const locator = (m.chunk_type === 'web')
+          ? 'URL=' + esc(hostOf(m.source))
+          : '页=' + (m.page_number ?? '?');
+        h += '<div class="source"><div class="meta">来源' + (i+1) + ' · ' + locator + ' · 类型=' + (m.chunk_type || '?') + ' · score=' + score.toFixed(3) + '</div>';
         h += '<div>' + esc(s.content) + '</div>';
         if(m.image_b64) h += '<img src="data:image/png;base64,' + m.image_b64 + '">';
         h += '</div>';
@@ -40,6 +43,11 @@
 
   function esc(s){
     return (s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function hostOf(url){
+    try { return new URL(url).host; }
+    catch(e) { return '?'; }
   }
 
   document.addEventListener('DOMContentLoaded', () => {

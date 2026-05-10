@@ -1,147 +1,131 @@
-# Pitfalls Research
+# PITFALLS — v1.5 Web Search + Multi-Agent Debate + Coverage Lift
 
-## Summary
+*Generated 2026-05-10 inline. Common mistakes when ADDING these features to existing system.*
 
-pgvector's IVFFlat index is the most common migration trap — it requires a post-load rebuild phase that breaks incremental ingest. Multi-tenant data leakage via missing `tenant_id` filters is the most common RAG production failure. Broad exception swallowing in async Python is especially dangerous because asyncio silently drops unhandled exceptions from background tasks. Eval dataset quality issues compound: a contaminated or imbalanced dataset gives false confidence in RAG quality.
+## WebSearchTool real impl pitfalls
 
-## pgvector Migration Traps
+### P-01: Leaking Tavily API key into git / logs / SSE
 
-**IVFFlat vs HNSW:**
-- IVFFlat requires `VACUUM ANALYZE` after bulk inserts before recall is accurate — don't benchmark until after
-- IVFFlat recall degrades with incremental inserts (lists become unbalanced); HNSW handles incremental correctly
-- **Use HNSW by default** — only use IVFFlat for very large static datasets
+**Mistake:** Hardcode key in `.env.docker` (committed) or echo it in logs / SSE error events.
+**Prevention:**
+- Key lives ONLY in `.env` (gitignored); `.env.docker` uses `TAVILY_API_KEY=${TAVILY_API_KEY:-}` substitution
+- Settings reads `os.environ["TAVILY_API_KEY"]`; never logs the value
+- Tavily error path returns generic message, not the raw `httpx.Response.headers` (which may echo auth)
+- Pre-commit hook scans for `tvly-` prefix matches
+**Phase:** WebSearch impl (Phase 20)
 
-**Memory configuration:**
-```sql
-SET work_mem = '256MB';  -- per-connection, needed for HNSW build
-```
-Without this, pgvector falls back to disk-based build and becomes 10-100x slower.
+### P-02: Sync `TavilyClient` in async pipeline = thread blocking
 
-**Multi-tenancy + filtering:**
-- Using `WHERE tenant_id = ?` alongside a vector index on the full table forces a full index scan + post-filter
-- For large tenant counts: partition by `tenant_id` or use separate tables
-- RLS with `current_setting('app.current_tenant')` is enforced at DB level — safest approach
+**Mistake:** Use `TavilyClient(...).search(...)` (sync) inside `async def run(...)`. Blocks event loop, kills concurrency.
+**Prevention:** Always `AsyncTavilyClient(...)` + `await client.search(...)`.
+**Phase:** WebSearch impl
 
-**UPDATE vs DELETE+INSERT:**
-- HNSW indexes accumulate dead entries on UPDATE (vectors can't be updated in-place)
-- Always DELETE the old vector + INSERT a new one; run periodic `REINDEX` on large deployments
+### P-03: Tavily 5xx / timeout = unhandled `httpx.HTTPError` propagating into orchestrator
 
-**Migration verification:**
-- Run recall@10 comparison: Qdrant vs pgvector on the same query set before cutover
-- Target: recall within 5% of Qdrant baseline
+**Mistake:** Let exception escape `WebSearchTool.run()`. v1.4 `Executor` wraps with `BaseException` isolation, but error trace pollutes audit log.
+**Prevention:** Tenacity `@retry(stop=stop_after_attempt(3), wait=wait_random_exponential(multiplier=1, max=10), reraise=True)` decorator on the search call; final-attempt failure → `_build_error_result(exc)` returning `ToolResult(metadata={"error": True, "kind": "web_search_failed"})`.
+**Phase:** WebSearch impl
 
-## RAG Security Failure Modes
+### P-04: Tavily quota exhausted mid-day → silent failures
 
-**Tenant data leakage (most common):**
-- Pattern: chat endpoint has auth + tenant filter, but the retrieval endpoint (`/search`, `/query`) does not
-- Result: unauthenticated callers can retrieve documents from other tenants via the retrieval API
-- Fix: enforce tenant filter at the vector store query level, not just the API layer
+**Mistake:** Tavily returns 429 → user gets cryptic "Internal server error".
+**Prevention:** Map Tavily 429 to a specific error result with `metadata={"error": True, "kind": "quota_exhausted"}`; orchestrator surfaces to LLM in next turn so synthesizer can degrade gracefully ("web search unavailable, answering from knowledge base only").
+**Phase:** WebSearch impl
 
-**Adversarial content in retrieved context:**
-- Retrieved document chunks can contain instructions that influence LLM behavior
-- Defense: system prompt must assert its authority over retrieved content; retrieved chunks should be framed as "external data" not "instructions"
-- Never interpolate retrieved content directly into the system prompt
+### P-05: Tavily snippet ≠ full document → faithfulness eval breaks
 
-**Default credentials in non-production environments:**
-- Staging environments sharing the production JWT secret is a common misconfiguration
-- Fix: generate secrets per-environment at deploy time, validate entropy at startup
+**Mistake:** RAGAS faithfulness check assumes citations have full retrievable content. Tavily `content` is a snippet.
+**Prevention:** Don't run RAGAS faithfulness over web_search chunks; tag `chunk_type="web"` and skip them in faithfulness scoring; OR run faithfulness only when source contains `[来源N]` referring to web_search by fetching full content via Tavily Extract API (defer; not v1.5 scope).
+**Phase:** WebSearch impl
 
-**Unguarded admin endpoints:**
-- Admin routes (annotation, knowledge versioning, A/B config) are high-value targets
-- Verify every admin route has both authentication AND authorization checks
+### P-06: Web sources rendered with `页=?` confuses users
 
-## Broad Exception Handling Anti-patterns
+**Mistake:** v1.4.2 fix made `页=` show real numbers; web sources have no page → still shows `?`.
+**Prevention:** Frontend `static/ui.js` change: when `chunk_type === "web"`, render `URL=<host>` instead of `页=?`. Backward-compatible (existing PDF chunks unchanged).
+**Phase:** WebSearch impl (small UI follow-up)
 
-**The core problem:**
-```python
-# WRONG — swallows errors silently
-try:
-    result = await pipeline.run(doc)
-except Exception:
-    pass  # or: logger.error("failed") and return None
+## AGENT-05 verifier pitfalls
 
-# RIGHT — narrow catch, always re-raise or explicitly handle
-try:
-    result = await pipeline.run(doc)
-except VectorizationError as e:
-    await audit_log.record_failure(doc.id, e)
-    raise  # let the caller decide
-except PipelineConfigError as e:
-    raise HTTPException(status_code=500, detail=str(e))
-```
+### P-07: Verifier sees both peer answers AND chunks → can hallucinate "verified" content not in evidence
 
-**asyncio background tasks silently drop exceptions:**
-```python
-# WRONG — exceptions from create_task() are silently dropped
-asyncio.create_task(some_coroutine())
+**Mistake:** Verifier prompt encourages composing from peer answers (text), bypassing chunk evidence check.
+**Prevention:** Verifier system prompt explicitly forbids inventing facts not in chunks; verifier output JSON requires `evidence_chunk_ids: list[str]` per claim; if verdict is `agree` but `evidence_chunk_ids == []`, treat as disagreement.
+**Phase:** AGENT-05 (Phase 21)
 
-# RIGHT — always attach a done callback
-task = asyncio.create_task(some_coroutine())
-task.add_done_callback(lambda t: t.exception() and logger.error("Task failed", exc_info=t.exception()))
-```
+### P-08: Verifier latency × N peer answers blows iteration budget
 
-**Rules for replacing broad catches:**
-1. Catch only exceptions you can handle meaningfully
-2. If you can't handle it, re-raise
-3. Never catch `BaseException` (catches `KeyboardInterrupt`, `SystemExit`)
-4. Log with full context before re-raising, not after swallowing
+**Mistake:** Run verifier per peer answer in series → swarm latency = sum(peer) + N × verifier.
+**Prevention:** Single verifier call sees ALL N peer answers + all evidence in one prompt; latency = max(peer) + 1 × verifier. Per v1.4 Phase 18 latency invariant ("max not sum").
+**Phase:** AGENT-05
 
-## Rate Limiting Pitfalls in FastAPI
+### P-09: Verifier disagreement = always re-synthesize → infinite loop risk
 
-**Starlette middleware is LIFO:**
-- Middleware added last executes first
-- Rate limiting middleware must be added AFTER auth middleware in code (so it runs BEFORE auth in execution)
-- Wrong order = rate limiter never sees authenticated user identity
+**Mistake:** On disagreement, kick another planner-loop → planner asks more tools → more peers → more disagreement → cap blown.
+**Prevention:** Verifier runs ONCE per swarm. If disagreement, synthesizer composes a "answers diverge: peer 1 says X, peer 3 says Y, evidence supports peer 3" final response. No re-planning loop. v1.6+ may add iterative debate.
+**Phase:** AGENT-05
 
-**In-process state is shared across test instances:**
-```python
-# WRONG — TestClient instances share in-process limiter state
-client1 = TestClient(app)
-client2 = TestClient(app)  # shares rate limit counters with client1
+### P-10: AGENT-05 SSE events break existing frontend EventSource handlers
 
-# RIGHT — use Redis backend + flush between tests
-@pytest.fixture(autouse=True)
-async def flush_rate_limits(redis):
-    await redis.flushdb()  # or use a test-specific key prefix
-    yield
-```
+**Mistake:** Add new event types without backward-compat shim → frontend ignores them silently.
+**Prevention:** New events `verifier.start/complete/disagreement` are additive; existing `synthesizer.final` still emits last; EventSource `addEventListener('synthesizer.final', ...)` remains the terminal. Document new events as "optional, debate-mode-only".
+**Phase:** AGENT-05
 
-**Middleware constructors must not open async connections:**
-- Opening Redis connections in `__init__` of a middleware class fails because `__init__` is synchronous
-- Open connections in `async def __call__` on first use, or via FastAPI lifespan
+### P-11: Verifier prompt template baked in English → mismatched language with user query
 
-**`slowapi` decorator requirement:**
-- `@limiter.limit("N/minute")` decorator is required on each route
-- Global `app.state.limiter` registration only handles the exception response — it does not apply any limit on its own
+**Mistake:** Hardcode `"You are a verifier..."` in English; user query is Chinese; verdict mixes languages.
+**Prevention:** Mirror v1.4 planner system prompt convention — instruct LLM to write `final_answer` in user query language; verifier system prompt itself can be Chinese for this project.
+**Phase:** AGENT-05
 
-## Eval Dataset Construction Mistakes
+## Coverage lift pitfalls
 
-**Contamination:**
-- Never generate eval QA pairs from documents that are also in the retrieval index
-- Hold out 20% of documents as eval-only — these must never be ingested
-- Re-validate after every index refresh that eval documents haven't leaked in
+### P-12: Mock-at-source pattern leaks into v1.5 tests
 
-**Distribution bias:**
-- 10 pairs from one document type will have near-zero variance — not a meaningful signal
-- Stratify by: document type, topic category, answer length, required reasoning depth
+**Mistake:** `@patch("services.retriever.retriever._retrieve_impl")` (mock-at-source) — tests don't actually exercise real module code.
+**Prevention:** Mock at consumer path: `@patch("services.pipeline.get_retriever")`. v1.3 Phase 13 / Phase 15 lock this; v1.5 inherits.
+**Phase:** Coverage lift (Phase 22)
 
-**Imbalance:**
-- Include ~20% "unanswerable" questions (no relevant context in the index)
-- Measuring only answerable questions inflates faithfulness scores
+### P-13: Coverage lift forces production-code changes (e.g., adding `if TYPE_CHECKING`)
 
-**Multi-annotator quality:**
-- Require inter-annotator agreement (kappa > 0.7) before accepting human-labeled pairs
-- LLM-generated pairs need human review for factual correctness before use as ground truth
+**Mistake:** Module has untestable static block (e.g., `_engine = create_engine(...)` at module top); to test it, refactor to lazy init → production change.
+**Prevention:** v1.3 D-04 prohibits this. Accept untestable static-import lines; cover the function bodies. If <70% achievable on a module without prod changes, document as accepted in phase SUMMARY.
+**Phase:** Coverage lift
 
-**Automation:**
-```
-ragas.testset.TestsetGenerator  # generate synthetic QA from existing docs
-```
-Bootstrap 200 pairs from ingested documents using LLM generation, then human-review a 20% sample. This is faster than manual construction from scratch.
+### P-14: pytest-asyncio fixture scope clash → flaky tests
 
-## Sources
+**Mistake:** Mix `scope="module"` and `scope="function"` event_loop fixtures → "Event loop is closed" intermittent.
+**Prevention:** Project uses `asyncio_mode = "auto"` in pytest.ini; do NOT redeclare event_loop fixture in v1.5 test files; use `@pytest_asyncio.fixture` for fixture-yielding async setup.
+**Phase:** Coverage lift
 
-- pgvector performance guide: https://github.com/pgvector/pgvector#performance
-- RAGAS eval: https://docs.ragas.io/en/latest/concepts/testset_generation.html
-- asyncio exception handling: https://docs.python.org/3/library/asyncio-task.html#asyncio.Task.add_done_callback
-- slowapi docs: https://slowapi.readthedocs.io/en/latest/
+### P-15: Heavy-mock test files give false 70% reading
+
+**Mistake:** Mock everything → coverage line counters tick up but logic isn't actually exercised; mutations would survive.
+**Prevention:** Each new test file include ≥ 1 happy-path test that exercises a real branch end-to-end with only external boundaries mocked. v1.3 Phase 13 pattern.
+**Phase:** Coverage lift
+
+## Cross-cutting pitfalls
+
+### P-16: New env var added but Docker compose forgets to pass it
+
+**Mistake:** `requirements.txt` adds `tavily-python`, code reads `os.environ["TAVILY_API_KEY"]`, but `.env.docker` and compose `environment:` block don't reference it → settings load with empty key → silent feature-off.
+**Prevention:** Single source of truth — settings reads via Pydantic Settings + `.env` chain; compose `env_file: .env.docker` already loads everything; just ensure `.env.docker` has the placeholder line.
+**Phase:** WebSearch impl
+
+### P-17: Settings validator missing → empty key passes silently
+
+**Mistake:** `tavily_api_key: str = ""` allows empty; tool runs and gets 401; user thinks system is broken.
+**Prevention:** WebSearchTool.run() first checks `if not settings.tavily_api_key: return ToolResult(metadata={"error": True, "kind": "tavily_disabled", "message": "TAVILY_API_KEY not configured"})`. Clear error path; tool degrades gracefully when unconfigured.
+**Phase:** WebSearch impl
+
+### P-18: Forgetting to clear Redis query cache after pipeline change
+
+**Mistake:** v1.4.2 lesson — after rebuilding, old cached responses still served stale data.
+**Prevention:** Each phase SUMMARY includes a "ops checklist" line: `redis-cli --scan --pattern 'rag:query:*' | xargs redis-cli del` if pipeline behavior changed.
+**Phase:** All v1.5 phases
+
+## Watch list (by phase)
+
+| Phase | Top-3 pitfalls to call out in DISCUSSION-LOG |
+|---|---|
+| Phase 20 (WebSearch) | P-01 (key handling), P-03 (error path), P-06 (UI render) |
+| Phase 21 (AGENT-05) | P-07 (verifier hallucination), P-09 (no infinite loop), P-10 (SSE backward-compat) |
+| Phase 22 (Coverage lift) | P-12 (mock pattern), P-13 (no prod changes), P-15 (real branches) |

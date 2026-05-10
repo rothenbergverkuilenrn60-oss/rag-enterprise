@@ -1,0 +1,28 @@
+# .pre-commit-config.yaml — Phase 20 SC5 (TAVILY_API_KEY leak prevention).
+#
+# To enable locally: pip install pre-commit && pre-commit install
+# CI enforcement is unconditional via tests/unit/test_secret_redaction_smoke.py
+# (the hook is defence-in-depth; the smoke test is the line of defence).
+
+repos:
+  - repo: local
+    hooks:
+      - id: forbid-tavily-key
+        name: Forbid TAVILY_API_KEY (tvly-...) in staged tracked files
+        description: Block commits introducing a `tvly-` prefix anywhere in tracked source.
+        entry: |
+          bash -c 'set -e; FILES=$(git diff --cached --name-only --diff-filter=ACM); if [ -z "$FILES" ]; then exit 0; fi; HITS=$(echo "$FILES" | xargs grep -lE "tvly-[A-Za-z0-9]" 2>/dev/null || true); if [ -n "$HITS" ]; then echo "ERROR - tvly- prefix detected in staged files"; echo "$HITS"; echo "Phase 20 SC5 - TAVILY_API_KEY MUST NOT enter tracked files. See .planning/phases/20-websearchtool-real-implementation-tavily/20-CONTEXT.md D-15."; exit 1; fi'
+        language: system
+        pass_filenames: false
+        always_run: true
+        # Exclude allowlisted paths. Mirrors smoke-test allowlists in
+        # tests/unit/test_secret_redaction_smoke.py (_ALLOWLIST + _ALLOWLIST_DIR_PREFIXES)
+        # exactly, preserving regex strength against arbitrary `tvly-X` content
+        # elsewhere in the tree (revision 2026-05-10, locked via Plan 20-05
+        # Task 3 resolution: --exclude path-based, NOT regex-tightening).
+        #
+        # Allowlisted:
+        #   - tests/unit/test_web_search_tool.py: `tvly-LEAK` redaction fixture (Plan 20-02)
+        #   - .planning/: doc references to the regex + `tvly-LEAK` (planning prose only;
+        #     code review catches real-key paste; smoke test mirrors this prefix)
+        exclude: ^(tests/unit/test_web_search_tool\.py|\.planning/)

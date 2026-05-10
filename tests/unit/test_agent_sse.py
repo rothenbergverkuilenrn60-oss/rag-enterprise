@@ -35,7 +35,6 @@ from utils.models import (
     ToolSpanStartEvent,
 )
 
-
 # ── helpers ────────────────────────────────────────────────────────────
 
 def _req(query: str = "q") -> GenerationRequest:

@@ -52,6 +52,6 @@ Key files for Phase 1:
 
 ## Environment
 
-- WSL2 + Miniconda `torch_env`
+- WSL2 + uv (`uv venv`, `uv add <pkg>`, `uv run <script>`)
 - `MODEL_DIR` must be set via env var (not hardcoded — OPS-01 requirement)
 - PostgreSQL + pgvector required for Phase 1+

@@ -32,7 +32,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-
 # ─── _translate_tool_result_message helper unit tests ─────────────────────────
 
 

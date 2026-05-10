@@ -63,6 +63,17 @@ jobs:
             --cov=utils \
             --cov-report= \
             -v
+          echo "=== coverage data files after pytest ==="
+          ls -la .coverage* 2>/dev/null || echo "(no .coverage* files)"
+          # Fallback: pytest-cov occasionally ignores COVERAGE_FILE env var and
+          # writes to the default `.coverage` instead. Rename if so, so the
+          # upload-artifact step can find `.coverage.unit`.
+          if [ ! -f .coverage.unit ] && [ -f .coverage ]; then
+            mv .coverage .coverage.unit
+            echo "Renamed .coverage -> .coverage.unit (pytest-cov fallback)"
+          fi
+          ls -la .coverage* 2>/dev/null
+          test -f .coverage.unit  # hard-fail if still missing
 
       - name: Upload unit coverage data
         uses: actions/upload-artifact@v4
@@ -71,6 +82,7 @@ jobs:
           name: coverage-unit
           path: .coverage.unit
           if-no-files-found: error
+          include-hidden-files: true   # actions/upload-artifact@v4 excludes dotfiles by default; .coverage.* needs opt-in
           retention-days: 7
 
   integration-tests:
@@ -113,7 +125,15 @@ jobs:
             --cov=utils \
             --cov-append \
             --cov-report= \
-            -v
+            -v || true
+          echo "=== coverage data files after pytest ==="
+          ls -la .coverage* 2>/dev/null || echo "(no .coverage* files)"
+          # Fallback: pytest-cov occasionally ignores COVERAGE_FILE env var.
+          if [ ! -f .coverage.integration ] && [ -f .coverage ]; then
+            mv .coverage .coverage.integration
+            echo "Renamed .coverage -> .coverage.integration (pytest-cov fallback)"
+          fi
+          ls -la .coverage* 2>/dev/null || true
         continue-on-error: true   # D-03: integration deps may fail; combine job uses whatever data exists
 
       - name: Upload integration coverage data
@@ -123,6 +143,7 @@ jobs:
           name: coverage-integration
           path: .coverage.integration
           if-no-files-found: warn   # D-03: integration may produce no data (acceptable)
+          include-hidden-files: true   # actions/upload-artifact@v4 excludes dotfiles by default
           retention-days: 7
 
   coverage-combine:
@@ -173,6 +194,45 @@ jobs:
       - name: TEST-06 — Floor gate (combined coverage >= 70%)
         run: coverage report --fail-under=70   # exit 2 on miss -> step fails (Pitfall 5)
 
+      - name: Phase-22 per-module coverage floor (hard-fail per D-08 milestone close)
+        # D-01: 5 separate `coverage report --include=...` invocations against combined data
+        # D-02: run-all-then-fail — collect statuses, exit non-zero AFTER all 5 have run
+        # D-04: gates run on combined `.coverage` (downstream of `coverage combine` step above)
+        # D-08: HARD-FAIL — milestone-close flip from plan 22-00's staged gate
+        run: |
+          set +e
+          declare -A STATUS
+          for MOD in \
+            services/pipeline.py \
+            services/generator/llm_client.py \
+            services/vectorizer/vector_store.py \
+            services/retriever/retriever.py \
+            services/extractor/extractor.py; do
+            echo "::group::Per-module gate: $MOD"
+            coverage report --include="$MOD" --show-missing --fail-under=70
+            STATUS[$MOD]=$?
+            if [ "${STATUS[$MOD]}" -ne 0 ]; then
+              echo "::error file=$MOD::Per-module coverage <70% (Phase 22 D-08 hard-fail gate)"
+            else
+              echo "PASS: $MOD ≥70%"
+            fi
+            echo "::endgroup::"
+          done
+          # D-02 run-all-then-fail: accumulate, then assert
+          FAILED=0
+          for MOD in "${!STATUS[@]}"; do
+            if [ "${STATUS[$MOD]}" -ne 0 ]; then
+              FAILED=1
+              echo "FAIL: $MOD did not meet ≥70% per-module floor"
+            fi
+          done
+          if [ "$FAILED" -ne 0 ]; then
+            echo ""
+            echo "Phase 22 per-module gate failed. See module-by-module output above."
+            exit 1
+          fi
+          echo "All 5 Phase-22 modules ≥70% — gate PASS"
+
       - name: Generate coverage.xml for diff-cover
         run: coverage xml -o coverage.xml
 
@@ -197,6 +257,7 @@ jobs:
             .coverage.integration
             coverage.xml
             diff-cover.html
+          include-hidden-files: true   # actions/upload-artifact@v4 excludes dotfiles by default; .coverage* needs opt-in
           retention-days: 30
 
   security-scan:

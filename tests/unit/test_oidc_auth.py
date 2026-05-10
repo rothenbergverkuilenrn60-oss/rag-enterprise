@@ -131,6 +131,7 @@ def test_verify_local_jwt_missing_sub_returns_none(monkeypatch):
     """Error path: payload without sub → None."""
     svc = _make_svc()
     from jose import jwt as jose_jwt
+
     from config.settings import settings as real_settings
     token = jose_jwt.encode(
         {"exp": int(time.time()) + 3600},

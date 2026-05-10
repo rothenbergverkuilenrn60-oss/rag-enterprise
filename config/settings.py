@@ -273,6 +273,10 @@ class Settings(BaseSettings):
     openai_model:       str   = "gpt-4o"
     anthropic_api_key:  str   = ""
     anthropic_model:    str   = "claude-sonnet-4-6"
+    # Tavily web search (Phase 20, AGENT-10) ───────────────────────────────────
+    tavily_api_key:        str = ""
+    tavily_search_depth:   str = "basic"   # SDK accepts: basic | fast | advanced | ultra-fast
+    tavily_max_results:    int = 5
     # Azure OpenAI（llm_provider="azure" 时生效）
     azure_openai_endpoint:    str = ""   # e.g. https://your-resource.openai.azure.com/
     azure_openai_api_version: str = "2024-02-01"
@@ -281,6 +285,13 @@ class Settings(BaseSettings):
     llm_max_tokens:     int   = 2048
     llm_context_window: int   = 8192   # 粗略估算上下文窗口，超出时截断输入
     llm_stream:         bool  = True
+    # Verifier sub-agent (Phase 21, AGENT-05) ──────────────────────────────────
+    # verifier_provider="openai"|"anthropic" overrides peer provider; None = reuse.
+    # verifier_model is reserved (per-call model override not wired in v1.5; see
+    # 21-RESEARCH.md Pitfall P-09 / Assumption A3). Plan 21-05 logs it in audit
+    # metadata; Plan 21-03 does NOT consume verifier_model in v1.5.
+    verifier_model:    str | None = None
+    verifier_provider: Literal["openai", "anthropic"] | None = None
 
     # ══════════════════════════════════════════════════════════════════════════
     # Swarm（Fork-Agent — AGENT-03）

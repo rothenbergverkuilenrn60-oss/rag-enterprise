@@ -26,7 +26,13 @@ from services.agent.executor import Executor
 from services.agent.planner import Planner
 from services.agent.tools.base import BaseTool
 from services.agent.tools.registry import ToolRegistry
-from utils.models import AgenticTurn, GenerationRequest, ToolCall, ToolContext, ToolResult
+from utils.models import (
+    AgenticTurn,
+    GenerationRequest,
+    ToolCall,
+    ToolContext,
+    ToolResult,
+)
 
 FIXTURES = Path(__file__).parent / "fixtures" / "agent_parity"
 

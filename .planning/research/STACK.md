@@ -1,109 +1,72 @@
-# Stack Research
+# STACK — v1.5 Web Search + Multi-Agent Debate + Coverage Lift
 
-## Summary
+*Generated 2026-05-10 inline (no subagent — `agents_installed: false`). Supersedes prior milestone research.*
 
-Key libraries are largely already pinned in `requirements.txt`. pgvector adds only 3 new packages (`pgvector`, `SQLAlchemy 2.0`, `alembic`). PyMuPDF for image extraction is already present. ARQ is the right async task queue — uses existing Redis infrastructure with zero new services. Image embedding uses caption-then-embed via the already-integrated LLM, keeping the vector space uniform.
+## Existing capabilities (DO NOT re-research)
 
-## pgvector Setup (Python)
+- Python 3.11 / FastAPI / asyncpg / Pydantic V2 (frozen models, `model_config = ConfigDict(frozen=True)`)
+- LLM adapters: Anthropic (`anthropic>=0.39`), OpenAI (`openai>=1.50`), Ollama; provider-neutral `BaseLLMClient.call_agentic_turn`
+- Tenacity for retry/backoff (used in v1.0+ for all external calls)
+- pytest + pytest-asyncio + pytest-cov; combined coverage `--fail-under=70`; diff-cover `--fail-under=80` on touched files
+- v1.4 `BaseTool` ABC + `ToolRegistry` + `AGENT_TOOL_ALLOWLIST` constant in `services/pipeline.py`
+- v1.4 `Planner` / `Executor` / `Synthesizer` triad behind frozen Pydantic V2 contracts (`ToolPlan`, `ToolCall`, `ToolResult`)
+- v1.3 `SwarmQueryPipeline` — coordinator decomposes → N independent sub-agents via `asyncio.gather` → synthesis LLM produces unified answer
 
-**Add to requirements.txt:**
-```
-pgvector==0.3.6          # SQLAlchemy Vector type + asyncpg codec
-SQLAlchemy==2.0.36       # async ORM engine (AsyncSession, AsyncEngine)
-alembic==1.14.0          # schema migrations for vector column
-```
+## NEW dependencies for v1.5
 
-**asyncpg 0.30.0 already pinned.** Critical setup:
+### `tavily-python` (WebSearchTool real impl)
+
+| Field | Value |
+|---|---|
+| **Package** | `tavily-python` (PyPI) |
+| **Latest** | 0.7.24 (Apr 27, 2026) |
+| **Async client** | `AsyncTavilyClient(api_key=...)` — use this; project pipeline is async-throughout |
+| **Custom transport** | Accepts `httpx.AsyncClient` for proxy / gateway / auth headers |
+| **Auth** | `api_key="tvly-..."` from env `TAVILY_API_KEY` |
+| **Quota** | 1000 free credits/month; 1 credit per basic/fast/ultra-fast search; 2 per advanced |
+| **API base** | `https://api.tavily.com/search` (REST) — SDK wraps this |
+
+### `tavily-python` core API used in v1.5
+
 ```python
-from pgvector.asyncpg import register_vector
+from tavily import AsyncTavilyClient
 
-async def init_connection(conn):
-    await register_vector(conn)
-
-engine = create_async_engine(
-    DATABASE_URL,
-    connect_args={"init": init_connection}
+client = AsyncTavilyClient(api_key=settings.tavily_api_key)
+response = await client.search(
+    query="...",
+    search_depth="basic",     # basic | fast | advanced | ultra-fast
+    max_results=5,
+    include_answer=False,     # let our synthesizer compose; don't double-summarize
+    include_raw_content=False,
+    include_domains=None,
+    exclude_domains=None,
 )
+# response shape:
+# {"query": str,
+#  "results": [{"title", "url", "content", "score", "raw_content", "favicon"}, ...],
+#  "response_time": str}
 ```
 
-**Index choice:** Use HNSW (not ivfflat) for production:
-```sql
-CREATE INDEX ON embeddings USING hnsw (embedding vector_cosine_ops);
-```
-HNSW (pgvector ≥ 0.5.0) handles incremental ingestion without a post-load ANALYZE phase. Matches Qdrant's behavior.
+### Optional addition — none
 
-## Image Extraction from PDFs
+No additional packages for AGENT-05 debate. The verifier role reuses existing `BaseLLMClient.call_agentic_turn` + `asyncio.gather` + `SwarmQueryPipeline` infrastructure. Coverage lift uses only existing pytest stack.
 
-**PyMuPDF 1.25.1 already pinned** — no new dependency needed.
+## Integration with existing config
 
-```python
-import fitz  # PyMuPDF
+- `.env` (gitignored): `TAVILY_API_KEY=tvly-...` (user provides; **never** committed)
+- `.env.docker`: `TAVILY_API_KEY=${TAVILY_API_KEY:-}` placeholder for compose
+- `utils/config.py` (Pydantic Settings): add `tavily_api_key: str = ""` + `tavily_search_depth: str = "basic"` + `tavily_max_results: int = 5`
+- `requirements.txt`: append `tavily-python>=0.7.24,<0.8`
+- `Dockerfile`: rebuild required (new dependency)
 
-def extract_images(pdf_path: str) -> list[dict]:
-    doc = fitz.open(pdf_path)
-    images = []
-    for page in doc:
-        for img_ref in page.get_images():
-            xref = img_ref[0]
-            img = doc.extract_image(xref)
-            images.append({
-                "bytes": img["image"],
-                "ext": img["ext"],
-                "page": page.number
-            })
-    return images
-```
+## What NOT to add
 
-**License note:** PyMuPDF is AGPL-3.0. Enterprise on-premise deployment may require a commercial Artifex license — needs legal review.
+- Custom HTTP client for Tavily — use the SDK's `AsyncTavilyClient`; saves us auth/retry/error mapping
+- Generic web-search abstraction layer (SerpAPI/Brave/Tavily switching) — premature; v1.5 ships Tavily only, abstraction emerges if a second provider is added
+- Memory storage for AGENT-05 debate transcripts — debate trace flows through existing SSE; persistence is `/office-hours` v1.6 work
 
-## Async Task Tracking in FastAPI
+## References
 
-**ARQ** is the correct fit — uses Redis already in the stack, zero new infrastructure.
-
-```
-arq==0.26.1
-```
-
-**Pattern:**
-```python
-# POST /ingest/async — returns job_id immediately
-async def ingest_async(file: UploadFile, redis: Redis = Depends(get_redis)):
-    pool = await create_pool(RedisSettings.from_url(REDIS_URL))
-    job = await pool.enqueue_job("ingest_document", file_bytes, tenant_id)
-    return {"task_id": job.job_id, "status": "queued"}
-
-# GET /tasks/{task_id} — poll status
-async def get_task_status(task_id: str, redis: Redis = Depends(get_redis)):
-    job = Job(task_id, redis)
-    status = await job.status()
-    return {"task_id": task_id, "status": status.value}
-```
-
-ARQ worker runs as a separate Docker Compose service using the same Redis instance.
-
-**Alternative (lighter):** For simple fire-and-forget without a worker process, use `asyncio.create_task()` + Redis key `job:{task_id}` with TTL 24h. Simpler but loses task queue guarantees (no retry, no persistence across restart).
-
-## Image Embedding Strategy
-
-**Recommendation: caption-then-embed** (no new model infrastructure).
-
-```python
-# 1. Extract image bytes from PDF
-# 2. Send to existing LLM (Claude/GPT-4o) with vision capability
-caption = await llm.generate(prompt="Describe this image concisely", image=img_bytes)
-# 3. Embed the caption text using existing BGE-M3 embedder
-embedding = embedder.encode(caption)
-# 4. Store with chunk_type="image" discriminator
-chunk = Chunk(text=caption, embedding=embedding, chunk_type="image", raw_image_b64=...)
-```
-
-**Fallback:** CLIP (`clip-ViT-B-32` via `sentence-transformers`, already pinned) if LLM captioning cost is prohibitive at scale.
-
-**Cost consideration:** Caption generation via LLM API adds cost at ingestion time. Benchmark before committing — CLIP fallback is zero additional cost.
-
-## Sources
-
-- pgvector Python package: https://github.com/pgvector/pgvector-python
-- ARQ docs: https://arq-docs.helpmanual.io/
-- PyMuPDF docs: https://pymupdf.readthedocs.io/
-- pgvector HNSW indexing: https://github.com/pgvector/pgvector#hnsw
+- Tavily Python SDK: https://github.com/tavily-ai/tavily-python
+- Tavily Search API: https://docs.tavily.com/documentation/api-reference/endpoint/search
+- Tavily Pricing: https://docs.tavily.com/documentation/api-credits

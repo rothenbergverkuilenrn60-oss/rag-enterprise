@@ -1,119 +1,73 @@
-# Features Research
+# FEATURES — v1.5 Web Search + Multi-Agent Debate + Coverage Lift
 
-## Summary
+*Generated 2026-05-10 inline. Supersedes prior milestone research.*
 
-JWT hardening requires startup-time entropy validation (reject weak secrets before the server accepts traffic, not just in production mode). Per-route rate limiting with `slowapi` requires a decorator on each route — global middleware alone is insufficient. PII detection must run before chunking/embedding to be effective. RAGAS metrics with a minimum 50-pair eval dataset are the current standard for RAG quality CI gates.
+## v1.5 feature decomposition by category
 
-## JWT Hardening Patterns
+### Category 1 — Web Search Tool
 
-**Best practice:** Validate the secret at startup, before accepting any traffic.
+**Table stakes (must ship in v1.5):**
 
-```python
-import os, secrets
+| Feature | Notes |
+|---|---|
+| WebSearchTool real impl backed by Tavily SDK | Async; subclasses v1.4 `BaseTool`; tool name stays `web_search` (already registered in v1.4) |
+| `AGENT_TOOL_ALLOWLIST` includes `web_search` | Planner can pick it; v1.4 had it excluded |
+| Tavily error → `ToolResult(metadata={"error": True})` | Tenacity 3-attempt exponential backoff; final failure returns error result, never raises into orchestrator |
+| Result → `RetrievedChunk` shape conversion | Tavily `{title,url,content,score}` maps to existing `RetrievedChunk` so source rendering works without UI changes; `metadata.source = url`, `metadata.title = title`, `chunk_type = "web"`, `page_number = None` |
+| Settings additions: `tavily_api_key`, `tavily_search_depth`, `tavily_max_results` | Pydantic Settings; key empty-string default → tool returns "WebSearch disabled" if unset |
 
-def validate_jwt_secret():
-    secret = os.environ.get("JWT_SECRET")
-    if not secret:
-        raise RuntimeError("JWT_SECRET env var is required")
-    if len(secret) < 32:
-        raise RuntimeError("JWT_SECRET must be at least 32 characters")
-    # Denylist of known weak defaults
-    WEAK_SECRETS = {"CHANGE-ME-IN-PRODUCTION-USE-256BIT-KEY", "secret", "changeme", "password"}
-    if secret in WEAK_SECRETS:
-        raise RuntimeError(f"JWT_SECRET is a known weak default — set a strong random value")
-```
+**Differentiators (nice-to-have, may defer):**
 
-- No default fallback in `os.environ.get()` — missing secret = crash at startup, not runtime
-- Denylist approach catches exact known-weak values regardless of `ENVIRONMENT`
-- FastAPI: call `validate_jwt_secret()` in the app lifespan startup handler
+| Feature | Defer reason |
+|---|---|
+| Domain include/exclude allowlist per tenant | Not requested; defer until enterprise asks |
+| Credit-counter / budget cap per tenant | v1.5 punts; rely on Tavily account-level quota |
+| Cache web search results in Redis | Tavily basic depth has fresh-content premium; caching defeats freshness |
 
-## Per-Route Rate Limiting in FastAPI
+### Category 2 — Multi-Agent Debate / Sub-Agent Verify (AGENT-05)
 
-**`slowapi` requires a decorator per route** — `app.state.limiter` middleware alone does not enforce per-route limits.
+**Table stakes:**
 
-```python
-from slowapi import Limiter
-from slowapi.util import get_remote_address
+| Feature | Notes |
+|---|---|
+| Verifier role pattern (recommended in STATE Open Q #3) | One extra sub-agent reads N peer answers + chunk evidence, returns either "consensus answer" or "flag disagreement"; lower latency than peer-debate-N-rounds |
+| Opt-in flag `debate=true` on `GenerationRequest` | Off by default; user opts in for high-stakes queries; same `/api/v1/agent/v1/run/stream` endpoint |
+| Reuses v1.3 `SwarmQueryPipeline` parallel sub-agents — verifier hops onto end | No new pipeline class; new method `SwarmQueryPipeline.run_with_verifier()` or extra step inside existing run |
+| New SSE event types: `verifier.start`, `verifier.complete`, `verifier.disagreement` | Extends v1.4 schema in `docs/agent-architecture.md`; backward-compatible |
+| Verifier prompt template | Includes peer answer texts + source chunks; outputs JSON `{verdict: agree\|disagree, final_answer, dissenting_peers}` |
 
-limiter = Limiter(key_func=get_remote_address)
+**Differentiators:**
 
-@app.post("/ingest")
-@limiter.limit("10/minute")
-async def ingest(request: Request, ...):
-    ...
-```
+| Feature | Defer reason |
+|---|---|
+| Iterative peer debate (N rounds critique) | Latency cost N×; v1.5 picks single-pass verifier; iterative debate becomes v1.6+ if v1.5 verifier proves valuable |
+| Per-tenant debate config | Premature config surface |
+| Disagreement persistence to audit log | Already covered by audit log path; no new schema needed |
 
-- `request: Request` must be the first parameter on every rate-limited route
-- Global middleware only handles the `RateLimitExceeded` exception — it does not apply limits
-- Test isolation: use `limiter.reset()` or patch `get_remote_address` in test fixtures
+### Category 3 — Per-Module Coverage Lift
 
-## PII Detection in Ingestion Pipelines
+**Table stakes:**
 
-**Microsoft Presidio** is the standard library. Must run **before chunking** (so PII isn't split across chunk boundaries).
+| Module | Current coverage (approx) | Target | Test strategy |
+|---|---|---|---|
+| `services/pipeline.py` | 60–65% | ≥70% | Mock at consumer paths (`services.pipeline.get_planner` etc.); cover error branches in `run_streaming`; Phase 13/15 pattern |
+| `services/generator/llm_client.py` | 55–60% | ≥70% | Use v1.2 wire fixtures; cover RateLimit/Overloaded/RetryError branches; `call_agentic_turn` happy + 429 + 5xx paths per provider |
+| `services/vectorizer/vector_store.py` | 60–65% | ≥70% | Cover `_build_filter_where` table-driven; metadata `isinstance str` JSONB branch; HNSW index DDL idempotency |
+| `services/retriever/retriever.py` | 60–65% | ≥70% | `_to_retrieved_chunk` model_validate branch (v1.4.2 fix); rerank SLA breach fallback; parent_expand error tolerance |
+| `services/extractor/extractor.py` | 55–60% | ≥70% | OCR vs text-extract branch; header/footer detection; `is_scanned_pdf` sample heuristic |
 
-```python
-from presidio_analyzer import AnalyzerEngine
-from presidio_anonymizer import AnonymizerEngine
+**Constraint:** v1.3 D-04 — no production-code changes for coverage; tests only.
 
-analyzer = AnalyzerEngine()
-anonymizer = AnonymizerEngine()
+## Cross-feature dependencies
 
-def detect_pii(text: str, block_entities: list[str]) -> PIIResult:
-    results = analyzer.analyze(text=text, language="en")
-    if any(r.entity_type in block_entities for r in results):
-        raise PIIBlockedError(f"Blocked entity detected: {results}")
-    return anonymizer.anonymize(text=text, analyzer_results=results)
-```
+- WebSearchTool depends on no other v1.5 feature (independent)
+- AGENT-05 debate depends on existing v1.4 SSE infrastructure (already shipped) — no v1.5 cross-deps
+- Coverage lift independent (testing only)
 
-- `BLOCK_ENTITIES` (e.g., SSN, CREDIT_CARD) — raise and reject ingest
-- `ANONYMIZE_ENTITIES` (e.g., PERSON, EMAIL) — redact before storing
-- Non-blocking = silent data leakage risk; blocking should be the default
+## What's explicitly NOT in v1.5
 
-## Testing FastAPI Service Singletons
-
-**Canonical pattern:** `app.dependency_overrides` + `lru_cache.cache_clear()` in teardown.
-
-```python
-from functools import lru_cache
-import pytest
-from httpx import AsyncClient
-
-@lru_cache()
-def get_vector_store() -> VectorStore:
-    return QdrantVectorStore(...)
-
-@pytest.fixture
-async def client(mock_vector_store):
-    app.dependency_overrides[get_vector_store] = lambda: mock_vector_store
-    async with AsyncClient(app=app, base_url="http://test") as ac:
-        yield ac
-    app.dependency_overrides.clear()
-    get_vector_store.cache_clear()  # critical — prevents singleton leakage between tests
-```
-
-- Always call `cache_clear()` in teardown — otherwise singletons bleed across tests
-- For `get_*()` factory pattern (not FastAPI Depends), monkeypatch the module attribute directly
-
-## RAG Evaluation Standards
-
-**Minimum dataset sizes:**
-- 10 pairs: statistically meaningless (current state) — one bad answer = 10% drop
-- 50 pairs: minimum for CI smoke test
-- 200+ pairs: meaningful regression detection
-
-**RAGAS metrics (2024 standard):**
-```
-faithfulness > 0.85        — answer grounded in retrieved context
-answer_relevancy > 0.80    — answer addresses the question
-context_precision > 0.75   — retrieved chunks are relevant
-context_recall > 0.70      — relevant chunks were retrieved
-```
-
-**Tooling:** `ragas` library + `deepeval` for automated CI integration. Generate synthetic QA pairs from existing documents using LLM-based dataset generation to bootstrap from 10 → 200.
-
-## Sources
-
-- Presidio docs: https://microsoft.github.io/presidio/
-- slowapi docs: https://slowapi.readthedocs.io/
-- RAGAS: https://docs.ragas.io/
-- FastAPI testing patterns: https://fastapi.tiangolo.com/tutorial/testing/
+- Memory tool (10x #1) → v1.6 after `/office-hours`
+- Code-acting / SQLTool (10x #4) → v1.6+ after sandbox decision
+- UI-03 React/Vue migration → v1.6+
+- TEST-07 mutation testing → v1.6+
+- UI-02 first-deploy browser smoke → first deploy

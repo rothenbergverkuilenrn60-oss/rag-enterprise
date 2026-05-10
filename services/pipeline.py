@@ -24,16 +24,26 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, AsyncGenerator, AsyncIterator
 
-import anthropic                                          # noqa: F401 — referenced in narrow except in AgentQueryPipeline.run
-import httpx                                              # noqa: F401 — referenced in narrow except in AgentQueryPipeline.run
-import openai                                             # noqa: F401 — referenced in narrow except in AgentQueryPipeline.run
+import anthropic  # noqa: F401 — referenced in narrow except in AgentQueryPipeline.run
+import httpx  # noqa: F401 — referenced in narrow except in AgentQueryPipeline.run
+import openai  # noqa: F401 — referenced in narrow except in AgentQueryPipeline.run
 from loguru import logger
 
 from config.settings import settings
 from services.agent import get_executor, get_planner
 from services.agent.tools import get_tool_registry
 from services.agent.tools.retrieve import retrieve_impl as _shared_execute_tool_call
-from services.audit.audit_service import AuditAction, AuditEvent, AuditResult, get_audit_service
+
+# Phase 21 / Plan 21-05 — Verifier sub-agent (AGENT-05). Top-level import is safe
+# because services/agent/verifier.py guards `from services.pipeline import _SubAgentResult`
+# under `if TYPE_CHECKING:` (Plan 21-03 BLOCKER 3 fix).
+from services.agent.verifier import Verifier  # noqa: E402
+from services.audit.audit_service import (
+    AuditAction,
+    AuditEvent,
+    AuditResult,
+    get_audit_service,
+)
 from services.doc_processor.chunker import get_doc_processor
 from services.events.event_bus import get_event_bus
 from services.extractor.extractor import get_extractor
@@ -89,6 +99,10 @@ from utils.models import (
     ToolSpanEndEvent,
     ToolSpanErrorEvent,
     ToolSpanStartEvent,
+    VerifierCompleteEvent,  # Phase 21 / Plan 21-02 — verifier hop (D-09)
+    VerifierDisagreementEvent,  # Phase 21 / Plan 21-02 — verifier hop (D-08)
+    VerifierStartEvent,  # Phase 21 / Plan 21-02 — verifier hop (D-09)
+    VerifierVerdict,  # Phase 21 / Plan 21-02 — kwarg type for _synthesize (D-04)
 )
 from utils.observability import start_span
 
@@ -588,14 +602,26 @@ _SYNTHESIS_SYSTEM: str = """\
 5. 不得编造未在子答案中出现的信息。
 """
 
+# Phase 21 / D-03 / Pitfall P-08 — locked Chinese disagreement banner.
+# Hoisted to a module-level constant so a future v1.6+ i18n routing change
+# is a single-symbol edit (no scattered string literals to chase).
+# Test contract (`test_format_disagree_exact_template_substitution`) asserts
+# byte-identity against this exact string; do not edit without updating tests.
+_DISAGREE_BANNER_TEMPLATE: str = (
+    "⚠️ 子代理间存在分歧（{N} 个同伴中的 {M} 个提出差异回答）。"
+    "以上回答基于验证者引用的证据（{chunk_count} 个块）。"
+)
+
 # Module-level constant (AGENT-06 / CONTEXT.md D-12).
 # The cap is enforced by the orchestrator outer loop; Executor runs exactly
 # one ToolPlan per call and does NOT enforce this limit internally.
 MAX_ITERATIONS: int = 5
 
 # Explicit allowlist of tool names exposed to the planner LLM (AGENT-07).
-# WebSearchTool is registered but excluded here (placeholder — v1.5+).
-AGENT_TOOL_ALLOWLIST: list[str] = ["search_knowledge_base", "refine_search"]
+# Phase 20: web_search joins the allowlist with the real Tavily impl
+# (services/agent/tools/web_search.py). Empty TAVILY_API_KEY is a runtime
+# short-circuit per CONTEXT D-03 — no startup-time filtering here.
+AGENT_TOOL_ALLOWLIST: list[str] = ["search_knowledge_base", "refine_search", "web_search"]
 
 
 class AgentQueryPipeline:
@@ -1012,6 +1038,11 @@ class SwarmQueryPipeline:
         self._audit            = get_audit_service()
         self._tenant_svc       = get_tenant_service()
         self._filter_extractor = get_filter_extractor()
+        # Phase 21 / Plan 21-05 — Verifier sub-agent (AGENT-05).
+        # Open Question Q2 resolution: instantiated once at __init__; the
+        # cost is paid at construction. Only used when req.debate=True
+        # (gated inside _run_with_state — SC5 byte-identity preserved).
+        self._verifier         = Verifier()
 
     async def _decompose(self, query: str) -> list[str]:
         """Decompose a multi-dimension query into independent sub-questions (D-02).
@@ -1157,12 +1188,39 @@ class SwarmQueryPipeline:
         original_query: str,
         sub_questions: list[str],
         answers: list[str],
+        verifier_verdict: VerifierVerdict | None = None,   # Phase 21 / D-04
     ) -> str:
         """Synthesize sub-agent answers into final response (D-04, Pitfall 5).
 
         Short-circuits to graceful-degradation string when all sub-agents failed,
         avoiding a wasted LLM call (Pitfall 5).
+
+        Phase 21 / D-04: when ``verifier_verdict`` is supplied AND its verdict
+        is ``"disagree"``, short-circuit to ``_format_disagree`` (zero LLM
+        calls — the verifier's ``proposed_answer`` IS the user-visible answer
+        per D-01/D-02). All other branches (kwarg omitted, kwarg ``None``,
+        verdict ``"agree"``) fall through to the EXISTING synthesis body so
+        SC5/CF-08 byte-identity holds for the non-debate path.
         """
+        # Phase 21 / D-04 — divergence dispatch (zero LLM calls; uses
+        # verifier.proposed_answer as the user-visible answer per D-01/D-02).
+        # Runs BEFORE the Pitfall-5 graceful-degrade check: a verifier verdict
+        # supersedes the all-sub-agents-failed fallback (in practice Plan 21-05
+        # only invokes the verifier when at least one peer succeeded, so the
+        # ordering is observationally equivalent — this is just cleaner to read).
+        if verifier_verdict is not None and verifier_verdict.verdict == "disagree":
+            # D-04 verbatim signature: _format_disagree(verdict, sub_results).
+            # Reconstruct minimal _SubAgentResult placeholders from the answers
+            # list so peer_count == len(answers). The chunks/turns/tool_calls_count
+            # fields are not consumed by _format_disagree (only len(sub_results)
+            # is read), so empty placeholders suffice. This keeps Plan 21-05's
+            # call site simple — no need to plumb the original `successful` list.
+            sub_results = [
+                _SubAgentResult(answer=a, turns=0, tool_calls_count=0, chunks=[])
+                for a in answers
+            ]
+            return self._format_disagree(verifier_verdict, sub_results)
+
         # Pitfall 5: skip LLM if every sub-agent failed.
         if answers and all(
             a.startswith("[Sub-agent ") and " failed:" in a
@@ -1187,37 +1245,70 @@ class SwarmQueryPipeline:
             task_type="generate",
         )
 
-    async def run(self, req: GenerationRequest) -> GenerationResponse:
-        """Top-level swarm execution (AGENT-03).
+    @staticmethod
+    def _format_disagree(
+        verdict: VerifierVerdict,
+        sub_results: list[_SubAgentResult],
+    ) -> str:
+        """Phase 21 / D-04 / D-03 / P-08 — format the divergence answer.
 
-        Sequence:
-          1. Decompose query into sub-questions (D-02).
-          2. N=1 → delegate to AgentQueryPipeline (D-03).
-          3. Fan out N sub-agents concurrently (D-05).
-          4. Collect results; replace exceptions with error markers (Pitfall 2).
-          5. Synthesize final answer (D-04).
-          6. Persist memory + audit; return response.
+        Signature matches CONTEXT D-04 verbatim (``_format_disagree(verdict,
+        sub_results)``); ``peer_count`` is computed inside as
+        ``len(sub_results)``. Returns ``f"{verdict.proposed_answer}\\n\\n{banner}"``
+        where the banner is the locked ``_DISAGREE_BANNER_TEMPLATE`` constant
+        with ``N`` / ``M`` / ``chunk_count`` substituted.
+
+        N=M is intentional in v1.5: every successful peer is treated as having
+        "diverged from the verified consensus" (coarse-grain count). Per-peer
+        divergence tracking is a v1.6+ topic per CONTEXT deferred-list.
         """
-        trace_id  = str(uuid.uuid4())[:8]
-        tenant_id = getattr(req, "tenant_id", "")
-        user_id   = getattr(req, "user_id",   "")
-        t0        = time.perf_counter()
+        peer_count = len(sub_results)
+        banner = _DISAGREE_BANNER_TEMPLATE.format(
+            N=peer_count,
+            M=peer_count,
+            chunk_count=len(verdict.evidence_chunk_ids),
+        )
+        return f"{verdict.proposed_answer}\n\n{banner}"
 
-        extraction = await self._filter_extractor.extract(req.query)
-        tf = self._tenant_svc.get_tenant_filter(tenant_id)
-        if req.filters:
-            tf = {**(tf or {}), **req.filters}
-        if extraction.filters:
-            tf = {**(tf or {}), **extraction.filters}
+    async def _run_with_state(
+        self,
+        req: GenerationRequest,
+        *,
+        sub_questions: list[str],
+        tf: dict[str, Any],
+    ) -> tuple[GenerationResponse, list[AgentEvent]]:
+        """Phase 21 / Plan 21-05 — single source of truth for N>1 swarm runs.
 
-        sub_questions = await self._decompose(req.query)
+        Owns the full swarm run loop AND the optional verifier hop (gated on
+        ``req.debate``). Returns BOTH the constructed ``GenerationResponse``
+        AND the in-order list of ``AgentEvent``s produced during the run.
+        ``run`` and ``run_streaming`` are thin drainers that consume one or
+        the other (both never trigger the LLM/retrieval calls twice).
 
-        # D-03: N=1 short-circuit — delegate to AgentQueryPipeline.
-        if len(sub_questions) <= 1:
-            logger.info(
-                f"[Swarm] N=1 fallback (sub_questions={sub_questions!r}); delegating to AgentQueryPipeline. trace_id={trace_id}"
-            )
-            return await get_agent_pipeline().run(req)
+        W5/W8 fix: every per-call value (``trace_id``, ``seq_counter``,
+        ``audit_agent_05``, accumulated ``events`` list) lives in this
+        function's locals — NOT on the singleton instance. Concurrent
+        requests on the same ``SwarmQueryPipeline`` instance are isolated by
+        Python local-variable semantics — no clobber, no swap.
+
+        SC5 / CF-08: when ``req.debate=False``, the events list contains
+        ZERO verifier-tier events; audit detail has no ``agent_05`` key;
+        ``_dedup_chunks`` is NOT called against the swarm chunks. The
+        run-loop body is byte-identical to the v1.4 swarm path.
+
+        N=1 short-circuit (D-03) is handled by callers — this method assumes
+        the swarm path is taken (N≥2 sub-questions). ``sub_questions`` and
+        ``tf`` are passed in so callers can pre-decompose / pre-extract
+        without this method re-running the coordinator chat call (avoids
+        double-call against AsyncMock side-effect lists in unit tests AND
+        avoids real-LLM cost in production).
+        """
+        trace_id    = str(uuid.uuid4())[:8]
+        seq_counter = itertools.count()
+        tenant_id   = getattr(req, "tenant_id", "")
+        user_id     = getattr(req, "user_id",   "")
+        t0          = time.perf_counter()
+        events: list[AgentEvent] = []
 
         # D-05: fan out concurrently; isolate failures.
         swarm_t0 = time.perf_counter()
@@ -1247,8 +1338,89 @@ class SwarmQueryPipeline:
             per_agent_tool_calls.append(res.tool_calls_count)
             all_swarm_chunks.extend(res.chunks)
 
+        # Phase 21 — verifier hop, gated on req.debate (SC5: zero change when False).
+        verdict: VerifierVerdict | None = None
+        verifier_latency_ms: float = 0.0
+        audit_agent_05: dict[str, Any] = {}
+        if req.debate:
+            verifier_t0 = time.perf_counter()
+            audit_agent_05 = {
+                "verifier_used":   False,
+                "verifier_failed": False,
+                "forced_disagree": False,
+            }
+            # P-03: dedup BEFORE verifier sees evidence; gated on debate so SC5 holds.
+            deduped_evidence = AgentQueryPipeline._dedup_chunks(all_swarm_chunks)
+            successful = [r for r in raw_results if not isinstance(r, BaseException)]
+            model_label = settings.verifier_model or settings.active_model
+            events.append(VerifierStartEvent(
+                trace_id=trace_id,
+                seq=next(seq_counter),
+                ts_ms=int(time.time() * 1000),
+                peer_count=len(successful),
+                model=model_label,
+            ))
+            try:
+                verdict = await self._verifier.verify(
+                    peer_results=successful,
+                    evidence=deduped_evidence,
+                    user_query=req.query,
+                )
+            except BaseException as exc:                       # CF-09 — NOT bare Exception (project ERR-01)
+                logger.error("verifier_failed", exc_info=exc)  # full traceback to log only
+                audit_agent_05["verifier_failed"] = True
+                events.append(VerifierDisagreementEvent(
+                    trace_id=trace_id,
+                    seq=next(seq_counter),
+                    ts_ms=int(time.time() * 1000),
+                    reason="verifier_failed",
+                    summary=str(exc)[:200],                    # 200-char truncate (D-08 mirror)
+                    evidence_chunk_ids=[],
+                    peer_count=len(successful),
+                    error_type=type(exc).__name__,
+                ))
+                # No VerifierCompleteEvent on failure path; verdict stays None →
+                # _synthesize falls through to standard consensus path (D-06 graceful degrade).
+            else:
+                audit_agent_05["verifier_used"] = True
+                audit_agent_05["evidence_chunk_count"] = len(verdict.evidence_chunk_ids)
+                if verdict.verdict == "disagree":
+                    # D-11 disagree-reason discriminator: forced_no_evidence when
+                    # CF-04 forced-disagree was applied INSIDE Verifier.verify
+                    # (Plan 21-03; surfaced via empty evidence_chunk_ids);
+                    # peers_diverge for honest disagree-with-evidence.
+                    reason: str = (
+                        "forced_no_evidence"
+                        if not verdict.evidence_chunk_ids
+                        else "peers_diverge"
+                    )
+                    audit_agent_05["forced_disagree"] = (reason == "forced_no_evidence")
+                    events.append(VerifierDisagreementEvent(
+                        trace_id=trace_id,
+                        seq=next(seq_counter),
+                        ts_ms=int(time.time() * 1000),
+                        reason=reason,                              # type: ignore[arg-type]
+                        summary=verdict.reasoning[:200],
+                        evidence_chunk_ids=list(verdict.evidence_chunk_ids),
+                        peer_count=len(successful),
+                    ))
+                events.append(VerifierCompleteEvent(
+                    trace_id=trace_id,
+                    seq=next(seq_counter),
+                    ts_ms=int(time.time() * 1000),
+                    verdict=verdict.verdict,
+                    evidence_chunk_count=len(verdict.evidence_chunk_ids),
+                    latency_ms=verdict.latency_ms,
+                ))
+            verifier_latency_ms = round((time.perf_counter() - verifier_t0) * 1000, 1)
+            audit_agent_05["verifier_latency_ms"] = verifier_latency_ms
+            audit_agent_05["verifier_model"] = model_label
+
         synth_t0 = time.perf_counter()
-        final_answer = await self._synthesize(req.query, sub_questions, answers)
+        # Plan 04 — pass verdict (None on degrade or non-debate; falls through to consensus path).
+        final_answer = await self._synthesize(
+            req.query, sub_questions, answers, verifier_verdict=verdict,
+        )
         synthesis_latency_ms = round((time.perf_counter() - synth_t0) * 1000, 1)
 
         total_ms = round((time.perf_counter() - t0) * 1000, 1)
@@ -1265,6 +1437,9 @@ class SwarmQueryPipeline:
 
         # CRITICAL: audit via log() directly with AuditEvent — log_query has a
         # FIXED signature and cannot accept swarm_n/per_agent_*/etc.
+        # Phase 21 / D-11: append the agent_05 namespace ONLY when req.debate
+        # (SC5/CF-08 byte-identity for non-debate path). Reuses AuditAction.QUERY
+        # (no DB migration).
         await self._audit.log(AuditEvent(
             action=AuditAction.QUERY,
             user_id=user_id,
@@ -1281,11 +1456,24 @@ class SwarmQueryPipeline:
                 "per_agent_tool_calls": per_agent_tool_calls,
                 "swarm_latency_ms":     swarm_latency_ms,
                 "synthesis_latency_ms": synthesis_latency_ms,
+                **({"agent_05": audit_agent_05} if req.debate else {}),
             },
             trace_id=trace_id,
         ))
 
-        return GenerationResponse(
+        # CF-07 terminal SynthesizerFinalEvent — emitted in ALL 4 debate paths
+        # (debate=False, agree, disagree, verifier_failed). For debate=False
+        # this is the SOLE event in the list; consumers see exactly the v1.4
+        # surface plus this single terminal carrier.
+        events.append(SynthesizerFinalEvent(
+            trace_id=trace_id,
+            seq=next(seq_counter),
+            ts_ms=int(time.time() * 1000),
+            answer=final_answer,
+            sources_count=len(all_swarm_chunks[:req.top_k]),
+        ))
+
+        response = GenerationResponse(
             answer=final_answer,
             sources=all_swarm_chunks[:req.top_k],
             session_id=req.session_id,
@@ -1294,6 +1482,97 @@ class SwarmQueryPipeline:
             trace_id=trace_id,
             model=settings.active_model,
         )
+        return response, events
+
+    async def _prepare(
+        self,
+        req: GenerationRequest,
+    ) -> tuple[list[str], dict[str, Any]]:
+        """Phase 21 / Plan 21-05 helper — pre-decompose + filter extract.
+
+        Both ``run`` and ``run_streaming`` call this before deciding the
+        N=1 vs N>1 branch. Centralizing here means the coordinator chat
+        call + filter-extractor call run EXACTLY ONCE per request,
+        regardless of which entry point is used.
+        """
+        tenant_id  = getattr(req, "tenant_id", "")
+        extraction = await self._filter_extractor.extract(req.query)
+        tf: dict[str, Any] = self._tenant_svc.get_tenant_filter(tenant_id) or {}
+        if req.filters:
+            tf = {**tf, **req.filters}
+        if extraction.filters:
+            tf = {**tf, **extraction.filters}
+        sub_questions = await self._decompose(req.query)
+        return sub_questions, tf
+
+    async def run(self, req: GenerationRequest) -> GenerationResponse:
+        """Top-level swarm execution (AGENT-03; Phase 21 thin wrapper).
+
+        Sequence:
+          1. Decompose query into sub-questions (D-02).
+          2. N=1 → delegate to AgentQueryPipeline (D-03).
+          3. Fan out N sub-agents concurrently (D-05) via _run_with_state.
+          4. _run_with_state collects results, optionally runs verifier hop
+             (req.debate gate), synthesizes, persists, audits.
+          5. Return the constructed GenerationResponse.
+
+        W5/W8 fix: per-call state lives in _run_with_state locals (NOT on
+        instance attributes). Backward-compat: callers see the same
+        signature + return type as v1.4 swarm.
+        """
+        sub_questions, tf = await self._prepare(req)
+
+        # D-03: N=1 short-circuit — delegate to AgentQueryPipeline.
+        if len(sub_questions) <= 1:
+            trace_id = str(uuid.uuid4())[:8]
+            logger.info(
+                f"[Swarm] N=1 fallback (sub_questions={sub_questions!r}); "
+                f"delegating to AgentQueryPipeline. trace_id={trace_id}"
+            )
+            return await get_agent_pipeline().run(req)
+
+        response, _events = await self._run_with_state(
+            req, sub_questions=sub_questions, tf=tf,
+        )
+        return response
+
+    async def run_streaming(
+        self,
+        req: GenerationRequest,
+    ) -> AsyncIterator[AgentEvent]:
+        """Phase 21 / Plan 21-05 PRIMARY async generator (W5/W8 fix).
+
+        Yields AgentEvents in the order they were produced + a terminal
+        SynthesizerFinalEvent (CF-07). For debate=False this collapses to
+        a single terminal event; for debate=True, the 3 verifier events
+        (start / [disagreement] / complete) precede the terminal event.
+
+        N=1 short-circuit (D-03) yields-from AgentQueryPipeline.run_streaming
+        — preserving the existing agent SSE event sequence in that path.
+        """
+        sub_questions, tf = await self._prepare(req)
+
+        if len(sub_questions) <= 1:
+            trace_id = str(uuid.uuid4())[:8]
+            logger.info(
+                f"[Swarm:stream] N=1 fallback (sub_questions={sub_questions!r}); "
+                f"delegating to AgentQueryPipeline. trace_id={trace_id}"
+            )
+            # noqa-typing: get_agent_pipeline() is untyped at the factory site
+            # (mirrors line 1527 in run() — pre-existing baseline pattern).
+            async for evt in get_agent_pipeline().run_streaming(req):  # type: ignore[no-untyped-call]
+                yield evt
+            return
+
+        # N>1 path: run the full swarm + optional verifier hop, then yield
+        # the accumulated events list at end-of-run. Per Option (a) in the
+        # plan: this batches emissions at the end (acceptable v1.5 tradeoff;
+        # documented for future v1.6+ true-streaming refactor).
+        _response, events = await self._run_with_state(
+            req, sub_questions=sub_questions, tf=tf,
+        )
+        for evt in events:
+            yield evt
 
 
 _swarm_pipeline = None

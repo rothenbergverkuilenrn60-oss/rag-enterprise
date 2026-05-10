@@ -131,6 +131,8 @@ Run locally: `make test`, `make coverage-combined`, `make eval`. CI enforces all
 
 The `coverage-combine` job (Phase 15) downloads the unit and integration `.coverage` artifacts, runs `coverage combine`, then `coverage report --fail-under=70` and `diff-cover coverage.xml --fail-under=80` on the combined artifact. A floor below 70% OR diff-coverage below 80% **blocks the merge** — no override comments, no soft-warn mode. Phase 10's "only unit-test coverage counts" decision is superseded by Phase 15's combined-report rule.
 
+**Per-module floor (Phase 22, v1.5):** Five high-traffic modules carry a per-module ≥70% line-coverage gate in addition to the global ≥70% combined floor: `services/pipeline.py`, `services/generator/llm_client.py`, `services/vectorizer/vector_store.py`, `services/retriever/retriever.py`, `services/extractor/extractor.py`. CI fails the `coverage-combine` job if any of these regress below 70%. Run `make coverage-per-module` locally to mirror the CI check.
+
 ## Observability
 
 The agent runtime emits a structured SSE event stream on `POST /api/v1/agent/v1/run/stream` (Phase 18, AGENT-04). Six event types: `planner.plan`, `tool.span.start`, `tool.span.end`, `tool.span.error`, `executor.parallel`, `synthesizer.final`. Each carries a `trace_id`, monotonic `seq`, and `ts_ms`. Wire format + payload tables: [Event Schema Reference](docs/agent-architecture.md#event-schema-reference).

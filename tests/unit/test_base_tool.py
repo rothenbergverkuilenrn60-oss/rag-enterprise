@@ -11,12 +11,11 @@ from __future__ import annotations
 import asyncio
 from typing import Any, ClassVar
 
-import pytest
 import pydantic
+import pytest
 
-from utils.models import GenerationRequest, ToolContext, ToolResult
 from services.agent.tools.base import BaseTool
-
+from utils.models import GenerationRequest, ToolContext, ToolResult
 
 # ──────────────────────────────────────────────────────────────
 # Module-level fixture: a well-formed concrete tool
