@@ -173,11 +173,11 @@ jobs:
       - name: TEST-06 — Floor gate (combined coverage >= 70%)
         run: coverage report --fail-under=70   # exit 2 on miss -> step fails (Pitfall 5)
 
-      - name: Phase-22 per-module coverage floor (warning-only at 22-00; flips to hard-fail at 22-06)
+      - name: Phase-22 per-module coverage floor (hard-fail per D-08 milestone close)
         # D-01: 5 separate `coverage report --include=...` invocations against combined data
-        # D-02: run-all-then-fail — accumulate statuses, do NOT exit non-zero yet (gates flip in plan 22-06)
-        # D-08: warning-only during 22-00..22-05 milestone window so CI stays green
+        # D-02: run-all-then-fail — collect statuses, exit non-zero AFTER all 5 have run
         # D-04: gates run on combined `.coverage` (downstream of `coverage combine` step above)
+        # D-08: HARD-FAIL — milestone-close flip from plan 22-00's staged gate
         run: |
           set +e
           declare -A STATUS
@@ -191,18 +191,26 @@ jobs:
             coverage report --include="$MOD" --show-missing --fail-under=70
             STATUS[$MOD]=$?
             if [ "${STATUS[$MOD]}" -ne 0 ]; then
-              echo "::warning file=$MOD::Per-module coverage <70% (warning-only until plan 22-06 flips to hard-fail)"
+              echo "::error file=$MOD::Per-module coverage <70% (Phase 22 D-08 hard-fail gate)"
             else
               echo "PASS: $MOD ≥70%"
             fi
             echo "::endgroup::"
           done
-          # Phase 22 D-08: do NOT exit non-zero yet. Plan 22-06 removes this comment + adds: exit $(( $(IFS=+; echo "$((${STATUS[*]:-0}))") > 0 ? 1 : 0 ))
-          echo "Per-module gate summary (warning-only):"
+          # D-02 run-all-then-fail: accumulate, then assert
+          FAILED=0
           for MOD in "${!STATUS[@]}"; do
-            echo "  $MOD: exit=${STATUS[$MOD]}"
+            if [ "${STATUS[$MOD]}" -ne 0 ]; then
+              FAILED=1
+              echo "FAIL: $MOD did not meet ≥70% per-module floor"
+            fi
           done
-          exit 0
+          if [ "$FAILED" -ne 0 ]; then
+            echo ""
+            echo "Phase 22 per-module gate failed. See module-by-module output above."
+            exit 1
+          fi
+          echo "All 5 Phase-22 modules ≥70% — gate PASS"
 
       - name: Generate coverage.xml for diff-cover
         run: coverage xml -o coverage.xml
