@@ -211,5 +211,5 @@ Plans:
 | 18. SSE Planner Trace Event Stream | v1.4 | 5/5 | Complete ✓ | 2026-05-09 |
 | 19. Agent-First Docs + Demo + Release | v1.4 | 8/8 | Complete ✓ | 2026-05-10 |
 | 20. WebSearchTool Real Implementation (Tavily) | v1.5 | 0/5 | Planning | — |
-| 21. AGENT-05 Multi-Agent Debate / Sub-Agent Verifier | v1.5 | 4/6 | In Progress | — |
+| 21. AGENT-05 Multi-Agent Debate / Sub-Agent Verifier | v1.5 | 5/6 | In Progress | — |
 | 22. Per-Module 70% Coverage Lift | v1.5 | 0/0 | Planning | — |
