@@ -21,7 +21,7 @@ from utils.models import (
     AgenticTurn,
     ChunkMetadata,
     RetrievedChunk,
-    VerifierVerdict,
+    VerifierVerdict,  # noqa: F401  # plan acceptance ≥3 data-shape imports
 )
 
 

@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Web Search + Multi-Agent Debate + Coverage Lift
 status: verifying
-stopped_at: Phase 21 Wave 1 — Plan 21-01 + Plan 21-02 shipped; Wave 2 (Plan 21-03 Verifier class) ready
-last_updated: "2026-05-10T13:00:00.000Z"
-last_activity: 2026-05-10 — Plan 21-02 GREEN shipped (VerifierVerdict + 3 events + GenerationRequest.debate; D-01/D-08/D-09/D-10)
+stopped_at: Phase 21 Wave 2 — Plan 21-04 shipped (parallel with 21-03 in-flight); Wave 3 (Plan 21-05) ready once 21-03 lands
+last_updated: "2026-05-10T13:30:00.000Z"
+last_activity: 2026-05-10 — Plan 21-04 GREEN shipped (_synthesize divergence kwarg + _format_disagree helper + _DISAGREE_BANNER_TEMPLATE constant; D-03/D-04/Pitfall P-08)
 progress:
   total_phases: 3
   completed_phases: 1
   total_plans: 17
-  completed_plans: 7
-  percent: 41
+  completed_plans: 8
+  percent: 47
 ---
 
 # STATE — EnterpriseRAG (v1.5 planning)
