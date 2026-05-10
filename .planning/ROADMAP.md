@@ -77,8 +77,8 @@ See [milestones/v1.3-ROADMAP.md](milestones/v1.3-ROADMAP.md) for full phase deta
 Plans:
 - [x] 20-01-PLAN.md — Wave 1 (execute): Tavily settings (3 fields) + requirements.txt pin + .env.docker placeholder ✓ shipped 2026-05-10 (commits efc4fa8, 7fff13a)
 - [x] 20-02-PLAN.md — Wave 2 (TDD): WebSearchTool real impl (RED→GREEN→REFACTOR) — _tavily_search retry helper + 3 typed-error kinds + RetrievedChunk mapping + D-15 source-side redaction ✓ shipped 2026-05-10 (commits dd4e5af, edf7a67, 57485a1; 15 tests; 94.8% coverage)
-- [ ] 20-03-PLAN.md — Wave 3 (TDD, parallel with 20-04): AGENT_TOOL_ALLOWLIST literal edit + planner-picks-web_search two-fixture integration test + _AGENT_SYSTEM byte-identical guardrail
-- [ ] 20-04-PLAN.md — Wave 3 (execute, parallel with 20-03): static/ui.js URL=<host> locator-token branch + hostOf helper + 9 static-source assertion tests
+- [x] 20-03-PLAN.md — Wave 3 (TDD): AGENT_TOOL_ALLOWLIST literal edit + planner-picks-web_search integration test (4 tests) + _AGENT_SYSTEM byte-identical ✓ shipped 2026-05-10 (commits 3dddfb0, 23b360a)
+- [x] 20-04-PLAN.md — Wave 3 (execute): static/ui.js URL=<host> locator-token branch + hostOf helper + 10 static-source assertion tests + ui.css byte-identical ✓ shipped 2026-05-10 (commits 3317949, d10f286)
 - [ ] 20-05-PLAN.md — Wave 4 (execute, autonomous: false): .pre-commit-config.yaml tvly- regex hook + SC5 secret-redaction smoke test (3 tests) + human-verify mixed-source UI render
 
 

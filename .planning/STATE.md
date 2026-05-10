@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Web Search + Multi-Agent Debate + Coverage Lift
-status: Executing — Phase 20 Plan 2/5 complete
-stopped_at: Phase 20 Plan 20-02 complete (real Tavily WebSearchTool body landed)
-last_updated: "2026-05-10T09:15:18.000Z"
-last_activity: 2026-05-10 — Phase 20 Plan 20-02 (real WebSearchTool impl, RED→GREEN→REFACTOR) shipped
+status: executing
+stopped_at: "Phase 20 Wave 3 complete (Plan 20-03 allowlist+integration test, Plan 20-04 UI URL=<host> branch); Wave 4 next (Plan 20-05 SC5 secret gate + human-verify checkpoint)"
+last_updated: "2026-05-10T10:00:00.000Z"
+last_activity: "2026-05-10 — Wave 3 shipped: Plan 20-03 commits 3dddfb0/23b360a/6cca193, Plan 20-04 commits 3317949/d10f286/7d82692"
 progress:
   total_phases: 3
   completed_phases: 0
   total_plans: 5
-  completed_plans: 2
-  percent: 40
+  completed_plans: 4
+  percent: 80
 ---
 
 # STATE — EnterpriseRAG (v1.5 planning)
@@ -26,15 +26,15 @@ See: .planning/PROJECT.md (updated 2026-05-10 after v1.5 open)
 ## Current Position
 
 Phase: 20 — WebSearchTool Real Implementation (Tavily)
-Plan: 20-02 complete (2/5); next is Wave 3 (Plans 20-03 and 20-04 parallel)
+Plan: 20-04 complete (4/5); Wave 4 next (Plan 20-05 SC5 secret gate + human-verify checkpoint)
 Status: Executing
-Last activity: 2026-05-10 — Plan 20-02 (real WebSearchTool impl: RED→GREEN→REFACTOR) shipped — commits dd4e5af, edf7a67, 57485a1 (+ chore prep 4a10a91)
+Last activity: 2026-05-10 — Wave 3 shipped (Plan 20-03 allowlist + integration test; Plan 20-04 UI URL=<host> branch with byte-identical CSS invariant)
 
 ## Phase Overview
 
 | Phase | Name | REQ-IDs | Status |
 |-------|------|---------|--------|
-| 20 | WebSearchTool Real Implementation (Tavily) | AGENT-10, AGENT-11, AGENT-12, AGENT-13 | Executing — 2/5 plans complete |
+| 20 | WebSearchTool Real Implementation (Tavily) | AGENT-10, AGENT-11, AGENT-12, AGENT-13 | Executing — 4/5 plans complete |
 | 21 | AGENT-05 Multi-Agent Debate / Sub-Agent Verifier | AGENT-05, AGENT-14, AGENT-15 | Planning |
 | 22 | Per-Module 70% Coverage Lift | TEST-08, TEST-09, TEST-10, TEST-11, TEST-12 | Planning |
 
