@@ -21,8 +21,24 @@ import httpx
 import openai
 from loguru import logger
 
+from services.ab_test.ab_test_service import current_variant_config
 from services.agent.tools.base import BaseTool
 from services.agent.tools.registry import get_tool_registry
+
+
+def _apply_variant_top_k(llm_top_k: int) -> int:
+    """If a running A/B variant.config sets `top_k_rerank`, that value WINS over
+    the LLM-chosen top_k. This is what makes A/B variants behave differently
+    on the agent path. No-op when no experiment is running.
+    """
+    cfg = current_variant_config.get()
+    override = cfg.get("top_k_rerank") if cfg else None
+    if isinstance(override, int) and override > 0:
+        logger.debug(
+            f"[AB] retrieve.top_k override: llm_chose={llm_top_k} → variant={override}"
+        )
+        return override
+    return llm_top_k
 from utils.models import (
     GenerationRequest,
     RetrievedChunk,
@@ -88,7 +104,7 @@ async def retrieve_impl(
     """
     args = tc.arguments or {}
     query_str = args.get("query") or args.get("refined_query", req.query)
-    top_k = int(args.get("top_k", 5))
+    top_k = _apply_variant_top_k(int(args.get("top_k", 5)))
     src_filter = args.get("source_filter")
     return await _retrieve_impl(
         query=query_str,
@@ -163,7 +179,7 @@ class RetrieveTool(BaseTool):
         t0 = time.perf_counter()
         a = args or {}
         query_str = a.get("query") or ctx.req.query
-        top_k = int(a.get("top_k", 5))
+        top_k = _apply_variant_top_k(int(a.get("top_k", 5)))
         try:
             chunks, ctx_text = await _retrieve_impl(
                 query=query_str,
@@ -211,7 +227,7 @@ class RefinedRetrieveTool(BaseTool):
         a = args or {}
         query_str = a.get("refined_query") or a.get("query") or ctx.req.query
         src_filter = a.get("source_filter")
-        top_k = int(a.get("top_k", 5))
+        top_k = _apply_variant_top_k(int(a.get("top_k", 5)))
         try:
             chunks, ctx_text = await _retrieve_impl(
                 query=query_str,

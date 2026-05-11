@@ -37,6 +37,11 @@ from services.agent.tools.retrieve import retrieve_impl as _shared_execute_tool_
 # Phase 21 / Plan 21-05 — Verifier sub-agent (AGENT-05). Top-level import is safe
 # because services/agent/verifier.py guards `from services.pipeline import _SubAgentResult`
 # under `if TYPE_CHECKING:` (Plan 21-03 BLOCKER 3 fix).
+from services.ab_test.ab_test_service import (
+    ExperimentResult,
+    current_variant_config,
+    get_ab_test_service,
+)
 from services.agent.verifier import Verifier  # noqa: E402
 from services.audit.audit_service import (
     AuditAction,
@@ -105,6 +110,87 @@ from utils.models import (
     VerifierVerdict,  # Phase 21 / Plan 21-02 — kwarg type for _synthesize (D-04)
 )
 from utils.observability import start_span
+
+
+async def _ab_assign_and_map(
+    session_id: str, tenant_id: str, trace_id: str,
+) -> tuple[str | None, str | None]:
+    """Assign A/B variant + write session→variant Redis mapping (TTL 1h).
+
+    Shared by QueryPipeline and AgentQueryPipeline so all query entry points
+    feed the same A/B telemetry pool. Failure is non-fatal.
+    """
+    try:
+        exp_id, variant_id, config = await get_ab_test_service().assign_variant(
+            session_id=session_id or "", tenant_id=tenant_id,
+        )
+        if exp_id and variant_id:
+            # 将 variant.config 挂到 ContextVar，下游 retrieve 工具按字段覆盖默认参数。
+            current_variant_config.set(config or {})
+            logger.info(
+                f"[AB] trace={trace_id} exp={exp_id} variant={variant_id} config={config}"
+            )
+            if session_id:
+                try:
+                    from utils.cache import get_redis
+                    _r = await get_redis()
+                    await _r.set(
+                        f"ab:session:{session_id}",
+                        json.dumps({"experiment_id": exp_id, "variant_id": variant_id}),
+                        ex=3600,
+                    )
+                except (ConnectionError, TimeoutError) as exc:
+                    logger.warning("[AB] session→variant mapping store failed", exc_info=exc)
+        return exp_id, variant_id
+    except (ConnectionError, TimeoutError, ValueError) as exc:
+        logger.warning("[AB] assign_variant failed (non-fatal)", exc_info=exc)
+        return None, None
+
+
+async def _store_last_qa(
+    session_id: str, query: str, answer: str, contexts: list[str],
+    tenant_id: str = "",
+) -> None:
+    """Store last (query, answer, contexts) per session in Redis with TTL 1h.
+
+    Used by POST /feedback to auto-forward 👎 to the annotation queue —
+    feedback endpoint only knows session_id, not the original Q/A pair.
+    """
+    if not session_id:
+        return
+    try:
+        from utils.cache import get_redis
+        r = await get_redis()
+        await r.set(
+            f"last_qa:{session_id}",
+            json.dumps({
+                "question": query, "answer": answer,
+                "contexts": contexts[:5], "tenant_id": tenant_id,
+            }),
+            ex=3600,
+        )
+    except (ConnectionError, TimeoutError) as exc:
+        logger.warning("[QA-snapshot] store failed (non-fatal)", exc_info=exc)
+
+
+async def _ab_record(
+    *,
+    exp_id: str | None, variant_id: str | None,
+    session_id: str, tenant_id: str,
+    latency_ms: float, faithfulness: float, retrieved_k: int, trace_id: str,
+) -> None:
+    """Record A/B experiment result. No-op if no variant assigned. Non-fatal."""
+    if not (exp_id and variant_id):
+        return
+    try:
+        await get_ab_test_service().record_result(ExperimentResult(
+            experiment_id=exp_id, variant_id=variant_id,
+            session_id=session_id or "", tenant_id=tenant_id,
+            latency_ms=latency_ms, faithfulness=faithfulness,
+            retrieved_k=retrieved_k, trace_id=trace_id,
+        ))
+    except (ConnectionError, TimeoutError, ValueError) as exc:
+        logger.warning("[AB] record_result failed (non-fatal)", exc_info=exc)
 
 
 def _infer_doc_type(path: Path) -> DocType:
@@ -320,6 +406,16 @@ class QueryPipeline:
             )
             return self._simple(req, "权限不足：无法访问该租户的知识库", trace_id)
 
+        # A/B 路由：分配变体 + 写 session→variant 映射（供 /feedback 转发）。
+        # 副作用：设置 current_variant_config ContextVar，下游 retrieve 工具读取覆盖 top_k。
+        ab_exp_id, ab_variant_id = await _ab_assign_and_map(
+            req.session_id or "", tenant_id, trace_id,
+        )
+        # QueryPipeline 直接路径：用 variant.top_k_rerank 覆盖 req.top_k。
+        _vcfg = current_variant_config.get()
+        if isinstance(_vcfg.get("top_k_rerank"), int) and _vcfg["top_k_rerank"] > 0:
+            req.top_k = _vcfg["top_k_rerank"]
+
         pre_rule = self._rules.run("pre_query", {"query": req.query})
         if pre_rule.action == RuleAction.BLOCK:
             rule_trigger_total.labels(stage="pre_query", action="BLOCK").inc()
@@ -435,6 +531,20 @@ class QueryPipeline:
         total_ms = round((time.perf_counter() - t0) * 1000, 1)
         response.latency_ms = total_ms
         response.stage_latencies["total_ms"] = total_ms
+
+        await _ab_record(
+            exp_id=ab_exp_id, variant_id=ab_variant_id,
+            session_id=req.session_id or "", tenant_id=tenant_id,
+            latency_ms=total_ms, faithfulness=response.faithfulness_score,
+            retrieved_k=len(chunks), trace_id=trace_id,
+        )
+        # 存最近 QA 快照，供 /feedback 端点 👎 时反查推标注任务。
+        await _store_last_qa(
+            session_id=req.session_id or "", query=req.query,
+            answer=response.answer,
+            contexts=[c.content for c in chunks[:5]],
+            tenant_id=tenant_id,
+        )
 
         await cache_set("query", cache_key, response)
 
@@ -835,6 +945,9 @@ class AgentQueryPipeline:
         trace_id = str(uuid.uuid4())[:8]
         tenant_id, user_id = getattr(req, "tenant_id", ""), getattr(req, "user_id", "")
         t0 = time.perf_counter()
+        ab_exp_id, ab_variant_id = await _ab_assign_and_map(
+            req.session_id or "", tenant_id, trace_id,
+        )
         tf = await self._build_tf(req, tenant_id)
         mem_ctx = await self._memory.load_context(req.session_id, user_id, tenant_id, req.query)
         messages = self._build_initial_messages(req, mem_ctx)
@@ -882,7 +995,18 @@ class AgentQueryPipeline:
             logger.warning(f"[Agent] MAX_ITERATIONS={MAX_ITERATIONS} reached; forcing final answer")
             answer = await self._force_final_answer(planner, messages)
 
-        return await self._persist_turn(req, answer, all_chunks, trace_id, t0, parallelism_factors)
+        response = await self._persist_turn(req, answer, all_chunks, trace_id, t0, parallelism_factors)
+        await _ab_record(
+            exp_id=ab_exp_id, variant_id=ab_variant_id,
+            session_id=req.session_id or "", tenant_id=tenant_id,
+            latency_ms=response.latency_ms, faithfulness=0.0,
+            retrieved_k=len(all_chunks), trace_id=trace_id,
+        )
+        await _store_last_qa(
+            session_id=req.session_id or "", query=req.query, answer=answer,
+            contexts=[c.content for c in all_chunks[:5]], tenant_id=tenant_id,
+        )
+        return response
 
     # ── streaming entry point (Phase 18 AGENT-04) ───────────────────────────
 
@@ -912,6 +1036,9 @@ class AgentQueryPipeline:
 
         tenant_id, user_id = getattr(req, "tenant_id", ""), getattr(req, "user_id", "")
         t0 = time.perf_counter()
+        ab_exp_id, ab_variant_id = await _ab_assign_and_map(
+            req.session_id or "", tenant_id, trace_id,
+        )
         tf = await self._build_tf(req, tenant_id)
         mem_ctx = await self._memory.load_context(req.session_id, user_id, tenant_id, req.query)
         messages = self._build_initial_messages(req, mem_ctx)
@@ -1034,7 +1161,17 @@ class AgentQueryPipeline:
         )
 
         # Audit log + memory persistence — unchanged shape (security_gate).
-        await self._persist_turn(req, answer, all_chunks, trace_id, t0, parallelism_factors)
+        response = await self._persist_turn(req, answer, all_chunks, trace_id, t0, parallelism_factors)
+        await _ab_record(
+            exp_id=ab_exp_id, variant_id=ab_variant_id,
+            session_id=req.session_id or "", tenant_id=tenant_id,
+            latency_ms=response.latency_ms, faithfulness=0.0,
+            retrieved_k=len(all_chunks), trace_id=trace_id,
+        )
+        await _store_last_qa(
+            session_id=req.session_id or "", query=req.query, answer=answer,
+            contexts=[c.content for c in all_chunks[:5]], tenant_id=tenant_id,
+        )
 
 
 _ingest_pipeline = None

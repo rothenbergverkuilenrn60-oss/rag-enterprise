@@ -19,11 +19,19 @@ import hashlib
 import json
 import time
 import uuid
+from contextvars import ContextVar
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from typing import Any
 
 from loguru import logger
+
+# 当前请求的 A/B 变体配置。pipeline 入口分配变体后写入；
+# 下游检索/生成工具读取，按 variant.config 字段覆盖默认参数。
+# 未分配实验时为空 dict。Async-safe（contextvar 跨 await 保留）。
+current_variant_config: ContextVar[dict[str, Any]] = ContextVar(
+    "current_variant_config", default={},
+)
 
 
 class ExperimentStatus(str, Enum):
