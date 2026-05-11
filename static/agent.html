@@ -92,26 +92,30 @@
 
   <section id="ingest-panel">
     <details>
-      <summary>📥 摄取新文档（POST /ingest/async）</summary>
+      <summary>📥 摄取新文档</summary>
       <div class="ingest-form">
         <label class="row">
           <span>doc_id</span>
-          <input id="ing-doc" type="text" placeholder="例：GB4785-2019">
+          <input id="ing-doc" type="text" placeholder="留空则用文件名">
         </label>
         <label class="row">
           <span>tenant_id</span>
           <input id="ing-tenant" type="text" placeholder="(empty for default)">
         </label>
         <label class="row">
-          <span>content</span>
-          <textarea id="ing-content" rows="4" placeholder="粘贴文档全文（异步入库）"></textarea>
+          <span>📎 文件上传</span>
+          <input id="ing-file" type="file" accept=".pdf,.docx,.doc,.xlsx,.xls,.csv,.txt,.md,.html,.htm,.json">
+        </label>
+        <label class="row">
+          <span>或粘贴文本</span>
+          <textarea id="ing-content" rows="3" placeholder="（与文件二选一，文件优先）"></textarea>
         </label>
         <label class="row inline">
           <span>force</span>
           <input id="ing-force" type="checkbox"> <small>跳过去重</small>
         </label>
         <div class="actions">
-          <button id="ing-submit">Enqueue</button>
+          <button id="ing-submit">Submit</button>
           <span id="ing-status" class="status idle">idle</span>
         </div>
         <div id="ing-progress"></div>

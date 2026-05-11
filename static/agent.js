@@ -23,6 +23,7 @@
   const fbStatus = $("fb-status");
   const fbStats = $("fb-stats");
   const ingDocInput = $("ing-doc");
+const ingFileInput = $("ing-file");
   const ingTenantInput = $("ing-tenant");
   const ingContentInput = $("ing-content");
   const ingForceInput = $("ing-force");
@@ -365,20 +366,49 @@
   const submitIngest = async () => {
     const docId = ingDocInput.value.trim();
     const content = ingContentInput.value;
-    if (!docId || !content) {
-      setIngStatus("doc_id and content required", "error");
+    const file = ingFileInput && ingFileInput.files && ingFileInput.files[0];
+    const tenant = ingTenantInput.value.trim();
+    const force = ingForceInput.checked;
+
+    if (!file && !content) {
+      setIngStatus("file or content required", "error");
       return;
     }
-    const body = {
-      doc_id: docId,
-      content,
-      tenant_id: ingTenantInput.value.trim(),
-      force: ingForceInput.checked,
-    };
+
     ingSubmitBtn.disabled = true;
-    setIngStatus("enqueueing…", "running");
     ingProgressEl.innerHTML = "";
+
     try {
+      if (file) {
+        setIngStatus(`uploading ${file.name} (${(file.size / 1024).toFixed(1)}KB)…`, "running");
+        const fd = new FormData();
+        fd.append("file", file);
+        const params = new URLSearchParams();
+        if (docId) params.set("doc_id", docId);
+        if (tenant) params.set("tenant_id", tenant);
+        if (force) params.set("force", "true");
+        const r = await fetch(`/api/v1/ingest/upload?${params.toString()}`, {
+          method: "POST",
+          body: fd,
+        });
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.detail || j.error || `HTTP ${r.status}`);
+        const d = j.data || {};
+        setIngStatus(j.success ? "done" : "failed", j.success ? "done" : "error");
+        ingProgressEl.innerHTML = `<pre>${escapeHtml(JSON.stringify({
+          stored_at: d.stored_at, size_bytes: d.size_bytes,
+          chunks: d.chunks_processed, error: j.error,
+        }, null, 2))}</pre>`;
+        return;
+      }
+
+      // text-only path: async queue
+      if (!docId) {
+        setIngStatus("doc_id required for text-only ingest", "error");
+        return;
+      }
+      const body = { doc_id: docId, content, tenant_id: tenant, force };
+      setIngStatus("enqueueing…", "running");
       const r = await fetch("/api/v1/ingest/async", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

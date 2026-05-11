@@ -11,7 +11,7 @@ import openai
 import redis
 import tenacity
 from arq.jobs import Job, JobStatus
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from loguru import logger
 from slowapi import Limiter
@@ -197,6 +197,88 @@ async def ingest_status(
         raise HTTPException(status_code=503, detail="Status query temporarily unavailable")
 
 
+_ALLOWED_UPLOAD_EXTS = {".pdf", ".docx", ".doc", ".xlsx", ".xls", ".csv",
+                        ".txt", ".md", ".html", ".htm", ".json"}
+_MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB hard cap
+
+
+@router.post("/ingest/upload", response_model=APIResponse, tags=["ingestion"])
+@_limiter.limit(f"{settings.rate_limit_ingest_rpm}/minute")
+async def ingest_upload(
+    request: Request,
+    file: UploadFile = File(...),
+    doc_id: str | None = None,
+    tenant_id: str = "",
+    force: bool = False,
+) -> APIResponse:
+    """Browser file upload → save to data_dir → run synchronous IngestionPipeline.
+
+    Returns the same shape as POST /ingest. For large files prefer
+    POST /ingest/async (text-only, but no synchronous wait).
+    """
+    import pathlib
+    from uuid import uuid4
+
+    trace_id = str(uuid.uuid4())[:8]
+    fname = file.filename or "upload"
+    suffix = pathlib.Path(fname).suffix.lower()
+    if suffix not in _ALLOWED_UPLOAD_EXTS:
+        raise HTTPException(
+            status_code=415,
+            detail=f"Unsupported file type {suffix!r}. Allowed: {sorted(_ALLOWED_UPLOAD_EXTS)}",
+        )
+
+    data_dir = pathlib.Path(settings.data_dir)
+    data_dir.mkdir(parents=True, exist_ok=True)
+    target = data_dir / f"upload_{uuid4().hex}{suffix}"
+
+    size = 0
+    try:
+        with target.open("wb") as out:
+            while chunk := await file.read(1 << 20):  # 1 MB chunks
+                size += len(chunk)
+                if size > _MAX_UPLOAD_BYTES:
+                    target.unlink(missing_ok=True)
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"File too large (>{_MAX_UPLOAD_BYTES // (1024*1024)} MB)",
+                    )
+                out.write(chunk)
+    except HTTPException:
+        raise
+    except OSError as exc:
+        target.unlink(missing_ok=True)
+        logger.error(f"[API:ingest_upload] trace={trace_id} write error={exc}")
+        raise HTTPException(status_code=500, detail="File save failed")
+
+    logger.info(f"[API:ingest_upload] trace={trace_id} saved {fname} ({size}B) → {target}")
+
+    from utils.models import IngestionRequest
+    req = IngestionRequest(
+        file_path=str(target),
+        doc_id=doc_id or pathlib.Path(fname).stem,
+        metadata={"tenant_id": tenant_id, "original_filename": fname},
+        force=force,
+    )
+    try:
+        pipeline = get_ingest_pipeline()
+        result = await pipeline.run(req)
+        return APIResponse(
+            success=result.success,
+            data={
+                **result.model_dump(),
+                "stored_at": str(target),
+                "original_filename": fname,
+                "size_bytes": size,
+            },
+            error=result.error,
+            trace_id=trace_id,
+        )
+    except (asyncpg.PostgresError, httpx.HTTPError, openai.APIError, ValueError) as exc:
+        logger.error(f"[API:ingest_upload] trace={trace_id} pipeline error={exc}")
+        raise HTTPException(status_code=500, detail="文档摄取失败，请稍后重试")
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # Query（检索 + 生成：STAGE 5-6）
 # ══════════════════════════════════════════════════════════════════════════════
@@ -337,7 +419,11 @@ async def stats() -> APIResponse:
 # ══════════════════════════════════════════════════════════════════════════════
 @router.post("/feedback", tags=["feedback"])
 async def submit_feedback(req: FeedbackRequest) -> APIResponse:
-    """用户对回答提交正负反馈，触发闭环学习流程。"""
+    """用户对回答提交正负反馈，触发闭环学习流程。
+
+    若该 session 当前被路由到 A/B 实验变体（pipeline 在 `ab:session:{id}` 写过映射），
+    本反馈同时转发到 ABTestService，使 admin UI 的 Stats 实时反映用户真实点踩。
+    """
     try:
         from services.feedback.feedback_service import (
             FeedbackRecord,
@@ -352,6 +438,49 @@ async def submit_feedback(req: FeedbackRequest) -> APIResponse:
             comment=req.comment,
         )
         await get_feedback_service().submit(record)
+
+        # 自动转发到 A/B 实验：失败不阻塞主反馈流程。
+        try:
+            import json as _json
+
+            from services.ab_test.ab_test_service import get_ab_test_service
+            from utils.cache import get_redis
+            _r = await get_redis()
+            mapping = await _r.get(f"ab:session:{req.session_id}")
+            if mapping:
+                m = _json.loads(mapping)
+                await get_ab_test_service().record_feedback(
+                    experiment_id=m["experiment_id"],
+                    variant_id=m["variant_id"],
+                    session_id=req.session_id,
+                    feedback=int(req.feedback),
+                )
+        except (ConnectionError, TimeoutError, ValueError, KeyError) as exc:
+            logger.warning(f"[API:feedback] A/B forward failed (non-fatal): {exc}")
+
+        # 👎 自动推标注任务：低评价 → 人工标注队列（最高优先级）。
+        if int(req.feedback) < 0:
+            try:
+                import json as _json
+
+                from services.annotation.annotation_service import (
+                    get_annotation_service,
+                )
+                from utils.cache import get_redis
+                _r = await get_redis()
+                qa_raw = await _r.get(f"last_qa:{req.session_id}")
+                if qa_raw:
+                    qa = _json.loads(qa_raw)
+                    await get_annotation_service().push_task_from_feedback(
+                        question=qa.get("question", ""),
+                        answer=qa.get("answer", ""),
+                        contexts=qa.get("contexts", []),
+                        tenant_id=req.tenant_id or qa.get("tenant_id", ""),
+                    )
+                    logger.info(f"[API:feedback] 👎 session={req.session_id} → annotation queue")
+            except (ConnectionError, TimeoutError, ValueError, KeyError) as exc:
+                logger.warning(f"[API:feedback] annotation forward failed (non-fatal): {exc}")
+
         return APIResponse(success=True, data={"message": "反馈已记录"})
     except (asyncpg.PostgresError, ValueError) as exc:
         logger.error(f"[API:feedback] error={exc}")
