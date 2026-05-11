@@ -64,6 +64,7 @@ cache/
 
 # Eval reports
 eval_reports/
+eval_reports_local/
 
 # Model files (large binaries)
 *.bin
