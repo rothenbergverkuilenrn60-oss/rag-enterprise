@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from abc import ABC, abstractmethod
 from typing import Any, AsyncGenerator, ClassVar
 
@@ -387,29 +388,63 @@ class OpenAILLMClient(BaseLLMClient):
         tools: list[dict[str, Any]],
         task_type: str = "nlu",
     ) -> dict[str, Any]:
-        """OpenAI function calling 实现。"""
+        """OpenAI function calling 实现 (with thinking-mode fallback).
+
+        Qwen/DashScope thinking-mode models reject forced `tool_choice` (object) —
+        a 400 InvalidParameter is raised. When that happens, fall back to a plain
+        text completion that asks for a JSON object and parse it. Both paths
+        return the same dict shape so callers stay provider-agnostic.
+        """
         functions = [
             {"name": t["name"], "description": t["description"],
              "parameters": t["input_schema"]}
             for t in tools
         ]
-        resp = await self._client.chat.completions.create(
-            model=self._model,
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user",   "content": user},
-            ],
-            functions=functions,
-            function_call={"name": tools[0]["name"]},
+        try:
+            resp = await self._client.chat.completions.create(
+                model=self._model,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user",   "content": user},
+                ],
+                functions=functions,
+                function_call={"name": tools[0]["name"]},
+                temperature=0.0,
+                extra_body={"enable_thinking": False},
+            )
+            msg = resp.choices[0].message
+            if msg.function_call:
+                try:
+                    return json.loads(msg.function_call.arguments)
+                except json.JSONDecodeError:
+                    pass
+            # Model returned no function_call despite forced choice — fall through
+            # to the text path so we get *something* parseable.
+        except Exception as exc:
+            err_str = str(exc)
+            # Only swallow the specific Qwen thinking-mode complaint; re-raise
+            # anything else so genuine outages still propagate.
+            if "thinking mode" not in err_str and "tool_choice" not in err_str:
+                raise
+            logger.warning(
+                "[OpenAI] forced function_call rejected (thinking mode); "
+                "falling back to JSON text parse"
+            )
+
+        # Text-mode fallback: ask for a bare JSON object, regex-extract, parse.
+        fallback_text = await self.chat(
+            system=system + "\n\n严格输出一个 JSON 对象，不加 markdown 围栏，不加任何解释文字。",
+            user=user,
             temperature=0.0,
+            task_type=task_type,
         )
-        msg = resp.choices[0].message
-        if msg.function_call:
-            try:
-                return json.loads(msg.function_call.arguments)
-            except json.JSONDecodeError:
-                pass
-        return {}
+        m = re.search(r"\{.*\}", fallback_text, re.DOTALL)
+        if not m:
+            return {}
+        try:
+            return json.loads(m.group())
+        except json.JSONDecodeError:
+            return {}
 
     async def chat_with_vision(
         self,

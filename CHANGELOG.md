@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-05-11
+
+Streaming UI + Admin Console + RAGAS Pipeline Rescue + Retriever Tuning.
+
+### Added
+- **Basic SSE streaming in agent playground**. `POST /api/v1/query/stream` now drives the basic mode tile, with token-level streaming (`data: <token>\n\n` frames, `[DONE]` sentinel). Placeholder + elapsed counter for the LLM TTFT (5-20 s on Qwen). `static/agent.{html,js,css}`.
+- **Feedback loop UI**. 👍 / 👎 buttons + comment field bound to the current session id; live aggregate stats from `GET /api/v1/feedback/stats`.
+- **Ingest panel**. Submits `POST /api/v1/ingest/async`, polls `GET /api/v1/ingest/status/{task_id}` until terminal status.
+- **Admin Console** at `/ui/admin.html` exposing every previously hidden backend: `/readiness`, `/stats`, `DELETE /cache`, `/knowledge/scan`, `/docs/{id}/versions` + rollback, `/annotation/tasks/*`, `/ab/experiments/*` + feedback recorder. New files `static/admin.{html,css,js}`.
+- **GB 4785-2019 evaluation dataset** — `eval/datasets/qa_pairs_gb4785.json`, 10 Q&A pairs with ground-truth pulled from the standard, tightly aligned with the indexed KB.
+
+### Fixed
+- **OpenAI `chat_with_tools` thinking-mode 400**. DashScope rejects forced `tool_choice` under thinking mode; `OpenAILLMClient.chat_with_tools` now falls back to a JSON-text completion and parses the result. Restores NLU functionality on Qwen/DashScope. `services/generator/llm_client.py`.
+- **NLU intent parser brittleness**. Loose match for unfamiliar enum labels (e.g. `"definition_query"` → `DEFINITION`); tolerate `entities` returned as either dicts or bare strings; same for `sub_queries`. `services/nlu/nlu_service.py`.
+- **SSE `/query/stream` swallowed retry errors**. Added `tenacity.RetryError` to the except tuple and surface the inner cause in logs so client receives `[ERROR]` SSE frames instead of HTTP 500 JSON. `controllers/api.py`.
+- **RAGAS pipeline end-to-end**. Five blocking bugs fixed:
+  - Wrap judge LLM with `LangchainLLMWrapper` and embeddings with `LangchainEmbeddingsWrapper` (RAGAS 0.2 calls `set_run_config` only on these wrappers).
+  - Set `check_embedding_ctx_length=False` on DashScope-routed embeddings to skip tiktoken pre-count which DashScope's shim rejects.
+  - Use `text-embedding-v3` when `OPENAI_BASE_URL` points at DashScope (defaults differ from OpenAI proper).
+  - Add `env_file: .env.docker` to the `ragas-eval` compose service so `OPENAI_BASE_URL` (not in the shared anchor) reaches the eval container.
+  - Filter dataframe columns by `is_numeric_dtype` to avoid casting RAGAS 0.2 metadata columns (e.g. `user_input`) to float.
+  - Emit both legacy and RAGAS 0.2 column names (`user_input` + `question`, `response` + `answer`, `retrieved_contexts` + `contexts`, `reference` + `ground_truth`) so ContextPrecision / ContextRecall resolve `reference`.
+
+### Changed
+- **Retriever sweep** — settled on `TOP_K_DENSE=40 / TOP_K_SPARSE=40 / TOP_K_RERANK=4` with `HYDE_ENABLED=false` and API `top_k=4`. Reached overall RAGAS score **0.7352** on the 10-question GB 4785 dataset (faithfulness 0.90, answer_relevancy 0.84, context_precision 0.60, context_recall 0.60).
+
 ## [1.4.0] - 2026-05-09
 
 Agent-First Architecture Inversion. The agent runtime (Planner / Executor /

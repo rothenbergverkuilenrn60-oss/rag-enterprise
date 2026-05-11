@@ -5,6 +5,7 @@
 
   // ── DOM refs ─────────────────────────────────────────────────────────────
   const tenantInput = $("tenant");
+  const sessionInput = $("session");
   const topkInput = $("topk");
   const queryInput = $("q");
   const sendBtn = $("send");
@@ -16,6 +17,22 @@
   const srcCountEl = $("src-count");
   const sourcesEl = $("sources");
   const rawEl = $("raw");
+  const fbUpBtn = $("fb-up");
+  const fbDownBtn = $("fb-down");
+  const fbComment = $("fb-comment");
+  const fbStatus = $("fb-status");
+  const fbStats = $("fb-stats");
+  const ingDocInput = $("ing-doc");
+  const ingTenantInput = $("ing-tenant");
+  const ingContentInput = $("ing-content");
+  const ingForceInput = $("ing-force");
+  const ingSubmitBtn = $("ing-submit");
+  const ingStatusEl = $("ing-status");
+  const ingProgressEl = $("ing-progress");
+
+  const newSessionId = () =>
+    (crypto.randomUUID ? crypto.randomUUID().replace(/-/g, "") : Math.random().toString(16).slice(2)).slice(0, 16);
+  sessionInput.value = newSessionId();
 
   // ── helpers ──────────────────────────────────────────────────────────────
   const setStatus = (label, cls) => {
@@ -148,14 +165,19 @@
     const tenant = tenantInput.value.trim();
     const topk = parseInt(topkInput.value, 10) || 6;
 
-    // Build request
-    const body = { query, tenant_id: tenant, top_k: topk };
+    // Build request — rotate session_id per run so feedback binds to this answer
+    sessionInput.value = newSessionId();
+    const session = sessionInput.value;
+    const body = { query, tenant_id: tenant, top_k: topk, session_id: session };
     if (mode === "agent") body.agent_mode = true;
     if (mode === "swarm") body.swarm_mode = true;
     if (mode === "debate") {
       body.swarm_mode = true;
       body.debate = true;
     }
+    fbStatus.textContent = "";
+    fbUpBtn.disabled = false;
+    fbDownBtn.disabled = false;
 
     // Reset UI
     eventsEl.innerHTML = "";
@@ -167,7 +189,7 @@
     sendBtn.disabled = true;
     setStatus(`running (${mode})…`, "running");
 
-    const url = mode === "basic" ? "/api/v1/query" : "/api/v1/agent/v1/run/stream";
+    const url = mode === "basic" ? "/api/v1/query/stream" : "/api/v1/agent/v1/run/stream";
 
     try {
       const resp = await fetch(url, {
@@ -177,22 +199,63 @@
       });
 
       if (mode === "basic") {
-        const j = await resp.json();
-        rawEl.textContent = JSON.stringify(j, null, 2);
-        const data = (j && (j.data || j)) || {};
-        answerEl.textContent = data.answer || "(no answer)";
-        srcCountEl.textContent = (data.sources && data.sources.length) || 0;
-        if (data.sources && data.sources.length) {
-          for (const src of data.sources) {
-            const el = document.createElement("div");
-            el.className = "source-item";
-            const meta = src.metadata || {};
-            el.textContent = `${meta.title || meta.source || "?"} | page=${meta.page_number ?? "?"} score=${(src.score ?? 0).toFixed(3)}`;
-            sourcesEl.appendChild(el);
+        // /query/stream: unnamed SSE frames `data: <token>\n\n`, sentinel `[DONE]`,
+        // error sentinel `[ERROR] ...`. Tokens concatenate into the answer.
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = "";
+        let raw = "";
+        let streamDone = false;
+        let firstToken = true;
+        const t0 = Date.now();
+        // Show panel immediately with placeholder — TTFT can be 10+s on Qwen/Anthropic
+        answerPanel.classList.remove("hidden");
+        answerEl.textContent = "⏳ 等待第一个 token…(LLM 正在做检索 + 思考，通常 5-20 秒)";
+        setStatus("waiting for first token…", "running");
+        // Live elapsed counter while we wait
+        const elapsedTimer = setInterval(() => {
+          if (firstToken) {
+            const sec = ((Date.now() - t0) / 1000).toFixed(1);
+            setStatus(`waiting for first token… ${sec}s`, "running");
+          }
+        }, 200);
+        while (!streamDone) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value, { stream: true });
+          raw += chunk;
+          buf += chunk;
+          let idx;
+          while ((idx = buf.indexOf("\n\n")) !== -1) {
+            const frame = buf.slice(0, idx);
+            buf = buf.slice(idx + 2);
+            for (const line of frame.split("\n")) {
+              if (!line.startsWith("data: ")) continue;
+              const payload = line.slice(6);
+              if (payload === "[DONE]") { streamDone = true; break; }
+              if (payload.startsWith("[ERROR]")) {
+                renderEvent("error", { message: payload.slice(7).trim(), ts_ms: Date.now() });
+                streamDone = true;
+                break;
+              }
+              if (firstToken) {
+                answerEl.textContent = "";  // wipe placeholder
+                setStatus("streaming…", "running");
+                firstToken = false;
+              }
+              answerEl.textContent += payload;
+              answerEl.scrollTop = answerEl.scrollHeight;
+            }
           }
         }
-        answerPanel.classList.remove("hidden");
-        setStatus(`done · ${data.latency_ms || 0}ms`, "done");
+        clearInterval(elapsedTimer);
+        rawEl.textContent = raw;
+        srcCountEl.textContent = "—";
+        sourcesEl.innerHTML = "<em>(sources unavailable in basic streaming mode; switch to agent_mode for chunk metadata)</em>";
+        if (firstToken) {
+          answerEl.textContent = "(no tokens received)";
+        }
+        setStatus(`done · ${Date.now() - t0}ms`, "done");
       } else {
         // SSE streaming via fetch + ReadableStream
         const reader = resp.body.getReader();
@@ -221,6 +284,121 @@
     }
   };
 
+  // ── feedback ─────────────────────────────────────────────────────────────
+  const refreshFeedbackStats = async () => {
+    try {
+      const r = await fetch("/api/v1/feedback/stats");
+      const j = await r.json();
+      const d = (j && (j.data || j)) || {};
+      const total = d.total ?? 0;
+      const pos = d.positive ?? 0;
+      const neg = d.negative ?? 0;
+      const pct = total > 0 ? ((pos / total) * 100).toFixed(1) : "0.0";
+      fbStats.textContent = `stats: total=${total} 👍${pos} 👎${neg} (${pct}% positive)`;
+    } catch (e) {
+      fbStats.textContent = `stats: error ${e.message}`;
+    }
+  };
+
+  const submitFeedback = async (value) => {
+    const body = {
+      session_id: sessionInput.value,
+      feedback: value,
+      comment: fbComment.value.trim(),
+      tenant_id: tenantInput.value.trim(),
+    };
+    fbStatus.textContent = "sending…";
+    fbUpBtn.disabled = true;
+    fbDownBtn.disabled = true;
+    try {
+      const r = await fetch("/api/v1/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      fbStatus.textContent = `✓ recorded (${value > 0 ? "👍" : "👎"})`;
+      await refreshFeedbackStats();
+    } catch (e) {
+      fbStatus.textContent = `error: ${e.message}`;
+      fbUpBtn.disabled = false;
+      fbDownBtn.disabled = false;
+    }
+  };
+
+  fbUpBtn.addEventListener("click", () => submitFeedback(1));
+  fbDownBtn.addEventListener("click", () => submitFeedback(-1));
+  refreshFeedbackStats();
+
+  // ── ingest ───────────────────────────────────────────────────────────────
+  const setIngStatus = (label, cls) => {
+    ingStatusEl.textContent = label;
+    ingStatusEl.className = `status ${cls}`;
+  };
+
+  const pollIngestStatus = async (taskId) => {
+    const url = `/api/v1/ingest/status/${encodeURIComponent(taskId)}`;
+    const started = Date.now();
+    for (let i = 0; i < 60; i++) {
+      try {
+        const r = await fetch(url);
+        const j = await r.json();
+        const d = (j && (j.data || j)) || {};
+        const elapsed = ((Date.now() - started) / 1000).toFixed(1);
+        ingProgressEl.innerHTML = `<code>task=${escapeHtml(taskId)}</code> status=<code>${escapeHtml(d.status || "?")}</code> elapsed=<code>${elapsed}s</code>${
+          d.result ? `<pre>${escapeHtml(JSON.stringify(d.result, null, 2))}</pre>` : ""
+        }`;
+        if (d.status && ["complete", "success", "failed", "error"].includes(String(d.status).toLowerCase())) {
+          setIngStatus(`done (${d.status})`, d.success === false ? "error" : "done");
+          return;
+        }
+      } catch (e) {
+        ingProgressEl.innerHTML = `<strong style="color:var(--error)">poll error: ${escapeHtml(e.message)}</strong>`;
+        setIngStatus("error", "error");
+        return;
+      }
+      await new Promise((res) => setTimeout(res, 2000));
+    }
+    setIngStatus("poll timeout", "error");
+  };
+
+  const submitIngest = async () => {
+    const docId = ingDocInput.value.trim();
+    const content = ingContentInput.value;
+    if (!docId || !content) {
+      setIngStatus("doc_id and content required", "error");
+      return;
+    }
+    const body = {
+      doc_id: docId,
+      content,
+      tenant_id: ingTenantInput.value.trim(),
+      force: ingForceInput.checked,
+    };
+    ingSubmitBtn.disabled = true;
+    setIngStatus("enqueueing…", "running");
+    ingProgressEl.innerHTML = "";
+    try {
+      const r = await fetch("/api/v1/ingest/async", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.detail || j.error || `HTTP ${r.status}`);
+      const taskId = (j.data && j.data.task_id) || j.trace_id;
+      if (!taskId) throw new Error("no task_id in response");
+      setIngStatus(`queued task=${taskId}`, "running");
+      await pollIngestStatus(taskId);
+    } catch (e) {
+      setIngStatus(`error: ${e.message}`, "error");
+    } finally {
+      ingSubmitBtn.disabled = false;
+    }
+  };
+
+  ingSubmitBtn.addEventListener("click", submitIngest);
+
   // ── wiring ───────────────────────────────────────────────────────────────
   sendBtn.addEventListener("click", run);
   clearBtn.addEventListener("click", () => {
@@ -229,6 +407,7 @@
     sourcesEl.innerHTML = "";
     rawEl.textContent = "";
     answerPanel.classList.add("hidden");
+    fbStatus.textContent = "";
     setStatus("idle", "idle");
   });
   queryInput.addEventListener("keydown", (e) => {

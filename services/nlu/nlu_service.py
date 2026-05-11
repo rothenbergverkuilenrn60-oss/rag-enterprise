@@ -492,11 +492,26 @@ class NLUService:
         if llm_client and self._use_llm_nlu and rule_intent is None:
             try:
                 nlu_data = await self._llm_analyze(query, context_summary, llm_client)
-                intent              = QueryIntent(nlu_data.get("intent", "factual"))
+                raw_intent = str(nlu_data.get("intent", "factual")).strip().lower()
+                # Loose match: model may return unfamiliar labels like
+                # "definition_query"; map by prefix to the closest enum value.
+                try:
+                    intent = QueryIntent(raw_intent)
+                except ValueError:
+                    intent = next(
+                        (qi for qi in QueryIntent if raw_intent.startswith(qi.value)),
+                        QueryIntent.FACTUAL,
+                    )
+                    logger.debug(f"[NLU] fuzzy-mapped intent='{raw_intent}' → {intent.value}")
                 needs_clarification = nlu_data.get("needs_clarification", False)
                 clarification_hint  = nlu_data.get("clarification_hint", "")
 
                 for e in nlu_data.get("entities", []):
+                    # Tolerate two shapes: {"text": ..., "type": ...} or bare string
+                    if isinstance(e, str):
+                        e = {"text": e}
+                    elif not isinstance(e, dict):
+                        continue
                     if not any(ex.text == e.get("text") for ex in entities):
                         entities.append(Entity(
                             text=e.get("text", ""),
@@ -504,7 +519,8 @@ class NLUService:
                             normalized=e.get("normalized", e.get("text", "")),
                         ))
 
-                for sq_text in nlu_data.get("sub_queries", []):
+                for sq in nlu_data.get("sub_queries", []):
+                    sq_text = sq if isinstance(sq, str) else (sq.get("text", "") if isinstance(sq, dict) else "")
                     if sq_text.strip():
                         sub_queries.append(SubQuery(text=sq_text.strip()))
 

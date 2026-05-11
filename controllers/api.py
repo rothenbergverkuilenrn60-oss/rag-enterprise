@@ -9,6 +9,7 @@ import asyncpg
 import httpx
 import openai
 import redis
+import tenacity
 from arq.jobs import Job, JobStatus
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -240,8 +241,15 @@ async def query_stream(request: Request, req: GenerationRequest) -> StreamingRes
             async for token in pipeline.stream(req):
                 yield f"data: {token}\n\n"  # SSE 协议格式：每条数据以 'data: ' 开头，两个换行结束。浏览器 EventSource 自动解析
             yield "data: [DONE]\n\n"        # 发送结束信号，前端收到 [DONE] 知道流式传输结束
-        except (asyncpg.PostgresError, httpx.HTTPError, openai.APIError, ValueError) as exc:
-            logger.error(f"[API:stream] error={exc}")
+        except (
+            asyncpg.PostgresError,
+            httpx.HTTPError,
+            openai.APIError,
+            tenacity.RetryError,
+            ValueError,
+        ) as exc:
+            cause = exc.last_attempt.exception() if isinstance(exc, tenacity.RetryError) else None
+            logger.error(f"[API:stream] error={exc!r} cause={cause!r}")
             # 生产环境不向客户端暴露内部异常详情（防止信息泄露）
             # 参考 claude-code errors.ts：只向客户端返回安全的通用错误消息
             yield "data: [ERROR] 服务暂时不可用，请稍后重试\n\n"

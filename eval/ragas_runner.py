@@ -43,57 +43,106 @@ from eval.report_renderer import render_html_report
 # Judge LLM 工厂
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 def _build_judge_llm(cfg: EvalSettings):
-    """根据配置构建 RAGAS judge LLM 包装器。"""
+    """根据配置构建 RAGAS judge LLM 包装器。
+
+    RAGAS 内部调 ``llm.set_run_config(run_config)``，只有 ``LangchainLLMWrapper``
+    实例支持此方法。返回前必须包一层，否则 evaluate() 会抛 AttributeError。
+
+    RAGAS 0.2 在内部 metric 评估时会通过 ``ragas.llms.llm_factory()`` 重建
+    OpenAI 客户端，只读历史环境变量 ``OPENAI_API_BASE``（不读较新的
+    ``OPENAI_BASE_URL``）。这里同步两者并显式 export ``OPENAI_API_KEY``，
+    避免 metric job 走回默认 api.openai.com 导致 401。
+    """
+    import os
+    from ragas.llms import LangchainLLMWrapper
+
+    base_url = os.environ.get("OPENAI_BASE_URL") or os.environ.get("OPENAI_API_BASE")
+    if base_url:
+        os.environ["OPENAI_BASE_URL"] = base_url
+        os.environ["OPENAI_API_BASE"] = base_url
+    if cfg.ragas_judge_api_key:
+        os.environ["OPENAI_API_KEY"] = cfg.ragas_judge_api_key
+
     provider = cfg.ragas_judge_provider
 
     if provider == "openai":
         from langchain_openai import ChatOpenAI
-        return ChatOpenAI(
+        raw = ChatOpenAI(
             model=cfg.ragas_judge_model,
             api_key=cfg.ragas_judge_api_key,
             temperature=0,
             max_retries=3,
         )
-
-    if provider == "anthropic":
+    elif provider == "anthropic":
         from langchain_anthropic import ChatAnthropic  # type: ignore[import-not-found]
-        return ChatAnthropic(
+        raw = ChatAnthropic(
             model=cfg.ragas_judge_model,
             api_key=cfg.anthropic_api_key,
             temperature=0,
             max_retries=3,
         )
-
-    if provider == "ollama":
+    elif provider == "ollama":
         from langchain_community.chat_models import ChatOllama
-        return ChatOllama(
+        raw = ChatOllama(
             model=cfg.ragas_judge_model,
             base_url=cfg.ollama_base_url,
             temperature=0,
         )
+    else:
+        raise ValueError(f"Unsupported ragas_judge_provider: {provider!r}")
 
-    raise ValueError(f"Unsupported ragas_judge_provider: {provider!r}")
+    return LangchainLLMWrapper(raw)
 
 
 def _build_judge_embeddings(cfg: EvalSettings):
-    """RAGAS 内部向量化（用于 answer_relevancy 余弦相似度计算）。"""
+    """RAGAS 内部向量化（用于 answer_relevancy 余弦相似度计算）。
+
+    Wrapped via LangchainEmbeddingsWrapper for the same set_run_config contract.
+    """
+    from ragas.embeddings import LangchainEmbeddingsWrapper
+
     provider = cfg.ragas_judge_provider
+
+    # `OpenAI_BASE_URL` env is NOT auto-read by langchain_openai.OpenAIEmbeddings
+    # (unlike ChatOpenAI). When OPENAI_BASE_URL points at DashScope etc. we must
+    # forward it explicitly or the call goes to api.openai.com and fails 401.
+    import os
+    openai_base_url = os.getenv("OPENAI_BASE_URL") or None
+    # DashScope's embedding model name differs from OpenAI's default
+    # (`text-embedding-ada-002`). When the base_url is DashScope, prefer
+    # `text-embedding-v3` (compatible with the OpenAI shim).
+    is_dashscope = bool(openai_base_url and "dashscope" in openai_base_url)
+    openai_embed_model = "text-embedding-v3" if is_dashscope else "text-embedding-ada-002"
 
     if provider == "openai":
         from langchain_openai import OpenAIEmbeddings
-        return OpenAIEmbeddings(api_key=cfg.ragas_judge_api_key)
-
-    if provider == "ollama":
+        raw = OpenAIEmbeddings(
+            api_key=cfg.ragas_judge_api_key,
+            base_url=openai_base_url,
+            model=openai_embed_model,
+            # DashScope's OpenAI-compat shim 400s when langchain tries to count
+            # tokens via tiktoken (it sends a payload shape DashScope rejects).
+            # Disable the length check — embedding inputs are short anyway.
+            check_embedding_ctx_length=False,
+        )
+    elif provider == "ollama":
         from langchain_community.embeddings import OllamaEmbeddings
-        return OllamaEmbeddings(
+        raw = OllamaEmbeddings(
             model="bge-m3",
             base_url=cfg.ollama_base_url,
         )
+    else:
+        # Anthropic 无官方 embedding，降级到 OpenAI
+        from langchain_openai import OpenAIEmbeddings
+        logger.warning("Anthropic judge: using OpenAI embeddings for RAGAS internal metrics.")
+        raw = OpenAIEmbeddings(
+            api_key=cfg.ragas_judge_api_key,
+            base_url=openai_base_url,
+            model=openai_embed_model,
+            check_embedding_ctx_length=False,
+        )
 
-    # Anthropic 无官方 embedding，降级到 OpenAI
-    from langchain_openai import OpenAIEmbeddings
-    logger.warning("Anthropic judge: using OpenAI embeddings for RAGAS internal metrics.")
-    return OpenAIEmbeddings(api_key=cfg.ragas_judge_api_key)
+    return LangchainEmbeddingsWrapper(raw)
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -129,7 +178,7 @@ class RAGAPIClient:
         if self._client is None:
             raise RuntimeError("Client not initialized. Use async context manager.")
 
-        payload = {"query": qa.question, "top_k": 6}
+        payload = {"query": qa.question, "top_k": 4}
         response = await self._client.post("/query", json=payload)
         response.raise_for_status()
 
@@ -240,15 +289,24 @@ class RagasEvaluator:
         将 RAGResponse 列表转为 HuggingFace Dataset 并调用 ragas.evaluate。
         返回每个问题每个指标的浮点分数。
         """
+        # RAGAS 0.2 renamed dataset columns. Faithfulness/AnswerRelevancy still
+        # accept legacy names via aliasing, but ContextPrecision/ContextRecall
+        # only recognize `reference` (not `ground_truth`). Write both old + new
+        # names so all metrics resolve their required columns.
         records: list[dict[str, Any]] = []
         for r in responses:
+            contexts = r.contexts if r.contexts else [""]
             record: dict[str, Any] = {
-                "question": r.question,
-                "answer": r.answer,
-                "contexts": r.contexts if r.contexts else [""],
+                "user_input": r.question,        # ragas 0.2
+                "question": r.question,           # legacy alias
+                "response": r.answer,             # ragas 0.2
+                "answer": r.answer,               # legacy alias
+                "retrieved_contexts": contexts,   # ragas 0.2
+                "contexts": contexts,             # legacy alias
             }
             if r.ground_truth:
-                record["ground_truth"] = r.ground_truth
+                record["reference"] = r.ground_truth     # ragas 0.2 — required by ContextPrecision/Recall
+                record["ground_truth"] = r.ground_truth   # legacy alias
             records.append(record)
 
         hf_dataset = Dataset.from_list(records)
@@ -267,14 +325,20 @@ class RagasEvaluator:
 
         # result 是 pandas DataFrame（ragas 0.2+）
         df = result.to_pandas()
+        # Ragas 0.2 renames input cols (`user_input`, `response`, `retrieved_contexts`,
+        # `reference`) and may carry extra metadata cols. Filter by dtype: keep only
+        # numeric columns (the metric scores). String columns slip through any
+        # static block-list and cause `float("How do …?")` ValueError.
+        from pandas.api.types import is_numeric_dtype
         score_map: dict[str, list[float | None]] = {}
         for col in df.columns:
-            if col not in ("question", "answer", "contexts", "ground_truth"):
-                score_map[col] = [
-                    None if (v is None or (isinstance(v, float) and v != v))
-                    else float(v)
-                    for v in df[col].tolist()
-                ]
+            if not is_numeric_dtype(df[col]):
+                continue
+            score_map[col] = [
+                None if (v is None or (isinstance(v, float) and v != v))
+                else float(v)
+                for v in df[col].tolist()
+            ]
         return score_map
 
     # ── 聚合 & 报告 ─────────────────────────────────────────────────────────

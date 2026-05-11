@@ -1,0 +1,88 @@
+{
+  "name": "RAG Eval Dataset_subset10",
+  "version": "1.0.0",
+  "created_at": "2026-04-27T00:00:00Z",
+  "description": "",
+  "pairs": [
+    {
+      "question": "What form should I use for reimbursement?",
+      "ground_truth": "Based on docs/finance_reimbursement_guide.pdf, the reimbursement process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "reimbursement",
+      "source_doc": "docs/finance_reimbursement_guide.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What happens when a compliance request crosses department boundaries? (case 2)",
+      "ground_truth": "Resolving a compliance request requires consulting docs/compliance_handbook.pdf along with related policies. The full approval chain is described therein.",
+      "doc_type": "multi_hop",
+      "topic": "compliance",
+      "source_doc": "docs/compliance_handbook.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How do I track the status of my asset management request?",
+      "ground_truth": "Based on docs/it_asset_management.pdf, the asset management process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "asset_management",
+      "source_doc": "docs/it_asset_management.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "Who is responsible for approval workflow when the direct manager is absent?",
+      "ground_truth": "Resolving a approval workflow request requires consulting docs/cross_dept_approval_workflow.pdf along with related policies. The full approval chain is described therein.",
+      "doc_type": "multi_hop",
+      "topic": "approval_workflow",
+      "source_doc": "docs/cross_dept_approval_workflow.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How does the benefits comparison policy compare across different employment types?",
+      "ground_truth": "As documented in docs/benefit_comparison_2024.pdf, the comparison of benefits comparison options highlights key differences in eligibility, coverage, and approval requirements.",
+      "doc_type": "comparison",
+      "topic": "benefits_comparison",
+      "source_doc": "docs/benefit_comparison_2024.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "How do the benefits comparison terms differ for domestic vs overseas employees? (case 2)",
+      "ground_truth": "As documented in docs/benefit_comparison_2024.pdf, the comparison of benefits comparison options highlights key differences in eligibility, coverage, and approval requirements.",
+      "doc_type": "comparison",
+      "topic": "benefits_comparison",
+      "source_doc": "docs/benefit_comparison_2024.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "Who approves requests under the leave policy policy? (case 2)",
+      "ground_truth": "According to docs/hr_policy_2024.pdf, the policy on leave policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "leave_policy",
+      "source_doc": "docs/hr_policy_2024.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "Who is eligible for leave policy benefits?",
+      "ground_truth": "According to docs/hr_policy_2024.pdf, the policy on leave policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "leave_policy",
+      "source_doc": "docs/hr_policy_2024.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "Which department handles reimbursement requests?",
+      "ground_truth": "Based on docs/finance_reimbursement_guide.pdf, the reimbursement process involves submitting the required form to the relevant department. See the document for step-by-step instructions.",
+      "doc_type": "procedural",
+      "topic": "reimbursement",
+      "source_doc": "docs/finance_reimbursement_guide.pdf",
+      "metadata": {}
+    },
+    {
+      "question": "What are the key requirements of the recruitment policy policy?",
+      "ground_truth": "According to docs/hr_policy_recruitment.pdf, the policy on recruitment policy specifies the relevant rules and entitlements. Refer to the document for full details.",
+      "doc_type": "policy_factual",
+      "topic": "recruitment_policy",
+      "source_doc": "docs/hr_policy_recruitment.pdf",
+      "metadata": {}
+    }
+  ]
+}

@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>EnterpriseRAG · Admin Console</title>
+<link rel="stylesheet" href="/ui/admin.css">
+</head>
+<body>
+<header>
+  <h1>Admin Console</h1>
+  <nav>
+    <a href="/ui/">← Basic RAG UI</a>
+    <a href="/ui/agent.html">Agent Playground</a>
+    <a href="/docs">Swagger</a>
+  </nav>
+</header>
+
+<nav class="tabs">
+  <button data-tab="status" class="tab-btn active">System</button>
+  <button data-tab="versions" class="tab-btn">Versions</button>
+  <button data-tab="annotation" class="tab-btn">Annotation</button>
+  <button data-tab="ab" class="tab-btn">A/B Test</button>
+</nav>
+
+<main>
+  <!-- ─── SYSTEM ──────────────────────────────────────── -->
+  <section data-pane="status" class="pane active">
+    <h2>System Status</h2>
+    <div class="actions">
+      <button id="btn-refresh-status">Refresh</button>
+      <button id="btn-clear-cache" class="secondary">DELETE /cache</button>
+    </div>
+    <h3>Readiness</h3>
+    <pre id="readiness-out">—</pre>
+    <h3>Vector store stats</h3>
+    <pre id="stats-out">—</pre>
+    <h3>Cache action result</h3>
+    <pre id="cache-out">—</pre>
+  </section>
+
+  <!-- ─── VERSIONS ────────────────────────────────────── -->
+  <section data-pane="versions" class="pane">
+    <h2>Document Versions</h2>
+    <div class="row inline">
+      <input id="ver-docid" type="text" placeholder="doc_id">
+      <button id="btn-list-versions">List versions</button>
+      <button id="btn-scan-kb" class="secondary">Knowledge scan</button>
+    </div>
+
+    <div id="versions-table"></div>
+
+    <h3>Selected version detail</h3>
+    <pre id="version-detail">— (click a version row to load)</pre>
+
+    <h3>Rollback</h3>
+    <div class="row inline">
+      <input id="rollback-target" type="number" min="1" placeholder="target_version">
+      <button id="btn-rollback" class="danger">Rollback to this version</button>
+      <span id="rollback-status" class="status idle"></span>
+    </div>
+  </section>
+
+  <!-- ─── ANNOTATION ──────────────────────────────────── -->
+  <section data-pane="annotation" class="pane">
+    <h2>Annotation Queue</h2>
+    <div class="row inline">
+      <input id="ann-tenant" type="text" placeholder="tenant_id (empty=default)">
+      <button id="btn-ann-next">Pop next task</button>
+      <button id="btn-ann-stats" class="secondary">Refresh stats</button>
+    </div>
+
+    <div id="ann-stats" class="stats-line">stats: —</div>
+
+    <div id="ann-task" class="ann-card">
+      <em>(no task loaded)</em>
+    </div>
+
+    <div class="ann-form hidden" id="ann-form">
+      <label class="row">
+        <span>faithfulness (0-1)</span>
+        <input id="ann-faith" type="number" step="0.1" min="0" max="1" value="0.5">
+      </label>
+      <label class="row">
+        <span>answer_quality (0-1)</span>
+        <input id="ann-quality" type="number" step="0.1" min="0" max="1" value="0.5">
+      </label>
+      <label class="row">
+        <span>annotator_id</span>
+        <input id="ann-annotator" type="text" value="admin-ui">
+      </label>
+      <label class="row">
+        <span>comment</span>
+        <textarea id="ann-comment" rows="2"></textarea>
+      </label>
+      <div class="actions">
+        <button id="btn-ann-submit">Submit result</button>
+        <button id="btn-ann-skip" class="secondary">Skip</button>
+        <span id="ann-status" class="status idle"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── A/B TEST ────────────────────────────────────── -->
+  <section data-pane="ab" class="pane">
+    <h2>A/B Experiments</h2>
+    <div class="actions">
+      <button id="btn-ab-list">List experiments</button>
+      <details class="inline-details">
+        <summary>+ create experiment</summary>
+        <div class="ab-create">
+          <label class="row"><span>name</span><input id="ab-name" type="text" value="reranker_ab_test"></label>
+          <label class="row"><span>description</span><input id="ab-desc" type="text" value=""></label>
+          <label class="row"><span>tenant_id</span><input id="ab-tenant" type="text" value=""></label>
+          <label class="row"><span>variants JSON</span>
+            <textarea id="ab-variants" rows="5">[
+  {"variant_id": "A", "name": "control",   "traffic_pct": 0.5,
+   "config": {"reranker_type": "cross_encoder", "top_k_rerank": 6}},
+  {"variant_id": "B", "name": "treatment", "traffic_pct": 0.5,
+   "config": {"reranker_type": "passthrough",  "top_k_rerank": 10}}
+]</textarea>
+          </label>
+          <div class="actions">
+            <button id="btn-ab-create">Create</button>
+            <span id="ab-create-status" class="status idle"></span>
+          </div>
+        </div>
+      </details>
+    </div>
+
+    <div id="ab-list"></div>
+
+    <h3>Selected experiment</h3>
+    <div class="row inline">
+      <input id="ab-exp-id" type="text" placeholder="experiment_id">
+      <button id="btn-ab-start" class="secondary">Start</button>
+      <button id="btn-ab-stop" class="secondary">Stop</button>
+      <button id="btn-ab-stats">Stats</button>
+      <button id="btn-ab-winner">Winner</button>
+    </div>
+    <pre id="ab-detail">—</pre>
+
+    <h3>Record feedback to variant</h3>
+    <div class="row inline">
+      <input id="ab-fb-variant" type="text" placeholder="variant_id">
+      <input id="ab-fb-session" type="text" placeholder="session_id">
+      <select id="ab-fb-value">
+        <option value="1">+1 (positive)</option>
+        <option value="0">0 (neutral)</option>
+        <option value="-1">-1 (negative)</option>
+      </select>
+      <button id="btn-ab-feedback">Record</button>
+      <span id="ab-fb-status" class="status idle"></span>
+    </div>
+  </section>
+</main>
+
+<script src="/ui/admin.js"></script>
+</body>
+</html>

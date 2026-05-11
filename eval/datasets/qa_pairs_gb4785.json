@@ -1,0 +1,128 @@
+{
+  "name": "GB 4785-2019 RAG Eval Dataset",
+  "version": "1.0.0",
+  "created_at": "2026-05-11",
+  "description": "10 Q&A 对，问题与 KB（GB 4785-2019 汽车及挂车外部照明和光信号装置的安装规定）严格匹配，用于 RAGAS 评测 faithfulness/answer_relevancy/context_precision/context_recall。所有 ground_truth 直接抽自 KB 原文条款。",
+  "pairs": [
+    {
+      "question": "前雾灯的安装高度有什么要求？",
+      "ground_truth": "前雾灯的离地高度应不小于 250 mm；对 M 类和 N1 类车辆不大于 800 mm，对除 N1G（越野）外的其他车辆不大于 1200 mm，对 N1G 越野车辆不大于 1500 mm。前雾灯整个视表面应在近光灯视表面最高点以下。",
+      "doc_type": "policy_factual",
+      "topic": "front_fog_lamp_height",
+      "source_doc": "GB4785-2019",
+      "metadata": {
+        "clause": "5.3",
+        "domain": "外部照明",
+        "category": "前雾灯"
+      }
+    },
+    {
+      "question": "倒车灯的离地安装高度限制是多少？",
+      "ground_truth": "倒车灯离地高度应不小于 250 mm，不大于 1200 mm。",
+      "doc_type": "policy_factual",
+      "topic": "reversing_lamp_height",
+      "source_doc": "GB4785-2019",
+      "metadata": {
+        "clause": "5.4",
+        "domain": "外部照明",
+        "category": "倒车灯"
+      }
+    },
+    {
+      "question": "倒车灯发出的是什么颜色的光？",
+      "ground_truth": "倒车灯发出白色光。",
+      "doc_type": "policy_factual",
+      "topic": "reversing_lamp_color",
+      "source_doc": "GB4785-2019",
+      "metadata": {
+        "clause": "5.4",
+        "domain": "光色",
+        "category": "倒车灯"
+      }
+    },
+    {
+      "question": "制动灯允许与转向灯混合安装吗？",
+      "ground_truth": "制动灯不准许与转向灯混合。若制动灯与转向灯组合，应保证视表面在垂直于基准轴线方向上的投影所形成的不同颜色相邻区域边界，水平和垂直方向直线穿越不能超过两次。",
+      "doc_type": "policy_factual",
+      "topic": "brake_turn_combination",
+      "source_doc": "GB4785-2019",
+      "metadata": {
+        "clause": "4",
+        "domain": "组合安装",
+        "category": "制动灯"
+      }
+    },
+    {
+      "question": "前雾灯应能独立于哪些灯具打开或关闭？",
+      "ground_truth": "前雾灯应能独立于远光灯、近光灯或任何远近光组合的打开或关闭。",
+      "doc_type": "policy_factual",
+      "topic": "front_fog_independent_switch",
+      "source_doc": "GB4785-2019",
+      "metadata": {
+        "clause": "5.3",
+        "domain": "电路连接",
+        "category": "前雾灯"
+      }
+    },
+    {
+      "question": "前雾灯是否需要接通指示器？",
+      "ground_truth": "车辆应配备前雾灯接通指示器（通常为仪表盘上的绿色指示灯）。",
+      "doc_type": "policy_factual",
+      "topic": "front_fog_indicator",
+      "source_doc": "GB4785-2019",
+      "metadata": {
+        "clause": "5.3",
+        "domain": "指示器",
+        "category": "前雾灯"
+      }
+    },
+    {
+      "question": "后转向灯、后位灯、制动灯和后雾灯是否允许可变光强？变化触发条件是什么？",
+      "ground_truth": "后转向灯、后位灯、制动灯（除 S4 制动灯外）以及后雾灯允许可变光强。可变光强控制应对至少一种外界影响同时产生反应：环境照明、雾、降雪、降雨、喷雾、沙尘、透光面污染。在过渡期间不应出现可察觉的强烈变化。",
+      "doc_type": "policy_factual",
+      "topic": "variable_intensity_rules",
+      "source_doc": "GB4785-2019",
+      "metadata": {
+        "clause": "4.26",
+        "domain": "光强控制",
+        "category": "通用"
+      }
+    },
+    {
+      "question": "前位灯、后位灯和后牌照板灯的电路连接有什么约束？",
+      "ground_truth": "电路连接应保证前位灯、后位灯、示廓灯（若装）、侧标志灯（若装）和后牌照板灯只能同时打开或关闭。",
+      "doc_type": "policy_factual",
+      "topic": "position_lamp_circuit",
+      "source_doc": "GB4785-2019",
+      "metadata": {
+        "clause": "4.11",
+        "domain": "电路连接",
+        "category": "位灯"
+      }
+    },
+    {
+      "question": "GB 4785-2019 是替代哪个旧版本的国家标准？",
+      "ground_truth": "GB 4785-2019 替代 GB 4785-2007。",
+      "doc_type": "definition",
+      "topic": "standard_version",
+      "source_doc": "GB4785-2019",
+      "metadata": {
+        "clause": "封面",
+        "domain": "标准元信息",
+        "category": "版本"
+      }
+    },
+    {
+      "question": "近光灯、远光灯和前雾灯的安装有什么共同要求？",
+      "ground_truth": "近光灯、远光灯和前雾灯的安装应便于其照准的正确调节。所有光信号装置安装时其基准轴线应平行于车辆在道路上的停放面。",
+      "doc_type": "policy_factual",
+      "topic": "headlamp_aiming",
+      "source_doc": "GB4785-2019",
+      "metadata": {
+        "clause": "4.2",
+        "domain": "安装",
+        "category": "前照灯"
+      }
+    }
+  ]
+}

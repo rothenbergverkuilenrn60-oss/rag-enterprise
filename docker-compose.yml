@@ -275,6 +275,10 @@ services:
       - rag-data:/app/data
       - eval-reports:/app/eval_reports
       - ./eval:/app/eval:ro
+    # ASSUMPTION: judge LLM may need OPENAI_BASE_URL (e.g. DashScope shim).
+    # rag-common-env anchor omits it; load full .env.docker so OPENAI_BASE_URL,
+    # PG_DSN, and other config-file-only vars reach the eval container.
+    env_file: .env.docker
     environment:
       <<: *rag-common-env
       # RAGAS judge model（建议用 OpenAI GPT-4o 或 Anthropic Claude）
