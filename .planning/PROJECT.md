@@ -21,16 +21,32 @@ v1.5 Web Search + Multi-Agent Debate + Coverage Lift shipped: replaced the v1.4 
 - ✅ **v1.4 Agent-First Architecture Inversion** shipped 2026-05-10 — [archive](milestones/v1.4-ROADMAP.md)
 - ✅ **v1.5 Web Search + Multi-Agent Debate + Coverage Lift** shipped 2026-05-11 — [archive](milestones/v1.5-ROADMAP.md)
 
-## Next Milestone
+## Current Milestone: v1.6 Memory Tool — Agent-Authored Long-Term Facts
 
-**Status:** between milestones — v1.6 not yet opened.
+**Goal:** Ship 10x roadmap #1 (Memory tool) as agent-callable durable facts — background extractor writes, pgvector RecallTool reads, capacity-cap eviction bounds growth. Differentiates from existing `services/memory/memory_service.py` (Redis short-term + PG long-term + user profile, auto-injected) by being a **third store** (agent-authored), not a wrapper.
 
-When ready, run `/gsd-new-milestone` to scope v1.6. Candidate seeds (carried forward from v1.5 STATE):
-- Memory tool (10x roadmap #1) — needs `/office-hours` first (per-tenant scope, RAG-vs-tool boundary, eviction policy)
-- Code-acting / SQLTool (10x roadmap #4) — sandbox selection (subprocess+seccomp / Docker / E2B / WASM) unresolved
+**Target features:**
+- Background extractor sub-agent (post-turn `asyncio.create_task`, adversarial fixtures, importance buckets {0.2, 0.5, 0.8}, refusal clause for prompt-injection)
+- pgvector RecallTool joining `AGENT_TOOL_ALLOWLIST` (4th tool) + semantic recall rewrite of `LongTermMemory.get_relevant_facts` (popularity → query-relevant; affects all 4 `load_context` call sites in `services/pipeline.py`)
+- Per-user capacity-cap eviction (default 500 facts/user/tenant) + nightly importance-weighted cleanup + GDPR forget API
+
+**Design doc:** `~/.gstack/projects/rothenbergverkuilenrn60-oss-rag-enterprise/ubuntu-master-design-20260515-211345.md` (APPROVED, locked via /office-hours 2026-05-15)
+
+**Key context (locked):**
+- Schema reuse: `long_term_facts` table already exists; v1.6 only adds `embedding VECTOR(1024)` column (matches `settings.embedding_dim`)
+- Tenant scope: `(user_id, tenant_id)` composite filter; cross-user-within-tenant recall is OUT (deferred to v1.7+)
+- Phase count: 3 (P23/P24/P25) — matches v1.5 cadence
+- Extractor pattern: reuses `services/agent/verifier.py` provider-singleton + `call_agentic_turn` + Pydantic schema; differs by running background via `asyncio.create_task` + `utils/tasks.log_task_error` (not in-pipeline)
+- Forget API: GDPR-aligned, ships in P25
+
+**Carried forward (NOT v1.6 scope — tracked for v1.7+):**
+- Code-acting / SQLTool (10x roadmap #4) — sandbox selection unresolved
+- RLS on `long_term_facts` (Phase-2 v1.0 carry-forward) + asyncpg pool `app.current_tenant` production verification
+- SSE memory events (memory.extracted, memory.recalled) — explicit-trace differentiation extension
+- Per-tenant capacity overrides / importance decay
 - UI-03 React/Vue full migration; TEST-07 mutation testing; UI-02 first-deploy browser smoke
 - Per-module floor raise (>70%) or branch-coverage activation (Phase 22 D-08 follow-up)
-- asyncpg pool RLS production verification; PyMuPDF AGPL commercial licensing
+- PyMuPDF AGPL commercial licensing
 - Docker Build CI fix (paddleocr / paddlex / paddlepaddle ABI churn — currently `continue-on-error: true`)
 
 ## Previous Milestone (Archived): v1.5 Web Search + Multi-Agent Debate + Coverage Lift
@@ -121,11 +137,13 @@ Every query returns a grounded, auditable answer — no hallucinations, no silen
 
 ### Active
 
-**v1.5 Web Search + Multi-Agent Debate + Coverage Lift** (requirements scoped during this milestone open — REQ-IDs assigned in REQUIREMENTS.md)
+**v1.6 Memory Tool — Agent-Authored Long-Term Facts** (requirements scoped during this milestone open — REQ-IDs assigned in REQUIREMENTS.md)
 
-- [ ] WebSearchTool real implementation (Tavily SDK, replacing v1.4 placeholder, joins `AGENT_TOOL_ALLOWLIST`)
-- [ ] AGENT-05: multi-agent debate / sub-agent verify on top of v1.3 `SwarmQueryPipeline` (10x roadmap #2)
-- [ ] Per-module 70% coverage on 5 large modules: `pipeline.py`, `llm_client.py`, `vector_store.py`, `retriever.py`, `extractor.py`
+- [ ] Background extractor sub-agent (post-turn fact extraction with adversarial-input refusal; writes to `long_term_facts` with embedding)
+- [ ] pgvector RecallTool in `AGENT_TOOL_ALLOWLIST` + semantic recall rewrite of `get_relevant_facts` (affects 4 existing `load_context` call sites)
+- [ ] Per-user capacity-cap eviction + GDPR forget API (admin endpoint + `forget_user`)
+
+**v1.5 Web Search + Multi-Agent Debate + Coverage Lift (validated, moved below)**
 
 **v1.4 Agent-First Architecture Inversion (now validated, moved below)**
 
@@ -233,4 +251,4 @@ Every query returns a grounded, auditable answer — no hallucinations, no silen
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-11 — v1.5 Web Search + Multi-Agent Debate + Coverage Lift milestone shipped + archived*
+*Last updated: 2026-05-15 — v1.6 Memory Tool milestone opened (design doc locked via /office-hours)*
