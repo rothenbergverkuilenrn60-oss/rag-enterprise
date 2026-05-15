@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Memory Tool — Agent-Authored Long-Term Facts
-status: Roadmap generated; ready for `/gsd-discuss-phase 23`
-stopped_at: Phase 23 context gathered
-last_updated: "2026-05-15T14:18:37.854Z"
-last_activity: 2026-05-15 — v1.6 ROADMAP.md generated via gsd-roadmapper from approved /office-hours design doc
+status: Phase 23 planned; ready for `/gsd-execute-phase 23`
+stopped_at: Phase 23 plans created + verified (6 plans, 4 waves)
+last_updated: "2026-05-15T00:00:00.000Z"
+last_activity: 2026-05-15 — Phase 23 PLAN.md ×6 generated, plan-checker PASSED (6 non-blocking warnings)
 progress:
   total_phases: 3
   completed_phases: 0
-  total_plans: 0
+  total_plans: 6
   completed_plans: 0
 ---
 
@@ -24,16 +24,16 @@ See: .planning/PROJECT.md (updated 2026-05-15 after v1.6 open)
 
 ## Current Position
 
-Phase: 23 (not yet discussed)
-Plan: —
-Status: Roadmap generated; ready for `/gsd-discuss-phase 23`
-Last activity: 2026-05-15 — v1.6 ROADMAP.md generated via gsd-roadmapper from approved /office-hours design doc
+Phase: 23 (planned)
+Plan: 23-01..23-06 (6 plans, waves 1–4)
+Status: Phase 23 planned; plan-checker PASSED. Ready for `/gsd-execute-phase 23`.
+Last activity: 2026-05-15 — Phase 23 RESEARCH + PATTERNS + VALIDATION + 6 PLAN.md generated; plan-checker PASSED with 6 non-blocking warnings.
 
 ## Phase Overview
 
 | Phase | Name | REQ-IDs | Status |
 |-------|------|---------|--------|
-| 23 | Background Extractor + schema migration | MEM-01, MEM-02, MEM-03, MEM-04, MEM-05 | Pending — ready for /gsd-discuss-phase 23 |
+| 23 | Background Extractor + schema migration | MEM-01, MEM-02, MEM-03, MEM-04, MEM-05 | Planned (6 plans, 4 waves) — ready for /gsd-execute-phase 23 |
 | 24 | pgvector RecallTool + semantic recall rewrite | MEM-06, MEM-07, MEM-08, MEM-09, MEM-10 | Pending |
 | 25 | Eviction job + GDPR forget API | EVICT-01, EVICT-02, EVICT-03, GDPR-01, GDPR-02, GDPR-03 | Pending |
 
@@ -85,8 +85,18 @@ None.
 
 ## Session Continuity
 
-**Last updated:** 2026-05-15 — v1.6 ROADMAP.md generated via gsd-roadmapper from approved /office-hours design doc; phases 23/24/25 each have 5 observable success criteria; 16/16 requirement coverage validated.
-**Stopped at:** Phase 23 context gathered
-**Next action:** `/gsd-discuss-phase 23`
+**Last updated:** 2026-05-15 — Phase 23 plans generated and verified. 6 PLAN.md files across 4 waves; plan-checker PASSED (6 non-blocking warnings flagged for executor SUMMARY).
+**Stopped at:** Phase 23 plans created + verified
+**Next action:** `/gsd-execute-phase 23` (or `/plan-eng-review` for second-opinion gate before execute)
+
+**Plan Map (Phase 23):**
+| Plan | Wave | Reqs | Files | Depends on |
+|------|------|------|-------|------------|
+| 23-01 | 1 | MEM-01 | services/memory/memory_service.py (DDL + register_vector), utils/exceptions.py (`MemoryFactWriteError`) | — |
+| 23-02 | 2 | MEM-02 | services/memory/memory_service.py (`save_fact` embed-on-write) | 23-01 |
+| 23-03 | 1 | MEM-03 | services/agent/extractor.py, utils/models.py (`ExtractedFact`), config/settings.py | — |
+| 23-04 | 2 | MEM-05 | tests/unit/test_extractor_adversarial.py + fixtures | 23-03 |
+| 23-05 | 3 | MEM-04 | services/agent/extractor.py (`dispatch_extraction`), services/pipeline.py (Agent + Swarm wire-in) | 23-02, 23-04 |
+| 23-06 | 4 | MEM-01, MEM-04 | tests/integration/test_long_term_facts_schema.py, test_extractor_e2e.py | 23-05 |
 
 **Planned Phase:** 23 — Background Extractor sub-agent + schema migration
