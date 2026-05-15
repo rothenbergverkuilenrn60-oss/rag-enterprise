@@ -107,6 +107,7 @@ class AnnotationService:
         answer: str,
         contexts: list[str],
         tenant_id: str = "",
+        user_comment: str = "",
     ) -> None:
         """
         负面反馈触发标注任务（最高优先级，需要人工确认问题所在）。
@@ -119,6 +120,7 @@ class AnnotationService:
             source="feedback",
             tenant_id=tenant_id,
             priority=20,    # 最高优先级
+            user_comment=user_comment,
         )
         await self.push_task(task)
 

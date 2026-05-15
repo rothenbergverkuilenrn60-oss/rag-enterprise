@@ -657,6 +657,14 @@ class QueryPipeline:
             req.query, len(full_answer), 0.0, 0.0, tenant_id, user_id,
         )
 
+        # 与 run() 对齐：保存最近 QA 快照，供 /feedback 端点 👎 时反查推标注任务。
+        await _store_last_qa(
+            session_id=req.session_id or "", query=req.query,
+            answer=full_answer,
+            contexts=[c.content for c in chunks[:5]],
+            tenant_id=tenant_id,
+        )
+
     def _simple(self, req: GenerationRequest, msg: str, trace_id: str) -> GenerationResponse:
         return GenerationResponse(
             answer=msg, sources=[], session_id=req.session_id,

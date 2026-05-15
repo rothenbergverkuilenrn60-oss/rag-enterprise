@@ -334,8 +334,11 @@ services:
     networks:
       - rag-net
     environment:
-      RERANKER_MODEL_PATH: ${RERANKER_MODEL_PATH:-cross-encoder/ms-marco-MiniLM-L-6-v2}
+      # reranker 容器挂载 /mnt/f/my_models 原路径，路径与 rag-api（/app/models/...）不同 → 这里硬编码避免 .env 冲突
+      RERANKER_MODEL_PATH: /mnt/f/my_models/embedding_models/bge-m3-rerank/BAAI/bge-reranker-v2-m3
       RERANKER_CN_MODEL_PATH: ${RERANKER_CN_MODEL_PATH:-}
+    volumes:
+      - /mnt/f/my_models:/mnt/f/my_models:ro    # 挂载本地模型目录（与 rag-api 共用 bge-m3-rerank）
     healthcheck:
       test: ["CMD", "python", "-c",
              "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
@@ -399,6 +402,27 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # 10. Jaeger — OTEL traces backend (all-in-one)
+  # ══════════════════════════════════════════════════════════════════════════
+  jaeger:
+    image: jaegertracing/all-in-one:1.57
+    container_name: rag-jaeger
+    <<: [*restart-policy, *default-logging]
+    networks:
+      - rag-net
+    ports:
+      - "16686:16686"   # UI
+      - "4317:4317"     # OTLP gRPC
+      - "4318:4318"     # OTLP HTTP
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:14269/"]
       interval: 15s
       timeout: 5s
       retries: 5

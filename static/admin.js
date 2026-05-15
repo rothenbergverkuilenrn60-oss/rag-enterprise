@@ -181,9 +181,14 @@
       return;
     }
     currentTaskId = task.task_id;
+    const userCommentBlock = task.user_comment
+      ? `<div class="ann-field" style="background:#fff8e1;padding:0.5em;border-left:3px solid #ffa000;"><strong>👎 用户备注:</strong><br>${escapeHtml(task.user_comment)}</div>`
+      : "";
     annTask.innerHTML = `
       <div class="ann-field"><strong>task_id:</strong> <code>${escapeHtml(task.task_id)}</code></div>
       <div class="ann-field"><strong>tenant_id:</strong> ${escapeHtml(task.tenant_id || "—")}</div>
+      <div class="ann-field"><strong>source:</strong> ${escapeHtml(task.source || "—")}</div>
+      ${userCommentBlock}
       <div class="ann-field"><strong>question:</strong><br>${escapeHtml(task.question || "")}</div>
       <div class="ann-field"><strong>answer:</strong><br>${escapeHtml(task.answer || "")}</div>
       <div class="ann-field"><strong>contexts:</strong>

@@ -1,0 +1,99 @@
+# PostgreSQL + pgvector — 向量数据库 + 关系存储（替换原 k8s/qdrant，Phase 1 PG-01–05 收口）
+# 单节点 StatefulSet + 100Gi PVC + ClusterIP Service + initdb ConfigMap（pgvector / pg_trgm 扩展 + RLS hook）
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-initdb
+  namespace: rag-enterprise
+data:
+  init.sql: |
+    -- pgvector extension + RLS setup for EnterpriseRAG
+    CREATE EXTENSION IF NOT EXISTS vector;
+    CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+    -- RLS: app sets this per-connection before any query
+    -- SET app.current_tenant = 'tenant_id';
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-service
+  namespace: rag-enterprise
+spec:
+  selector:
+    app: postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: rag-enterprise
+spec:
+  serviceName: postgres-service
+  replicas: 1                   # 单节点；HA 需要 patroni / cloudnative-pg / RDS
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: postgres
+          image: pgvector/pgvector:pg16
+          ports:
+            - containerPort: 5432
+              name: postgres
+          env:
+            - name: POSTGRES_USER
+              value: rag
+            - name: POSTGRES_DB
+              value: ragdb
+            - name: POSTGRES_INITDB_ARGS
+              value: "--encoding=UTF8"
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: rag-secrets
+                  key: POSTGRES_PASSWORD
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          resources:
+            requests: { cpu: "500m", memory: "2Gi" }
+            limits:   { cpu: "2000m", memory: "8Gi" }
+          volumeMounts:
+            - name: postgres-storage
+              mountPath: /var/lib/postgresql/data
+            - name: initdb
+              mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "rag", "-d", "ragdb"]
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "rag", "-d", "ragdb"]
+            initialDelaySeconds: 30
+            periodSeconds: 15
+      volumes:
+        - name: initdb
+          configMap:
+            name: postgres-initdb
+  volumeClaimTemplates:
+    - metadata:
+        name: postgres-storage
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 100Gi

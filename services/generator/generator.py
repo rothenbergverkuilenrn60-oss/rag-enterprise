@@ -20,7 +20,7 @@ from loguru import logger
 from config.settings import settings
 from services.generator.llm_client import get_llm_client
 from utils.logger import log_latency
-from utils.metrics import llm_latency_seconds
+from utils.metrics import faithfulness_histogram, llm_latency_seconds, llm_tokens_total
 from utils.models import GenerationRequest, GenerationResponse, RetrievedChunk
 from utils.observability import start_span
 
@@ -308,9 +308,28 @@ class GeneratorService:
         llm_latency_seconds.labels(provider=settings.llm_provider).observe(
             time.perf_counter() - _llm_t0
         )
+        # Token usage 埋点（粗略估算：input = prompt 长度，output = answer 长度）
+        try:
+            llm_tokens_total.labels(
+                provider=settings.llm_provider,
+                model=settings.active_model,
+                token_type="input",
+            ).inc(_count_tokens(system_prompt) + _count_tokens(user_prompt))
+            llm_tokens_total.labels(
+                provider=settings.llm_provider,
+                model=settings.active_model,
+                token_type="output",
+            ).inc(_count_tokens(answer))
+        except (ValueError, AttributeError):
+            pass  # metric failure 不阻塞主流程
 
         # ── 忠实度评估（LLM-as-Judge 或 keyword fallback） ───────────────────
         faithfulness = await estimate_faithfulness(answer, chunks, self._llm)
+        # Faithfulness Prometheus 埋点
+        try:
+            faithfulness_histogram.labels(tenant_id=getattr(req, "tenant_id", "") or "").observe(faithfulness)
+        except (ValueError, AttributeError):
+            pass
 
         elapsed_ms = round((time.perf_counter() - start) * 1000, 1)
         response = GenerationResponse(

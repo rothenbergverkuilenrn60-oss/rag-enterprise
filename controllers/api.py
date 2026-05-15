@@ -476,6 +476,7 @@ async def submit_feedback(req: FeedbackRequest) -> APIResponse:
                         answer=qa.get("answer", ""),
                         contexts=qa.get("contexts", []),
                         tenant_id=req.tenant_id or qa.get("tenant_id", ""),
+                        user_comment=req.comment,
                     )
                     logger.info(f"[API:feedback] 👎 session={req.session_id} → annotation queue")
             except (ConnectionError, TimeoutError, ValueError, KeyError) as exc:

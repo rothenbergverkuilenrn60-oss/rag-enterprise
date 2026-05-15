@@ -17,7 +17,6 @@ import redis
 from arq.connections import RedisSettings, create_pool
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.responses import Response as FastAPIResponse
 from fastapi.staticfiles import StaticFiles
@@ -186,8 +185,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 2. GZip 压缩（响应 > 1KB 自动压缩）
-app.add_middleware(GZipMiddleware, minimum_size=1024)
+# 2. (移除) GZipMiddleware —— 与 SSE 流式响应冲突（buffer-then-compress 杀死流）。
+#    JSON 端点的压缩交给上游 Nginx Ingress 处理（k8s/ingress.yaml）。
 
 # 3. 请求追踪中间件（注入 Trace-ID + 记录访问日志）
 @app.middleware("http")

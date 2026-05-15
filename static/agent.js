@@ -190,7 +190,19 @@ const ingFileInput = $("ing-file");
     sendBtn.disabled = true;
     setStatus(`running (${mode})…`, "running");
 
-    const url = mode === "basic" ? "/api/v1/query/stream" : "/api/v1/agent/v1/run/stream";
+    // 统一走 /query 同步端点：三向路由 swarm_mode > agent_mode > QueryPipeline。
+    // 全功能（A/B + Cache + Faithfulness + Audit + _store_last_qa）由后端 .run() 完成。
+    body.include_images = true;
+    const url = "/api/v1/query";
+    const t0 = Date.now();
+
+    // 显示答案面板 + 等待占位符；启动 elapsed 计时器
+    answerPanel.classList.remove("hidden");
+    answerEl.textContent = `⏳ 等待回答…(模式=${mode}，30-120 秒)`;
+    const elapsedTimer = setInterval(() => {
+      const sec = ((Date.now() - t0) / 1000).toFixed(1);
+      setStatus(`running (${mode})… ${sec}s`, "running");
+    }, 200);
 
     try {
       const resp = await fetch(url, {
@@ -198,85 +210,54 @@ const ingFileInput = $("ing-file");
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
+      clearInterval(elapsedTimer);
 
-      if (mode === "basic") {
-        // /query/stream: unnamed SSE frames `data: <token>\n\n`, sentinel `[DONE]`,
-        // error sentinel `[ERROR] ...`. Tokens concatenate into the answer.
-        const reader = resp.body.getReader();
-        const decoder = new TextDecoder();
-        let buf = "";
-        let raw = "";
-        let streamDone = false;
-        let firstToken = true;
-        const t0 = Date.now();
-        // Show panel immediately with placeholder — TTFT can be 10+s on Qwen/Anthropic
-        answerPanel.classList.remove("hidden");
-        answerEl.textContent = "⏳ 等待第一个 token…(LLM 正在做检索 + 思考，通常 5-20 秒)";
-        setStatus("waiting for first token…", "running");
-        // Live elapsed counter while we wait
-        const elapsedTimer = setInterval(() => {
-          if (firstToken) {
-            const sec = ((Date.now() - t0) / 1000).toFixed(1);
-            setStatus(`waiting for first token… ${sec}s`, "running");
-          }
-        }, 200);
-        while (!streamDone) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          const chunk = decoder.decode(value, { stream: true });
-          raw += chunk;
-          buf += chunk;
-          let idx;
-          while ((idx = buf.indexOf("\n\n")) !== -1) {
-            const frame = buf.slice(0, idx);
-            buf = buf.slice(idx + 2);
-            for (const line of frame.split("\n")) {
-              if (!line.startsWith("data: ")) continue;
-              const payload = line.slice(6);
-              if (payload === "[DONE]") { streamDone = true; break; }
-              if (payload.startsWith("[ERROR]")) {
-                renderEvent("error", { message: payload.slice(7).trim(), ts_ms: Date.now() });
-                streamDone = true;
-                break;
-              }
-              if (firstToken) {
-                answerEl.textContent = "";  // wipe placeholder
-                setStatus("streaming…", "running");
-                firstToken = false;
-              }
-              answerEl.textContent += payload;
-              answerEl.scrollTop = answerEl.scrollHeight;
-            }
-          }
-        }
-        clearInterval(elapsedTimer);
-        rawEl.textContent = raw;
-        srcCountEl.textContent = "—";
-        sourcesEl.innerHTML = "<em>(sources unavailable in basic streaming mode; switch to agent_mode for chunk metadata)</em>";
-        if (firstToken) {
-          answerEl.textContent = "(no tokens received)";
-        }
-        setStatus(`done · ${Date.now() - t0}ms`, "done");
-      } else {
-        // SSE streaming via fetch + ReadableStream
-        const reader = resp.body.getReader();
-        const decoder = new TextDecoder();
-        let buf = "";
-        let raw = "";
-        while (true) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          const chunk = decoder.decode(value, { stream: true });
-          raw += chunk;
-          buf += chunk;
-          const { frames, buffer: rest } = parseSSEChunk(buf);
-          buf = rest;
-          for (const { eventType, data } of frames) renderEvent(eventType, data);
-        }
-        rawEl.textContent = raw;
-        setStatus("done", "done");
+      if (!resp.ok) {
+        let detail = "";
+        try { detail = JSON.stringify(await resp.json()); } catch (_) { detail = await resp.text(); }
+        throw new Error(`HTTP ${resp.status} ${detail}`);
       }
+      const env = await resp.json();
+      if (!env.success) throw new Error(env.error || "query failed");
+      const data = env.data || {};
+      rawEl.textContent = JSON.stringify(env, null, 2);
+
+      // 渲染答案
+      answerEl.textContent = data.answer || "(empty answer)";
+
+      // 渲染来源
+      const sources = data.sources || [];
+      srcCountEl.textContent = sources.length;
+      if (!sources.length) {
+        sourcesEl.innerHTML = "<em>(no sources)</em>";
+      } else {
+        sourcesEl.innerHTML = sources.map((s, i) => {
+          const m = s.metadata || {};
+          const score = s.final_score ?? s.rerank_score ?? s.rrf_score ?? s.dense_score ?? 0;
+          const ctype = m.chunk_type || "?";
+          const loc = ctype === "web"
+            ? `URL=${escapeHtml((m.source || "").slice(0, 80))}`
+            : `页=${m.page_number ?? "?"}`;
+          const img = m.image_b64 ? `<br><img style="max-width:200px;margin-top:4px;" src="data:image/png;base64,${m.image_b64}">` : "";
+          return `<div class="source"><div class="source-meta">来源${i+1} · ${escapeHtml(loc)} · 类型=${escapeHtml(ctype)} · score=${Number(score).toFixed(3)}</div><div>${escapeHtml(String(s.content || ""))}</div>${img}</div>`;
+        }).join("");
+      }
+
+      // 渲染元信息到 Event Timeline（虽然非流式无事件，把后端 trace + faithfulness 当 1 个 event 显示）
+      eventsEl.innerHTML = "";
+      renderEvent("query.complete", {
+        ts_ms: Date.now(),
+        trace_id: env.trace_id || data.trace_id || "—",
+        latency_ms: data.latency_ms || (Date.now() - t0),
+        faithfulness: data.faithfulness_score ?? "—",
+        model: data.model || "—",
+        sources_count: sources.length,
+        answer: data.answer || "",
+      });
+
+      setStatus(`done · ${Date.now() - t0}ms`, "done");
     } catch (e) {
+      clearInterval(elapsedTimer);
       console.error(e);
       setStatus(`error: ${e.message}`, "error");
       renderEvent("error", { message: e.message });

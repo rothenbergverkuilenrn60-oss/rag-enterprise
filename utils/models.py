@@ -508,6 +508,7 @@ class AnnotationTask(BaseModel):
     ragas_score:   float | None                = None   # 触发标注的 RAGAS 低分
     tenant_id:     str                         = ""
     priority:      int                         = 0    # 越高越优先（负面反馈触发的优先级高）
+    user_comment:  str                         = ""   # 用户在反馈时填写的备注（feedback 来源任务才有）
 
 
 class AnnotationResult(BaseModel):

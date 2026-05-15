@@ -96,17 +96,17 @@
       "options": { "legend": { "calcs": ["mean","p95"], "displayMode": "table" } },
       "targets": [
         {
-          "expr": "histogram_quantile(0.50, sum(rate(rag_retrieval_latency_seconds_bucket{stage=\"total\"}[5m])) by (le))",
+          "expr": "histogram_quantile(0.50, sum(rate(rag_retrieval_latency_seconds_bucket{stage=\"rerank\"}[5m])) by (le))",
           "legendFormat": "P50 total",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.95, sum(rate(rag_retrieval_latency_seconds_bucket{stage=\"total\"}[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(rag_retrieval_latency_seconds_bucket{stage=\"rerank\"}[5m])) by (le))",
           "legendFormat": "P95 total",
           "refId": "B"
         },
         {
-          "expr": "histogram_quantile(0.99, sum(rate(rag_retrieval_latency_seconds_bucket{stage=\"total\"}[5m])) by (le))",
+          "expr": "histogram_quantile(0.99, sum(rate(rag_retrieval_latency_seconds_bucket{stage=\"rerank\"}[5m])) by (le))",
           "legendFormat": "P99 total",
           "refId": "C"
         }
