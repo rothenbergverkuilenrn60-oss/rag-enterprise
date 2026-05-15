@@ -5,9 +5,9 @@ milestone_name: Memory Tool — Agent-Authored Long-Term Facts
 status: planning
 stopped_at: ""
 last_updated: "2026-05-15T21:13:45.000Z"
-last_activity: "2026-05-15 — v1.6 milestone opened via /gsd-new-milestone; design doc locked in /office-hours session"
+last_activity: "2026-05-15 — v1.6 ROADMAP.md generated; phases 23/24/25 defined with success criteria; ready for /gsd-discuss-phase 23"
 progress:
-  total_phases: 0
+  total_phases: 3
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -25,16 +25,18 @@ See: .planning/PROJECT.md (updated 2026-05-15 after v1.6 open)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 23 (not yet discussed)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-05-15 — Milestone v1.6 started
+Status: Roadmap generated; ready for `/gsd-discuss-phase 23`
+Last activity: 2026-05-15 — v1.6 ROADMAP.md generated via gsd-roadmapper from approved /office-hours design doc
 
 ## Phase Overview
 
 | Phase | Name | REQ-IDs | Status |
 |-------|------|---------|--------|
-| — | (roadmap not yet generated) | — | — |
+| 23 | Background Extractor + schema migration | MEM-01, MEM-02, MEM-03, MEM-04, MEM-05 | Pending — ready for /gsd-discuss-phase 23 |
+| 24 | pgvector RecallTool + semantic recall rewrite | MEM-06, MEM-07, MEM-08, MEM-09, MEM-10 | Pending |
+| 25 | Eviction job + GDPR forget API | EVICT-01, EVICT-02, EVICT-03, GDPR-01, GDPR-02, GDPR-03 | Pending |
 
 ## Accumulated Context
 
@@ -84,8 +86,8 @@ None.
 
 ## Session Continuity
 
-**Last updated:** 2026-05-15 — v1.6 milestone opened via /gsd-new-milestone; design doc locked via /office-hours session (10 decisions D1-D10, 2-iteration spec review converged 6.5→8/10).
-**Stopped at:** Defining requirements
-**Next action:** REQUIREMENTS.md → ROADMAP.md (gsd-roadmapper spawn) → `/gsd-discuss-phase 23`
+**Last updated:** 2026-05-15 — v1.6 ROADMAP.md generated via gsd-roadmapper from approved /office-hours design doc; phases 23/24/25 each have 5 observable success criteria; 16/16 requirement coverage validated.
+**Stopped at:** Roadmap complete; awaiting phase discussion.
+**Next action:** `/gsd-discuss-phase 23`
 
 **Planned Phase:** 23 — Background Extractor sub-agent + schema migration
