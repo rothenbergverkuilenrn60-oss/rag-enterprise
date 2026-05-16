@@ -35,6 +35,9 @@ class AuditAction(str, Enum):
     FEEDBACK          = "FEEDBACK"
     KB_UPDATE         = "KB_UPDATE"
     TOKEN_VERIFIED    = "TOKEN_VERIFIED"
+    # Phase 25 — D-2.1 — GDPR forget API + eviction job
+    MEMORY_FORGET     = "MEMORY_FORGET"   # forget_user() API call
+    MEMORY_EVICT      = "MEMORY_EVICT"    # eviction sweep (one row per bucket)
 
 
 class AuditResult(str, Enum):
