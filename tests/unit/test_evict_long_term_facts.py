@@ -545,6 +545,10 @@ async def test_evict_audit_write_failure_continues_sweep(monkeypatch, caplog):
     audit_svc.flush = AsyncMock(return_value=None)
     monkeypatch.setattr(mod, "get_audit_service", lambda: audit_svc)
 
+    # Neutralize setup_logger inside main_async — it would otherwise replace
+    # the global logger handlers and invalidate the test's capture sink.
+    monkeypatch.setattr(mod, "setup_logger", lambda *a, **kw: None)
+
     # We REPLACE evict_bucket entirely with a fake to enforce the T1 contract at
     # the sweep boundary. The script's real evict_bucket MUST also honor T1 (the
     # GREEN-pass implementation does). This test asserts:
@@ -566,7 +570,10 @@ async def test_evict_audit_write_failure_continues_sweep(monkeypatch, caplog):
     try:
         exit_code = await mod.main_async(mode="enforce", batch_size=1000, user_id=None)
     finally:
-        _logger.remove(handler_id)
+        try:
+            _logger.remove(handler_id)
+        except ValueError:
+            pass  # handler was already removed by setup_logger reset
 
     # (a) sweep did not abort
     assert exit_code == 0
