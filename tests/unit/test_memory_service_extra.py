@@ -179,9 +179,25 @@ async def test_long_term_upsert_user_profile_executes_insert():
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_long_term_get_relevant_facts_returns_strings():
+async def test_long_term_get_relevant_facts_returns_strings(monkeypatch):
+    # Phase 24 / MEM-06 — get_relevant_facts now embeds the query before the
+    # SELECT (semantic recall). Must mock the embedder at source + consumer
+    # paths (same dual-patch convention as save_fact tests) and add a
+    # conn.transaction stub so SET LOCAL calls inside the txn take effect.
+    fake_embedder = MagicMock()
+    fake_embedder.embed_one = AsyncMock(return_value=[0.1] * 1024)
+    monkeypatch.setattr("services.vectorizer.embedder.get_embedder", lambda: fake_embedder)
+    monkeypatch.setattr("services.memory.memory_service.get_embedder", lambda: fake_embedder, raising=False)
+
     conn = MagicMock()
+    conn.execute = AsyncMock()
     conn.fetch = AsyncMock(return_value=[{"fact": "f1"}, {"fact": "f2"}])
+
+    class _TxnCtx:
+        async def __aenter__(self): return conn
+        async def __aexit__(self, *a): return False
+
+    conn.transaction = MagicMock(return_value=_TxnCtx())
     lt = _make_long(_make_pool(conn))
     out = await lt.get_relevant_facts("u1", "t1", "query")
     assert out == ["f1", "f2"]
@@ -189,9 +205,22 @@ async def test_long_term_get_relevant_facts_returns_strings():
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_long_term_get_relevant_facts_pg_error_returns_empty():
+async def test_long_term_get_relevant_facts_pg_error_returns_empty(monkeypatch):
+    # Phase 24 / MEM-06 — embedder must succeed; pg error on fetch returns [].
+    fake_embedder = MagicMock()
+    fake_embedder.embed_one = AsyncMock(return_value=[0.1] * 1024)
+    monkeypatch.setattr("services.vectorizer.embedder.get_embedder", lambda: fake_embedder)
+    monkeypatch.setattr("services.memory.memory_service.get_embedder", lambda: fake_embedder, raising=False)
+
     conn = MagicMock()
+    conn.execute = AsyncMock()
     conn.fetch = AsyncMock(side_effect=asyncpg.PostgresError("boom"))
+
+    class _TxnCtx:
+        async def __aenter__(self): return conn
+        async def __aexit__(self, *a): return False
+
+    conn.transaction = MagicMock(return_value=_TxnCtx())
     lt = _make_long(_make_pool(conn))
     out = await lt.get_relevant_facts("u1", "t1", "query")
     assert out == []
@@ -259,6 +288,8 @@ async def test_long_term_update_profile_appends_topic():
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_memory_service_load_context_aggregates(monkeypatch):
+    # Phase 24 / T1 (Decision-1): load_context no longer fetches long_term_facts.
+    # long_term_facts is always [] — RecallTool is the sole read path post-Phase-24.
     from services.memory.memory_service import (
         ConversationTurn,
         MemoryService,
@@ -272,7 +303,8 @@ async def test_memory_service_load_context_aggregates(monkeypatch):
     svc._long.get_user_profile = AsyncMock(return_value=UserProfile(user_id="u1"))
     ctx = await svc.load_context("s1", "u1", "t1", "query")
     assert ctx.short_term[0].content == "q"
-    assert ctx.long_term_facts == ["fact-1"]
+    # Decision-1: long_term_facts always [] from load_context (RecallTool is sole reader)
+    assert ctx.long_term_facts == []
     assert ctx.user_profile.user_id == "u1"
 
 

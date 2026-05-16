@@ -450,10 +450,38 @@ class MemoryService:
         tenant_id:  str,
         query:      str,
     ) -> MemoryContext:
-        """加载当前请求所需的全部记忆上下文。"""
-        short_term, long_term_facts, user_profile = await asyncio.gather(
+        """加载当前请求所需的全部记忆上下文。
+
+        Phase 24 / T1 (Decision-1) — ``long_term_facts`` is NO LONGER auto-injected
+        here. Planner reads long-term facts on opt-in via ``RecallTool``
+        (services/agent/tools/recall.py). ``MemoryContext.long_term_facts`` is
+        preserved as a typed field but always set to ``[]`` by this method;
+        downstream code that referenced ``mem_ctx.long_term_facts`` continues
+        to receive a typed empty list (no AttributeError).
+
+        Pre-removal shape (v1.0-v1.5):           Post-removal shape (v1.6 Phase 24):
+        ┌──────────────────────────────────┐    ┌──────────────────────────────────┐
+        │ asyncio.gather(                  │    │ asyncio.gather(                  │
+        │   _short.get_history(session),   │    │   _short.get_history(session),   │
+        │   _long.get_relevant_facts(...),─┼──X │   _long.get_user_profile(u, t),  │
+        │   _long.get_user_profile(u, t),  │    │   return_exceptions=True,        │
+        │   return_exceptions=True,        │    │ )                                │
+        │ )                                │    │                                  │
+        │   ↓                              │    │   ↓                              │
+        │ MemoryContext(                   │    │ MemoryContext(                   │
+        │   short_term=[...],              │    │   short_term=[...],              │
+        │   long_term_facts=[...],   ──────┼──X │   long_term_facts=[],   (always) │
+        │   user_profile=...,              │    │   user_profile=...,              │
+        │ )                                │    │ )                                │
+        └──────────────────────────────────┘    └──────────────────────────────────┘
+                                                 RecallTool (planner opt-in) is now
+                                                 the sole reader of long_term_facts.
+
+        See ``tests/integration/test_pipeline_load_context_audit.py`` (Plan 05)
+        for the 4-call-site removal regression gate.
+        """
+        short_term, user_profile = await asyncio.gather(
             self._short.get_history(session_id),
-            self._long.get_relevant_facts(user_id, tenant_id, query),
             self._long.get_user_profile(user_id, tenant_id),
             return_exceptions=True,
         )
@@ -462,7 +490,7 @@ class MemoryService:
             user_id=user_id,
             tenant_id=tenant_id,
             short_term=short_term if isinstance(short_term, list) else [],
-            long_term_facts=long_term_facts if isinstance(long_term_facts, list) else [],
+            long_term_facts=[],  # T1 (Decision-1) — RecallTool is sole read path
             user_profile=user_profile if isinstance(user_profile, UserProfile) else None,
         )
 
