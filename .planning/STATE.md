@@ -2,21 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Memory Tool — Agent-Authored Long-Term Facts
-status: Phase 24 plans amended per /plan-eng-review 2026-05-16 (9 decisions across 6 plans; 11 implementation tasks). Ready for plan-checker re-run, then `/gsd-execute-phase 24`.
-stopped_at: Phase 24 plans amended; awaiting plan-checker re-verification
-last_updated: "2026-05-16T18:45:00.000Z"
-last_activity: 2026-05-16 — /plan-eng-review applied 9 amendments to Phase 24 plans 02/03/04/05/06/07. Major changes: (1) T1/Decision-1 — load_context drops long_term_facts injection (RecallTool becomes sole read path; resolves D-B1 double-fetch); (2) T2/Decision-2 — MemoryService.get_relevant_facts passthrough method (decouples RecallTool from MemoryService internals); (3) T3 — RecallTool uses public passthrough; (4) T4/Decision-5 — backfill batch UPDATE FROM unnest (10-50× throughput); (5) T5/Decision-3 — narrow asyncpg.Error catch (replaces BLE001 noqa); (6) T6/Decision-8 — sys.modules.pop in kill-switch reload helper (fixes test integrity); (7) T7/Decision-7 — SC-2 real-LLM test with real_llm marker; (8) T8/Decision-9 — MEM-10 audit reshaped to 4-site removal regression (token-delta methodology dropped); (9) T9/Decision-6 — SC-3 SQL-only latency benchmark @ 10k rows (closes manual-only gap); plus T10/Decision-4 ASCII diagrams in 3 modules + T11 fix tautology test. Outside voice (Claude subagent, Codex unavailable) decisively right on 5 of 6 substantive findings. See .planning/phases/24-pgvector-recalltool-semantic-recall-rewrite/24-ENG-REVIEW.md for full review.
-
-## Open Questions (v1.7+ carry-forwards from eng-review 2026-05-16)
-
-- D-B4 "kill-switch" naming: module-import-time setting requires process restart; "kill-switch" implies runtime flip. Update docs/memory-eviction.md operator playbook to use "config flag (requires process restart)" wording.
-- v1.7+ eval paths after production traffic accumulates: (a) recall metadata in ToolResult (importance + age); (b) SSE memory.recalled event; (c) per-tenant overrides.
+status: Phase 24 planned. Ready for `/gsd-execute-phase 24`.
+stopped_at: Completed 24-02-PLAN.md (semantic recall rewrite + load_context drop)
+last_updated: "2026-05-16T11:10:51.452Z"
+last_activity: 2026-05-16 — Plan 23-06 (91e19af→1806cc8→7a4acef→41ce20e). MEM-01 + MEM-04 integration verification + coverage gate; 7 new tests added; 27/27 Phase 23 unit suite GREEN; ruff clean.
 progress:
   total_phases: 3
   completed_phases: 1
   total_plans: 13
-  completed_plans: 6
-  percent: 46
+  completed_plans: 7
+  percent: 54
 ---
 
 # STATE — EnterpriseRAG (v1.6 planning)
@@ -95,7 +90,7 @@ None.
 ## Session Continuity
 
 **Last updated:** 2026-05-16 — Plan 23-06 GREEN. All 6 plans of Phase 23 complete. MEM-01 + MEM-04 integration verification + per-module coverage gate green (97.4% extractor / 93.3% memory_service). 7 new integration tests collected; SKIP gracefully on CI hosts without PostgreSQL. Pre-tag check: run `uv run pytest tests/integration/test_long_term_facts_schema.py tests/integration/test_extractor_e2e.py tests/integration/test_swarm_pipeline_extractor_e2e.py -m pgvector -x -q` against a live local PG to confirm 7/7 PASS.
-**Stopped at:** Completed 23-06-PLAN.md (Plan 23 wave 4 — integration + coverage gate, SC-1/4/5 closed)
+**Stopped at:** Completed 24-02-PLAN.md (semantic recall rewrite + load_context drop)
 **Next action:** `/gsd-verify-work 23` to run the Phase 23 verifier, then `/gsd-ship` to advance to Phase 24.
 
 **Plan Map (Phase 24):**
