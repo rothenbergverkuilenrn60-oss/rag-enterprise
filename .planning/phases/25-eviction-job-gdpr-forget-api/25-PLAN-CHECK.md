@@ -1,176 +1,258 @@
-# Phase 25 Plan-Check Report
+# Phase 25 Plan-Check Report — Post-Amendment Re-Run
 
-**Checked:** 2026-05-16
-**Status: PASS-WITH-WARNINGS**
+**Checked:** 2026-05-16 (re-verification after eng-review amendments)
+**Commit verified:** 9568d2f (`docs(25): apply eng-review amendments T1-T9`)
+**Status: PASS**
 **Plans:** 7 (25-01 through 25-07)
 **Blockers:** 0
-**Warnings:** 3
+**Warnings:** 0
 **Info:** 1
+**Prior verdict (e6dc73e):** PASS-WITH-WARNINGS — 0 blockers, 3 warnings (W1, W2, W3), 1 info
+**Delta:** All 3 prior warnings closed. No new blockers or warnings introduced by amendments.
 
 ---
 
-## SC Coverage (ROADMAP Phase 25)
+## Prior Warning Closure
 
-| SC | Requirement | Plans | Closure Evidence | Status |
-|----|-------------|-------|-----------------|--------|
-| SC-1 | Audit-mode zero deletes + enforce drops 600→500; 100-row untouched | 25-05 (unit), 25-06 (integration) | `test_audit_mode_no_delete_and_stdout`, `test_enforce_mode_caps_bucket`, `test_enforce_mode_small_bucket_untouched` | COVERED |
-| SC-2 | Tie-break: cap=2, 3 rows — oldest 0.2 deleted | 25-05 (unit ORDER BY gate), 25-06 (integration) | `test_eviction_tiebreak_correctness` + grep gate on `ORDER BY importance ASC, created_at ASC` | COVERED |
-| SC-3 | Admin → 200+count; non-admin other user → 403; idempotent re-call → 0 | 25-04 (unit), 25-06 (integration) | `test_forget_admin_jwt_200`, `test_forget_non_admin_other_user_403`, `test_forget_api_e2e_idempotent` | COVERED |
-| SC-4 | audit_log MEMORY_FORGET row with correct detail fields | 25-04 (unit), 25-06 (integration `test_forget_api_audit_log_row`) | Pitfall 3 mitigation explicit in 25-06 Task 2 (monkeypatch audit_db_enabled + flush) | COVERED |
-| SC-5 | docs/memory-eviction.md — CronJob YAML + audit→enforce + curl + backfill cross-ref + anchors | 25-07 Task 1 | 5 new section headings; §E6 verbatim YAML; grep gates in acceptance_criteria; wc -l 120-180 | COVERED |
+### W1 — SC-5 anchor verification not mechanically tested → CLOSED (T5)
 
-SC-5 note: plan acceptance_criteria checks `grep -c '^## '` (section count) but does NOT explicitly gate on internal anchor resolution (no `[text](#anchor)` links in the doc template). Since the doc uses flat `##` sections (no anchor cross-references), this is low risk but noted below as WARNING-1.
+- 25-07 Task 1 acceptance_criteria now contains literal grep gate: `grep -c '\](#' docs/memory-eviction.md` equals 0.
+- 25-07 success_criteria explicitly annotates SC-5 as "mechanically closed via grep gate equals 0 — no anchor cross-links in the doc."
+- Current state pre-execution: `grep -c '](#' docs/memory-eviction.md` returns 0 (verified). Gate is satisfiable.
+- Doc uses flat `## section` heading style; SC-5 phrase "all internal anchors resolve" reduces to "zero anchor links present", which the grep gate enforces.
+- Future-proof: any commit that adds an anchor link fails the gate, forcing the reviewer to add markdown-link-check.
+
+### W2 — 25-06 seed rows use NULL embedding (NOT NULL constraint risk) → CLOSED (T4)
+
+- 25-06 Task 1 + Task 2 helper `_seed_facts` now seeds rows with `embedding=[0.0] * 1024` (dummy 1024-dim zero vector).
+- acceptance_criteria contains grep gate: `grep -cE '\[0\.0\]\s*\*\s*1024' tests/integration/test_evict_long_term_facts_e2e.py` ≥ 1 (and same for `test_memory_forget_e2e.py`).
+- Verified the today-state: column nullable per `services/memory/memory_service.py:211` (`ALTER ADD COLUMN IF NOT EXISTS embedding vector(1024)` without NOT NULL). T4 is future-proofing, not a today-required fix — but absorbs the W2 risk regardless.
+- Eviction reads only `importance + created_at + id`; zero-vector seed has no semantic effect on the eviction algorithm under test.
+
+### W3 — 25-04 router mount-point ambiguity (main.py vs controllers/__init__.py) → CLOSED (T2)
+
+- 25-04 `files_modified` now lists `main.py` (replaces `controllers/__init__.py` ambiguity).
+- 25-04 Task 2 action explicitly states: `router = APIRouter(prefix=settings.api_prefix)` in controllers/memory.py mirroring `controllers/api.py:44`; `app.include_router(memory_router)` added near `main.py:386`.
+- acceptance_criteria tightened: `grep -c 'app.include_router(memory_router)' main.py` equals 1 (was `grep "memory" controllers/__init__.py`).
+- Also covered: `grep -n 'from controllers.memory import router as memory_router' main.py` matches one line.
+- Outside-voice F5 (mount grep trivial) folded in.
+
+**All 3 prior warnings resolved with mechanical grep gates. No residual ambiguity.**
+
+---
+
+## Amendment Cross-Plan Consistency Check (T1-T9)
+
+| # | Amendment | Plan(s) | Internal Consistency | Verdict |
+|---|-----------|---------|---------------------|---------|
+| T1 | audit_svc.log() try/except wrapper | 25-04, 25-05 | 25-04 truths assert `except Exception as audit_exc:` + `operation="forget_audit_log"`. 25-05 truths assert same shape with `operation="evict_audit_log"`. STRIDE T-25-04-P2 + T-25-05-R2 both flipped to mitigate with matching language. Tests T9/T11 in respective plans. `noqa: BLE001` justifications consistent. | CONSISTENT |
+| T2 | main.py mount + APIRouter(prefix=settings.api_prefix) | 25-04 | `files_modified` lists `main.py`. `must_haves.truths` describes both pieces (router def + include line). 3 grep gates + 1 line-number assertion. Pattern mirrors existing `controllers/api.py:44`. | CONSISTENT |
+| T3 | Cross-tenant 200/0 test + doc note | 25-04, 25-07 | 25-04 Task 1 Test 10 (`test_forget_cross_tenant_unreachable_returns_200_zero`) seeds the unit gate. 25-07 Task 1 Forget API section asserts doc note "200 + deleted_row_count=0 means user has no facts in YOUR tenant." 25-07 acceptance_criteria: `grep -ic 'your tenant\|in YOUR tenant\|your-tenant' docs/memory-eviction.md` ≥ 1. STRIDE T-25-04-P3 mitigated via doc + test. | CONSISTENT |
+| T4 | Integration seed embedding=[0.0]*1024 | 25-06 | Helper `_seed_facts` in BOTH integration files seeds dummy vector. Grep gates in both Task 1 and Task 2 acceptance_criteria. | CONSISTENT |
+| T5 | SC-5 anchor N/A grep gate | 25-07 | `grep -c '\](#' docs/memory-eviction.md` equals 0 acceptance gate. Annotated in truths + success_criteria. | CONSISTENT |
+| T6 | Field(default=500, ge=1) cap rejection | 25-01 | `must_haves.truths` includes Pydantic ValidationError on cap=0. Test 3 (`test_memory_facts_cap_zero_rejected`) added (count 4→5). STRIDE T-25-01-D1 flipped accept→mitigate. acceptance_criteria has `grep -n 'memory_facts_cap_per_user: int = Field(default=500, ge=1)' config/settings.py` literal match. | CONSISTENT |
+| T7 | Chunk forget_user at 1000/txn | 25-02 | forget_user body: `while True:` loop, `LIMIT 1000`, `int(status.split()[1])`, `total_deleted` accumulation, terminate on `"DELETE 0"`. Test 7 (`test_forget_user_chunks_large_bucket`) with 4-chunk side_effect (1000+1000+500+0=2500). STRIDE T-25-02-D1 flipped accept→mitigate. 5 grep gates enforce loop structure. **Cross-plan check:** 25-04 controller still calls `await mem.forget_user(user_id, target_tenant_id)` and consumes the int return; controller does NOT need to know about chunking. forget_user signature unchanged (`-> int`). No 25-04 amendment needed. | CONSISTENT |
+| T8 | Re-COUNT post-DELETE for remaining_count | 25-05 | acceptance_criteria contains TWO must-pass gates: (a) `grep -cE 'SELECT COUNT\(\*\)\s+(AS\s+\w+\s+)?FROM long_term_facts' scripts/evict_long_term_facts.py` ≥ 2 (one pre, one post-DELETE); (b) `grep -c 'remaining_count = row_count - total_deleted'` equals 0 (stale form banned). Test 10 (`test_enforce_audit_detail_fields`) updated to mock TWO distinct fetchrow returns and assert detail comes from post-DELETE fetchrow. STRIDE T-25-05-R3 flipped accept→mitigate. | CONSISTENT |
+| T9 | Role-403 before header-400 ordering | 25-04 | Body steps explicit: Step 1 = role gate (403); Step 2 = header gate (400). acceptance_criteria has line-number comparison: `grep -nE 'is_admin\s+or\s+user\.user_id\s*==\s*user_id' controllers/memory.py | head -1` line LESS THAN `grep -n 'x_confirm_delete != "yes"' controllers/memory.py | head -1`. Test 11 (`test_forget_non_admin_no_header_returns_403`) added (count 10→11). STRIDE T-25-04-I2 flipped accept→mitigate. | CONSISTENT |
+
+**Cross-plan-pair invariants verified:**
+
+- T1 (25-04) ↔ T1 (25-05): Both use `except Exception as audit_exc` + `noqa: BLE001` + structured log with `operation` field + audit_payload dump. Pattern is identical (single source of truth: 25-ENG-REVIEW.md A1). No drift.
+- T7 (25-02) ↔ 25-04 controller call: 25-04 calls `await mem.forget_user(user_id, target_tenant_id)`. T7 keeps signature `(user_id: str, tenant_id: str) -> int`. Caller is chunking-agnostic; only sees the summed int return. PASS.
+- T8 (25-05 re-COUNT) ↔ 25-05 audit detail keys (D-2.4): The `remaining_count` key was already part of D-2.4's 7-key contract; T8 only changes HOW that field is computed, not whether it appears. Test 10 (`test_enforce_audit_detail_fields`) was already gating the key presence; the T8 amendment adds the second-fetchrow mock + assertion. No contract surface change. PASS.
+- T3 (25-04 unit test) ↔ T3 (25-07 doc note): Test 10 in 25-04 mocks `mem.forget_user` returning 0; 25-07 Forget API section documents the 200/0 semantic. Both reference the same behavior contract from a different verification angle. PASS.
+
+---
+
+## STRIDE Disposition Audit
+
+Eng-review amendments require these explicit flips (accept→mitigate):
+
+| Threat ID | Plan | Pre-amendment | Post-amendment | Verified |
+|-----------|------|--------------|----------------|----------|
+| T-25-01-D1 (cap=0 silent wipe) | 25-01 | accept | **mitigate** (T6) | YES — line 246 mitigation cell present; `Field(ge=1)` referenced |
+| T-25-02-D1 (large forget_user DELETE timeout) | 25-02 | accept | **mitigate** (T7) | YES — line 336 mitigation cell present; chunking referenced |
+| T-25-04-I2 (4xx ordering info leak) | 25-04 | NEW (not pre-amend) | **mitigate** (T9) | YES — line 360 present; Test 11 enforces |
+| T-25-04-P2 (audit-log fail drops GDPR trail) | 25-04 | NEW | **mitigate** (T1) | YES — line 364 present; Test 9 enforces |
+| T-25-04-P3 (cross-tenant 200/0 ambiguity) | 25-04 | NEW | **mitigate** via doc (T3) | YES — line 365 present; Test 10 enforces |
+| T-25-05-R2 (mid-sweep audit-fail repudiation) | 25-05 | NEW | **mitigate** (T1) | YES — line 347 present; Test 11 enforces |
+| T-25-05-R3 (stale remaining_count repudiation) | 25-05 | NEW | **mitigate** (T8) | YES — line 348 present; re-COUNT enforced |
+
+All 7 STRIDE register entries reflect the amendment dispositions. No accept→accept stragglers.
+
+---
+
+## SC Coverage (ROADMAP Phase 25) — Re-Run
+
+| SC | Plans | Closure Evidence | Status |
+|----|-------|-----------------|--------|
+| SC-1 | 25-05, 25-06 | `test_audit_mode_no_delete_and_stdout`, `test_enforce_mode_caps_bucket`, `test_enforce_mode_small_bucket_untouched` | COVERED |
+| SC-2 | 25-05, 25-06 | `test_eviction_tiebreak_correctness` + grep gate on `ORDER BY importance ASC, created_at ASC` | COVERED |
+| SC-3 | 25-04, 25-06 | `test_forget_admin_jwt_200`, `test_forget_non_admin_other_user_403`, `test_forget_api_e2e_idempotent`, **+ T9 `test_forget_non_admin_no_header_returns_403`** | COVERED (strengthened) |
+| SC-4 | 25-04, 25-06 | `test_forget_audit_row_content`, `test_forget_api_audit_log_row` with Pitfall 3 patch; **+ T1 `test_forget_audit_write_failure_returns_200`** | COVERED (strengthened) |
+| SC-5 | 25-07 | 5 section headings + §E6 verbatim YAML + grep gates + wc -l 120-180 + **T5 anchor grep equals 0** | COVERED (mechanically closed) |
 
 ---
 
 ## Requirement Coverage
 
-| Req | Description | Plan(s) | Task | Status |
-|-----|-------------|---------|------|--------|
-| EVICT-01 | evict_long_term_facts.py chunked DELETE + tie-break + audit-per-bucket | 25-01 (settings), 25-05 (CLI) | 25-05 T2 | COVERED |
-| EVICT-02 | --mode=audit|enforce; both sinks; enforce deletes | 25-01 (enum), 25-05 (CLI) | 25-05 T2 | COVERED |
-| EVICT-03 | docs/memory-eviction.md extension (120-180 LOC) | 25-03 (un-mark), 25-07 (docs + re-mark) | 25-07 T1+T2 | COVERED |
-| GDPR-01 | LongTermMemory.forget_user → int; MemoryForgetError | 25-02 | 25-02 T2 | COVERED |
-| GDPR-02 | DELETE /api/v1/memory/forget; admin-or-self; X-Confirm-Delete | 25-04 | 25-04 T2 | COVERED |
-| GDPR-03 | audit-log entry per forget call; MEMORY_FORGET enum | 25-01 (enum), 25-04 (controller audit write) | 25-04 T2 | COVERED |
+| Req | Plan(s) | Tasks | Status |
+|-----|---------|-------|--------|
+| EVICT-01 | 25-01 (settings + ge=1, T6), 25-05 (CLI + T1 + T8) | 25-05 T2 | COVERED |
+| EVICT-02 | 25-01 (enum), 25-05 (CLI + T1) | 25-05 T2 | COVERED |
+| EVICT-03 | 25-03 (un-mark), 25-07 (docs + T3 + T5 + re-mark) | 25-07 T1+T2 | COVERED |
+| GDPR-01 | 25-02 (forget_user + T7) | 25-02 T2 | COVERED |
+| GDPR-02 | 25-04 (controller + T1 + T2 + T3 + T9) | 25-04 T2 | COVERED |
+| GDPR-03 | 25-01 (enum), 25-04 (audit write + T1) | 25-04 T2 | COVERED |
 
-All 6 requirements have covering plans + tasks. All 6 appear in at least one plan's `requirements` frontmatter field.
-
----
-
-## Decision Coverage (D-1.1..D-4.2)
-
-| Decision | Requirement | Plan | Closure Evidence |
-|----------|-------------|------|-----------------|
-| D-1.1 admin OR self-delete; 403 | GDPR-02 | 25-04 | `if not (user.is_admin or user.user_id == user_id): raise HTTPException(403)` in verbatim skeleton; tested in `test_forget_non_admin_other_user_403` |
-| D-1.2 long_term_facts ONLY | GDPR-01 | 25-02, 25-04 | forget_user docstring + acceptance_criteria grep `grep -v 'Redis\|user_profile'`; no Redis import in plan skeleton |
-| D-1.3 200+count=0 idempotent; 404 for empty user_id; 403 auth | GDPR-02 | 25-04 | Steps 2+3 in endpoint action; tested in 8 unit tests |
-| D-1.4 X-Confirm-Delete: yes header required; 400 if absent | GDPR-02 | 25-04 | `Header(default=None, alias="X-Confirm-Delete")` + 400 check; 2 tests (missing + wrong) |
-| D-1.5 MemoryForgetError on asyncpg.PostgresError → 500 | GDPR-01, GDPR-02 | 25-02, 25-04 | `except asyncpg.PostgresError` + `raise MemoryForgetError`; controller `except MemoryForgetError → HTTPException(500)` |
-| D-2.1 TWO new AuditAction values MEMORY_FORGET + MEMORY_EVICT | GDPR-03 | 25-01 | Task 2 appends after TOKEN_VERIFIED; 2 unit tests verify string values |
-| D-2.2 ONE audit_log row PER bucket per sweep (not per sweep run) | EVICT-01 | 25-05 | `evict_bucket` calls `audit_svc.log` once per bucket; `test_enforce_audit_detail_fields` |
-| D-2.3 audit write AFTER DELETE with actual deleted_row_count | GDPR-03, EVICT-01 | 25-04, 25-05 | SP-6 enforced; acceptance_criteria grep `grep -n 'await get_audit_service'` appears AFTER forget_user call |
-| D-2.4 detail dict fields for forget + evict | GDPR-03 | 25-04, 25-05 | All 6 forget detail keys listed in action; all 7 evict detail keys listed; `test_forget_audit_row_content` + `test_enforce_audit_detail_fields` |
-| D-3.1 stdout JSON-lines + audit_log (both sinks) | EVICT-02 | 25-05 | `print(json.dumps({...}))` + `audit_svc.log(SKIPPED)` in audit mode; `test_audit_mode_both_sinks` |
-| D-3.2 runbook only; no code-enforced preflight | EVICT-01 | 25-05, 25-07 | anti-pattern callout in 25-PATTERNS Analog 1: "DO NOT add --mode=enforce precondition check"; runbook in docs |
-| D-3.3 k8s CronJob YAML only | EVICT-03 | 25-07 | §E6 YAML embedded verbatim; "other runtimes are operator's responsibility" in doc action |
-| D-3.4 daily @ 3am UTC (0 3 * * *) | EVICT-03 | 25-07 | acceptance_criteria `grep -c '0 3 \* \* \*' docs/memory-eviction.md` ≥ 1 |
-| D-4.1 EVICT-03 un-mark before Phase 25 starts; re-mark at verifier close | EVICT-03 | 25-03 (un-mark), 25-07 (re-mark) | 25-03 acceptance_criteria; 25-07 T2 re-marks after gates pass |
-| D-4.2 single file docs/memory-eviction.md; keep 49 LOC; add 80-130 LOC | EVICT-03 | 25-07 | wc -l 120-180 gate; existing sections preserved check; append-only action |
-
-All 13 decisions covered (D-1.1..D-1.5, D-2.1..D-2.4, D-3.1..D-3.4, D-4.1..D-4.2).
+All 6 requirements have covering plans + tasks. All 6 IDs present in at least one plan's `requirements:` frontmatter.
 
 ---
 
-## Pitfall Mitigation Coverage
+## EVICT-03 Lifecycle Audit
 
-| Pitfall | Description | Plan | Gate |
-|---------|-------------|------|------|
-| P-1 | register_vector codec — use `LongTermMemory()._get_pool()` not `asyncpg.create_pool()` | 25-05 | `grep -v 'asyncpg.create_pool' scripts/evict_long_term_facts.py` count=0; `grep '_get_pool'` ≥ 1 — present in 25-05 acceptance_criteria |
-| P-2 | asyncpg returns `"DELETE N"` string; parse `int(status.split()[1])` | 25-02, 25-05 | `test_forget_user_returns_row_count` (mock returns `"DELETE 3"` → int 3); `test_row_count_parsing_string_to_int`; grep gate in 25-02 + 25-05 |
-| P-3 | audit_db_enabled defaults False — integration tests must patch to True | 25-06 | `monkeypatch.setattr(audit_mod.settings, "audit_db_enabled", True)` + `flush()` explicit in 25-06 T2 action and acceptance_criteria |
-| P-4 | asyncpg.InterfaceError not subclass of PostgresError — CLI must catch both | 25-05 | `grep 'asyncpg.InterfaceError' scripts/evict_long_term_facts.py` ≥ 1 in acceptance_criteria; single-txn forget_user catches PostgresError only (correctly per Pitfall 4 note) |
-| P-5 | AuditAction enum — append-only after TOKEN_VERIFIED | 25-01 | `grep -n 'TOKEN_VERIFIED' ... | head -1` line number < MEMORY_FORGET line in acceptance_criteria |
-| P-6 | Header(alias="X-Confirm-Delete") required; default=None not ... | 25-04 | `grep 'alias="X-Confirm-Delete"'` + `grep 'default=None.*Header'` in 25-04 acceptance_criteria |
-| P-7 | Depends(get_current_user) before Header in function signature | 25-04 | Line-number ordering check in 25-04 acceptance_criteria |
-| P-8 | Chunked DELETE idempotent re-run — accept partial-sweep | 25-05 | `test_enforce_mode_idempotent_at_cap` + `test_main_async_skips_failed_bucket_continues` |
+| Stage | Plan | State | Verified |
+|-------|------|-------|----------|
+| Un-mark `[x]` → `[ ]` | 25-03 Task 1 | Single-line edit + NOTE | YES — current REQUIREMENTS.md line 52 shows `[ ]` + NOTE (Case A: pre-applied) |
+| Re-mark `[ ]` → `[x]` | 25-07 Task 2 Step 4 | After all gates pass (coverage ≥ 70% per-module; diff-cover ≥ 80%; full unit suite zero failures) | acceptance_criteria gates verified |
+| Cycle integrity | 25-03 → 25-07 | depends_on chain: 25-07 depends_on [25-06]; 25-06 depends_on [25-04, 25-05]; 25-03 independent (Wave 1) | VALID — no circular, no forward reference |
 
-All 8 pitfalls have explicit grep gates or named test functions. P-2 grep gate for `int(status.split` is present in both 25-02 and 25-05 acceptance_criteria.
+Cycle is intact: un-mark before any code lands → re-mark after every code+docs+coverage gate green.
 
 ---
 
-## Wave Dependency Graph + Parallelism
+## Wave Dependency Graph (Re-Verified)
 
 ```
-Wave 1 (parallel): 25-01 (settings + enum)   → files: config/settings.py, services/audit/audit_service.py
-                   25-02 (forget_user)        → files: services/memory/memory_service.py
-                   25-03 (EVICT-03 un-mark)   → files: .planning/REQUIREMENTS.md
+Wave 1 (parallel): 25-01 → config/settings.py, services/audit/audit_service.py, tests/unit/test_phase25_foundations.py
+                   25-02 → services/memory/memory_service.py (forget_user + MemoryForgetError + T7 chunking), tests/unit/test_memory_forget.py
+                   25-03 → .planning/REQUIREMENTS.md (un-mark only)
 
-Wave 2 (parallel): 25-04 (controller)         → depends_on: [25-01, 25-02] — files: controllers/memory.py, controllers/__init__.py
-                   25-05 (eviction CLI)        → depends_on: [25-01]        — files: scripts/evict_long_term_facts.py
+Wave 2 (parallel): 25-04 → depends_on: [25-01, 25-02] — controllers/memory.py, main.py (T2), tests/unit/test_memory_controller.py
+                   25-05 → depends_on: [25-01]        — scripts/evict_long_term_facts.py, tests/unit/test_evict_long_term_facts.py
 
-Wave 3:            25-06 (integration tests)  → depends_on: [25-04, 25-05]  — files: tests/integration/...
+Wave 3:            25-06 → depends_on: [25-04, 25-05]  — tests/integration/test_evict_long_term_facts_e2e.py, tests/integration/test_memory_forget_e2e.py (T4 seed)
 
-Wave 4:            25-07 (docs + coverage)    → depends_on: [25-06]          — files: docs/memory-eviction.md, REQUIREMENTS.md
+Wave 4:            25-07 → depends_on: [25-06]          — docs/memory-eviction.md, .planning/REQUIREMENTS.md (re-mark)
 ```
 
-**Parallelism check:**
+**Parallelism + ordering verified:**
+
 - Wave 1: 25-01, 25-02, 25-03 touch disjoint files. SAFE.
-- Wave 2: 25-04 and 25-05 touch disjoint files (controllers/ vs scripts/). SAFE.
-- No forward references: 25-04 depends on 25-01 and 25-02 (both Wave 1). 25-05 depends on 25-01 only. 25-06 depends on 25-04 and 25-05 (both Wave 2). 25-07 depends on 25-06. VALID.
-- No cycles detected.
-
-One dependency observation: 25-04 declares `depends_on: [25-01, 25-02]` but not `[25-03]`. This is correct — 25-03 only edits REQUIREMENTS.md (accounting only) and 25-04 doesn't consume it. VALID.
+- Wave 2: 25-04 (`controllers/`, `main.py`) ↔ 25-05 (`scripts/`) — disjoint module dirs. SAFE.
+- No forward refs; no cycles. T2's main.py edit is bounded to Plan 25-04 (no other plan touches main.py).
+- T7 (25-02) does NOT add a dependency on 25-04 — forget_user is callable in isolation; 25-04 is the consumer.
 
 ---
 
-## ASSUMED Claim Verification Coverage
+## Pitfall Mitigation (Re-Verified Post-Amendment)
 
-| Claim | Risk | Plan | Test Gate |
-|-------|------|------|-----------|
-| A1 audit_db_enabled defaults False | Medium | 25-06 | Pitfall 3 patch in integration test; documented |
-| A2 asyncpg returns "DELETE N" string | Medium | 25-02, 25-05 | test_forget_user_returns_row_count + test_row_count_parsing_string_to_int |
-| A3 audit_log REVOKE UPDATE/DELETE in place | Low | all plans | grep gate in VALIDATION.md: no UPDATE/DELETE audit_log in production code |
-| A4 controllers/memory.py does not yet exist | Low | 25-04 | 25-04 creates file; acceptance_criteria imports router |
-| A5 settings.memory_facts_cap_per_user absent | Low | 25-01 | test_memory_facts_cap_per_user_default RED→GREEN |
+All 8 pitfalls retain coverage. T7's chunked forget_user reinforces Pitfall 2 (status string parsing) by exercising it in two places (forget_user loop AND eviction loop). T8 strengthens Pitfall 3 (audit_db_enabled) tangentially — re-COUNT happens regardless of audit_db_enabled state.
 
-All 5 ASSUMED claims have visible verification steps.
-
----
-
-## Scope Creep Check
-
-Deferred ideas verified absent from all plans:
-- save_fact pre-INSERT cap check: NOT present in any plan. CLEAN.
-- Forget API extension to Redis/user_profile: NOT present. CLEAN.
-- Per-tenant capacity overrides: NOT present. CLEAN.
-- Bulk-forget endpoint (entire tenant): NOT present. CLEAN.
-- Cap auto-tuning: NOT present (docs mention percentile guidance as manual runbook, not code). CLEAN.
-
-No scope creep found.
+| Pitfall | Plan | Status |
+|---------|------|--------|
+| P-1 register_vector codec | 25-05 | INTACT — `LongTermMemory()._get_pool()` grep gate |
+| P-2 "DELETE N" string parse | 25-02 (T7-strengthened), 25-05 | INTACT — both plans grep `int(status.split` |
+| P-3 audit_db_enabled patch | 25-06 | INTACT |
+| P-4 InterfaceError in batch loops | 25-05 | INTACT |
+| P-5 AuditAction append-only | 25-01 | INTACT |
+| P-6 Header alias | 25-04 | INTACT |
+| P-7 Depends before Header | 25-04 | INTACT |
+| P-8 Idempotent re-run | 25-05 | INTACT |
 
 ---
 
-## Warnings
+## Scope Creep Re-Check
 
-### WARNING-1 — SC-5 anchor verification is documentation-only, not mechanically tested
-**Severity:** WARNING
-**Dimension:** Verification Derivation / SC Coverage
-**Description:** SC-5 requires "all internal anchors resolve (no broken links)." The 25-07 acceptance_criteria checks section heading presence and wc -l but does not run an anchor-resolution tool (e.g. `markdown-link-check`). The doc template uses flat `##` sections with no anchor cross-links (`[text](#section)` syntax), so in practice there are no anchors to break — but the ROADMAP SC-5 language is not mechanically closed.
-**Suggested fix:** Add `python -c "import re,pathlib; content=pathlib.Path('docs/memory-eviction.md').read_text(); links=re.findall(r'\[.*?\]\(#(.*?)\)', content); ..."` verification step OR add `markdown-link-check docs/memory-eviction.md` to 25-07 Task 1 acceptance_criteria. Alternatively, confirm no `(#anchor)` links exist in the doc template, and annotate SC-5 as "no anchor links — mechanically N/A."
+All deferred ideas from CONTEXT.md `<deferred>` block verified absent from amended plans:
 
-### WARNING-2 — 25-06 Task 1: embedding=NULL seed rows may violate NOT NULL constraint on embedding column
-**Severity:** WARNING
-**Dimension:** Task Completeness
-**Description:** 25-06 Task 1 action states "Skip embedding column (NULL) — eviction only uses importance + created_at + id." However, Phase 23 added `embedding VECTOR(1024)` to long_term_facts. If the column has a `NOT NULL` constraint (likely, given Phase 23 MEM-02 zero-partial-write contract), INSERT without embedding will fail at the integration test seed step, causing the eviction e2e tests to error before any assertions run.
-**Plan:** 25-06, Task 1
-**Suggested fix:** Check whether the embedding column allows NULL (it does if `ALTER TABLE ... ADD COLUMN IF NOT EXISTS embedding VECTOR(1024)` was used without NOT NULL). If nullable, confirm in 25-06 context read step. If NOT NULL, the seed helper must embed a dummy vector (e.g. `[0.0] * 1024`) or use `gen_random_uuid()` for a placeholder.
-**Impact if wrong:** 4 integration tests fail at setup; SC-1 and SC-2 cannot close.
+- save_fact pre-INSERT cap check: ABSENT
+- Forget API extension to Redis/user_profile: ABSENT (D-1.2 long_term_facts ONLY enforced in 25-02 truths + 25-07 doc note)
+- Per-tenant capacity overrides: ABSENT
+- Bulk-forget admin endpoint (`?tenant_id=X`): ABSENT
+- Cap auto-tuning code: ABSENT (manual percentile guidance in 25-07 docs only)
+- Audit-log enforce-mode preflight: ABSENT (D-3.2 runbook-only honored)
+- `docs/memory-ops.md` rename: ABSENT
+- Atomic single-statement `DELETE ... OFFSET cap` eviction: ABSENT (would break chunked-1000 EVICT-01 contract)
+- Existence check for "user exists in any tenant" before 200/0: ABSENT (T3 doc note sufficient — accepted trade-off)
 
-### WARNING-3 — 25-04 Task 2: controllers/__init__.py router-mount wiring is "read first and mirror" without specifying the mount point
-**Severity:** WARNING
-**Dimension:** Key Links Planned
-**Description:** Plan 25-04 Task 2 action says "Read `controllers/__init__.py` first to understand how other routers are included … may be in `main.py` instead of `__init__.py`." The actual mount point is left to executor discovery at runtime. If the executor misidentifies the mount location or the prefix, the TestClient will not resolve `/api/v1/memory/forget` and the 8 unit tests will fail with 404 errors unrelated to the endpoint logic.
-**Plan:** 25-04, Task 2
-**Suggested fix:** The `<interfaces>` block already shows the `controllers/__init__.py` pattern exists — but the plan should explicitly state whether the mount is in `main.py` or `__init__.py` based on RESEARCH.md ASSUMED A4. CONTEXT canonical refs point to `controllers/api.py:400` as template but don't confirm the mount location. The executor must verify this before writing the router include. Acceptable as-is if the executor reads `controllers/__init__.py` first (which is in `read_first`), but the ambiguity is a risk.
+No scope creep introduced by amendments.
+
+---
+
+## Context Compliance (CONTEXT.md Amendment Trail)
+
+CONTEXT.md `## Eng-Review Amendment Trail (2026-05-16)` section was added in commit eaa5abe / 0556a78 and updated in 9568d2f. Each amendment T1-T9 is enumerated with plan(s) affected + source. Cross-referenced against amended plan frontmatter `review_amendments:` lists:
+
+| Amendment | CONTEXT trail | Plan frontmatter `review_amendments:` |
+|-----------|---------------|---------------------------------------|
+| T1 | 25-04, 25-05 | 25-04: T1 listed; 25-05: T1 listed | MATCH |
+| T2 | 25-04 | 25-04: T2 listed | MATCH |
+| T3 | 25-04, 25-07 | 25-04: T3 listed; 25-07: T3 listed | MATCH |
+| T4 | 25-06 | 25-06: T4 listed | MATCH |
+| T5 | 25-07 | 25-07: T5 listed | MATCH |
+| T6 | 25-01 | 25-01: T6 listed | MATCH |
+| T7 | 25-02 | 25-02: T7 listed | MATCH |
+| T8 | 25-05 | 25-05: T8 listed | MATCH |
+| T9 | 25-04 | 25-04: T9 listed | MATCH |
+
+CONTEXT.md is internally consistent with amended plans. STATE.md last_activity field updated to reference all 9 amendments. All match.
+
+---
+
+## VALIDATION.md Observation
+
+The orchestrator flagged that VALIDATION.md (unchanged) lacks an explicit row for "non-admin + no header → 403 (role wins)" from T9. Verified: VALIDATION.md has 31 rows; the closest row is #24 (`test_forget_non_admin_other_user_403`, non-admin for different user WITH X-Confirm-Delete: yes), which covers the role-403 path but with the header present. T9's specific "role wins over missing header" case is gated by 25-04 acceptance_criteria (line-number ordering) and Test 11, NOT by a VALIDATION.md row.
+
+**Assessment:** This is acceptable as INFO (not BLOCKER, not WARNING).
+
+Rationale:
+1. The Test 11 unit test (`test_forget_non_admin_no_header_returns_403`) is mechanically gated in 25-04 acceptance_criteria via grep.
+2. 25-04 acceptance_criteria already gates the line-number ordering of role check vs header check (the structural enforcement).
+3. VALIDATION.md is a traceability artifact; the test exists and is gated regardless of whether it appears as a numbered row.
+4. T9 amendment summary in 25-04 review_amendments explicitly says "Add VALIDATION matrix row" — but VALIDATION.md was not modified in the amendment commit. Adding the row is a cosmetic/completeness improvement, not a coverage gap.
+
+See INFO-1 below.
 
 ---
 
 ## Info
 
-### INFO-1 — Plan 25-03 is minimal but justified as a standalone Wave 1 plan
-The un-mark of EVICT-03 is a 1-line edit to REQUIREMENTS.md with a commit message requirement. It could be folded into 25-01, but exists as a separate plan for git-history traceability (D-4.1 explicitly calls for a distinct commit). This is intentional, not redundant.
+### INFO-1 — VALIDATION.md does not include a row for T9's "non-admin + no header → 403" case
+
+**Severity:** INFO (cosmetic completeness)
+**Description:** T9 amendment summary in 25-04 review_amendments notes "Add VALIDATION matrix row: 'non-admin + no header → 403 (role wins).'" VALIDATION.md was not modified in commit 9568d2f. The test (`test_forget_non_admin_no_header_returns_403`) IS gated via 25-04 acceptance_criteria grep + line-number ordering check, so coverage is enforced; this is purely about traceability artifact completeness.
+**Recommendation:** Optional one-line addition to VALIDATION.md row map (a row #24a between rows 24 and 25):
+
+```
+| 24a | GDPR-02 (T9) | Non-admin for different user + no X-Confirm-Delete → 403 (role wins over header) | 25-04 | Task 2 | tests/unit/test_memory_controller.py | test_forget_non_admin_no_header_returns_403 | unit | Status 403 (not 400) |
+```
+
+Does NOT block execution. The 25-04 test gate provides the mechanical enforcement; VALIDATION.md row is a documentation refinement.
 
 ---
 
 ## Recommendation
 
-**Proceed to execute.** No blockers found. Three warnings exist:
+**Proceed to execute. PASS clean.**
 
-1. WARNING-2 (embedding NULL constraint) is the highest-priority item. The executor of 25-06 Task 1 must verify whether the `embedding` column is nullable before writing the seed helper. If it is NOT NULL, add a dummy vector to the seed INSERT. This is a one-line fix and should not block execution — but must be resolved before the integration tests run.
+- 0 blockers.
+- 0 warnings (all 3 prior warnings closed: W1 via T5, W2 via T4, W3 via T2).
+- 1 INFO (VALIDATION.md row 24a — cosmetic, does not block execution).
+- All 9 amendments (T1–T9) internally consistent across plans.
+- All 7 STRIDE register flips present.
+- All 6 requirements covered.
+- All 5 ROADMAP SCs covered (SC-3 + SC-4 strengthened by new tests).
+- All 13 user decisions (D-1.1..D-4.2) honored.
+- All 8 pitfalls mitigated.
+- Wave dependency graph valid, no cycles, parallelism preserved.
+- EVICT-03 un-mark/re-mark lifecycle intact.
+- No scope creep introduced by amendments.
 
-2. WARNING-1 (SC-5 anchor check) is low risk given the doc template has no `(#anchor)` hyperlinks.
+Next step: `/gsd-execute-phase 25`.
 
-3. WARNING-3 (router mount ambiguity) is mitigated by the `read_first` directive in 25-04 Task 2.
+---
 
-All 6 requirements covered, all 5 ROADMAP SCs covered, all 13 decisions honored, all 8 pitfalls mitigated, dependency graph valid, no scope creep.
+*Re-verified: 2026-05-16 — post-amendment plan-check against commit 9568d2f.*
+*Prior verdict: PASS-WITH-WARNINGS (e6dc73e). New verdict: PASS clean.*
+*Test counts (post-amendment): 25-01 = 5 tests; 25-02 = 7 tests; 25-04 = 11 tests; 25-05 = 11 tests; 25-06 = 8 tests (4+4); 25-07 = grep-gated docs + coverage.*

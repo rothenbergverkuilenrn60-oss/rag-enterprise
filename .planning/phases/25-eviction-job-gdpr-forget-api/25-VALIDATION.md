@@ -43,6 +43,13 @@ Each row traces one verifiable behavior from source (REQ-ID / SC / ASSUMED) → 
 | 29 | GDPR-03 | Audit row written AFTER DELETE with `action=MEMORY_FORGET` | 25-04 | Task 2 | `tests/unit/test_memory_controller.py` | `test_forget_audit_called_after_forget_user` | unit | `audit_svc.log` call count = 1; called after `forget_user` mock resolves |
 | 30 | GDPR-03 | Audit row detail has all D-2.4 fields: `target_user_id`, `target_tenant_id`, `deleted_row_count`, `actor_user_id`, `actor_is_admin`, `requesting_ip` | 25-04 | Task 2 | `tests/unit/test_memory_controller.py` | `test_forget_audit_row_content` | unit | All 6 keys present in `detail` arg |
 | 31 | GDPR-03 | DB-level audit_log row retrievable with `action='MEMORY_FORGET'` when `audit_db_enabled=True` | 25-06 | Task 2 | `tests/integration/test_memory_forget_e2e.py` | `test_forget_api_audit_log_row` | integration (pgvector) | 1 row in `audit_log` with correct detail JSONB; Pitfall 3 mitigated via `monkeypatch.setattr(audit_mod.settings, "audit_db_enabled", True)` + `flush()` |
+| 32 | T6 (eng-review) | Pydantic `Field(default=500, ge=1)` rejects cap=0 at settings-load | 25-01 | Task 1+2 | `tests/unit/test_phase25_foundations.py` | `test_memory_facts_cap_zero_rejected` | unit | `Settings(memory_facts_cap_per_user=0)` raises `pydantic.ValidationError` |
+| 33 | T7 (eng-review) | `forget_user` chunks DELETE at 1000 rows/txn; sums totals; terminates on `"DELETE 0"` | 25-02 | Task 1+2 | `tests/unit/test_memory_forget.py` | `test_forget_user_chunks_large_bucket` | unit | 4-chunk side_effect `["DELETE 1000","DELETE 1000","DELETE 500","DELETE 0"]` → return 2500; `execute.await_count == 4` |
+| 34 | T1 (eng-review) | Forget controller: `audit_svc.log()` failure → 200 + loud structured log (`operation="forget_audit_log"`) | 25-04 | Task 1+2 | `tests/unit/test_memory_controller.py` | `test_forget_audit_write_failure_returns_200` | unit | Status 200; `deleted_row_count == 3`; ERROR log emitted w/ would-be payload |
+| 35 | T3 (eng-review) | Cross-tenant admin forget returns 200/deleted=0 (idempotent no-op; admin JWT-scoped) | 25-04 | Task 1+2 | `tests/unit/test_memory_controller.py` | `test_forget_cross_tenant_unreachable_returns_200_zero` | unit | Status 200; `deleted_row_count == 0` |
+| 36 | T9 (eng-review) | Body order: non-admin for other user + missing X-Confirm-Delete → 403 (role wins over header) | 25-04 | Task 1+2 | `tests/unit/test_memory_controller.py` | `test_forget_non_admin_no_header_returns_403` | unit | Status 403 (NOT 400); fail-closed-on-identity-first |
+| 37 | T1 (eng-review) | Eviction sweep: `audit_svc.log()` failure mid-loop → bucket logged + sweep continues | 25-05 | Task 1+2 | `tests/unit/test_evict_long_term_facts.py` | `test_evict_audit_write_failure_continues_sweep` | unit | DELETE attempted for both buckets; `audit_svc.log` await_count == 2; ERROR log emitted w/ `operation="evict_audit_log"` for failed bucket |
+| 38 | T8 (eng-review) | Eviction audit `remaining_count` re-fetched post-DELETE (race-accurate, not stale arithmetic) | 25-05 | Task 1+2 | `tests/unit/test_evict_long_term_facts.py` | `test_enforce_audit_detail_fields` (extended) | unit | Pre-DELETE fetchrow returns 600, post-DELETE fetchrow returns 500; `detail["remaining_count"] == 500` |
 
 ---
 
@@ -110,5 +117,5 @@ Each row traces one verifiable behavior from source (REQ-ID / SC / ASSUMED) → 
 ---
 
 *Phase: 25-eviction-job-gdpr-forget-api*
-*Validation created: 2026-05-16*
-*Total rows: 31 (3 REQ-ID structural, 8 EVICT-01, 3 EVICT-02, 1 EVICT-03 content, 5 GDPR-01, 6 GDPR-02, 2 GDPR-03 + 5 ASSUMED + 5 SC + 4 enum + 8 pitfall = 31 verifiable claims across 7 plans)*
+*Validation created: 2026-05-16; eng-review amendments added 2026-05-16*
+*Total rows: 38 (31 original + 7 eng-review amendments T1/T3/T6/T7/T8/T9 — rows 32-38)*
