@@ -2,15 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Memory Tool — Agent-Authored Long-Term Facts
-status: Phase 23 planned + eng-reviewed; ready for `/gsd-execute-phase 23`
-stopped_at: Phase 23 plans amended per /plan-eng-review (5 decisions + 2 TODOs)
-last_updated: "2026-05-16T07:09:00.000Z"
-last_activity: 2026-05-16 — /plan-eng-review on Phase 23 plans; 5 decisions landed in plan files (A1 OpenAI dimensions fix, A2 user+ai turn signature, A3 dedup deferred, A4 index deferred, A5 exception placement); 2 TODOs appended to STATE.md carry-forward
+status: Phase 23 in progress — Plan 23-01 (MEM-01) GREEN. Ready for Plan 23-02 (depends on 23-01) or parallel Plan 23-03 (Wave 1, no deps).
+stopped_at: Completed 23-01-PLAN.md (MEM-01)
+last_updated: "2026-05-16T07:32:02.044Z"
+last_activity: 2026-05-16 — Plan 23-01 executed (TDD RED+GREEN). MEM-01 complete: pgvector embedding column + ltf_emb_hnsw_idx HNSW index + register_vector pool init + MemoryFactWriteError typed exception in services/memory/memory_service.py. Commits 25eecce + 71f8e1e. 4 Wave-0 tests passing; ruff clean.
 progress:
   total_phases: 3
   completed_phases: 0
   total_plans: 6
-  completed_plans: 0
+  completed_plans: 1
+  percent: 17
 ---
 
 # STATE — EnterpriseRAG (v1.6 planning)
@@ -24,16 +25,16 @@ See: .planning/PROJECT.md (updated 2026-05-15 after v1.6 open)
 
 ## Current Position
 
-Phase: 23 (planned + eng-reviewed)
-Plan: 23-01..23-06 (6 plans, waves 1–4) amended per /plan-eng-review 2026-05-16
-Status: Phase 23 planned + eng-reviewed. Ready for `/gsd-execute-phase 23`.
-Last activity: 2026-05-16 — /plan-eng-review surfaced 5 architecture findings + 2 test gaps + 2 follow-up TODOs; all decisions landed in PLAN 02/03/05/06 + CONTEXT.md + STATE.md (this file).
+Phase: 23 (in progress — Wave 1 partial)
+Plan: 23-01 GREEN (MEM-01); 23-02 / 23-03 next.
+Status: Plan 23-01 complete. `services/memory/memory_service.py` now has embedding column + HNSW index + register_vector pool init + MemoryFactWriteError typed exception. Plan 23-02 (`save_fact` embed-on-write) unblocked. Plan 23-03 (extractor sub-agent) also ready (Wave 1, parallel).
+Last activity: 2026-05-16 — Plan 23-01 TDD RED (25eecce) → GREEN (71f8e1e). 4 Wave-0 tests passing; ruff clean; zero new mypy errors.
 
 ## Phase Overview
 
 | Phase | Name | REQ-IDs | Status |
 |-------|------|---------|--------|
-| 23 | Background Extractor + schema migration | MEM-01, MEM-02, MEM-03, MEM-04, MEM-05 | Planned (6 plans, 4 waves) — ready for /gsd-execute-phase 23 |
+| 23 | Background Extractor + schema migration | MEM-01, MEM-02, MEM-03, MEM-04, MEM-05 | In progress — 1/6 plans complete (23-01 MEM-01 ✓; 23-02/03/04/05/06 pending) |
 | 24 | pgvector RecallTool + semantic recall rewrite | MEM-06, MEM-07, MEM-08, MEM-09, MEM-10 | Pending |
 | 25 | Eviction job + GDPR forget API | EVICT-01, EVICT-02, EVICT-03, GDPR-01, GDPR-02, GDPR-03 | Pending |
 
@@ -88,7 +89,7 @@ None.
 ## Session Continuity
 
 **Last updated:** 2026-05-15 — Phase 23 plans generated and verified. 6 PLAN.md files across 4 waves; plan-checker PASSED (6 non-blocking warnings flagged for executor SUMMARY).
-**Stopped at:** Phase 23 plans created + verified
+**Stopped at:** Completed 23-01-PLAN.md (MEM-01)
 **Next action:** `/gsd-execute-phase 23` (or `/plan-eng-review` for second-opinion gate before execute)
 
 **Plan Map (Phase 23):**
