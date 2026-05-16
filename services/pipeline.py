@@ -738,10 +738,18 @@ _DISAGREE_BANNER_TEMPLATE: str = (
 MAX_ITERATIONS: int = 5
 
 # Explicit allowlist of tool names exposed to the planner LLM (AGENT-07).
-# Phase 20: web_search joins the allowlist with the real Tavily impl
-# (services/agent/tools/web_search.py). Empty TAVILY_API_KEY is a runtime
-# short-circuit per CONTEXT D-03 — no startup-time filtering here.
-AGENT_TOOL_ALLOWLIST: list[str] = ["search_knowledge_base", "refine_search", "web_search"]
+# Phase 20: web_search joins with real Tavily impl (services/agent/tools/web_search.py).
+# Phase 24 / MEM-09: recall_memory joins with pgvector cosine-recall impl
+# (services/agent/tools/recall.py). settings.recall_tool_enabled gates
+# REGISTRATION (not allowlist membership) — when False the registry lookup
+# at registry.py:78 silently drops "recall_memory" from schemas_for(...).
+# List stays length 4 regardless of recall_tool_enabled toggle (D-B4).
+AGENT_TOOL_ALLOWLIST: list[str] = [
+    "search_knowledge_base",
+    "refine_search",
+    "web_search",
+    "recall_memory",
+]
 
 
 class AgentQueryPipeline:
