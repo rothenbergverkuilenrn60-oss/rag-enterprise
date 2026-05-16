@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Memory Tool — Agent-Authored Long-Term Facts
-status: Phase 23 COMPLETE — verifier PASS (5/5 reqs, 5/5 SCs, 5/5 eng-review amendments). Ready for /gsd-discuss-phase 24.
-stopped_at: Phase 23 verified complete (VERIFICATION.md)
-last_updated: "2026-05-16T08:36:00.000Z"
-last_activity: 2026-05-16 — gsd-verifier PASS. MEM-01..05 + SC-1..5 + eng-review A1+A2+T1+T2+A5 all verified. Coverage 97.4% extractor.py / 80% memory_service.py touched lines (gates ≥70%). 26 commits cd14102..HEAD across 6 plans + retroactive SUMMARY + eng-review docs.
+status: Phase 24 context gathered (16 decisions, 4 areas). Ready for /gsd-plan-phase 24.
+stopped_at: Phase 24 context gathered
+last_updated: "2026-05-16T08:50:00.000Z"
+last_activity: 2026-05-16 — /gsd-discuss-phase 24 produced 24-CONTEXT.md + 24-DISCUSSION-LOG.md. 4 areas discussed: A (HNSW strict_order + ef_search reuse + top-K-only + K=5), B (load_context + RecallTool parallel; v1.6 accepts duplicates; recall_tool_enabled kill-switch), C (bulleted plain text + 'No matching facts found' + best-effort error + ROADMAP description), D (standalone CLI run-once + chunked 100/txn + whole-batch rollback + cost docs companion). Resolves STATE.md OQ#4 (HNSW strict_order). 7 v1.7+ TODOs captured.
 progress:
   total_phases: 3
   completed_phases: 1
@@ -25,8 +25,8 @@ See: .planning/PROJECT.md (updated 2026-05-15 after v1.6 open)
 
 ## Current Position
 
-Phase: 23 (COMPLETE — all 6 plans GREEN; ready for `/gsd-verify-work 23` then `/gsd-ship`)
-Plan: 23-01 GREEN (MEM-01); 23-02 GREEN (MEM-02 + A1); 23-03 GREEN (MEM-03); 23-04 GREEN (MEM-05); 23-05 GREEN (MEM-04); 23-06 GREEN (integration + coverage gate — SC-1/4/5 closed).
+Phase: 24 (context gathered; pending plan)
+Plan: TBD via `/gsd-plan-phase 24`. Phase 23 COMPLETE — all 6 plans GREEN; verifier PASS.
 Status: All of MEM-01..MEM-05 GREEN at the unit + integration layers. Plan 23-06 added 3 new integration test files (`tests/integration/test_long_term_facts_schema.py`, `tests/integration/test_extractor_e2e.py`, `tests/integration/test_swarm_pipeline_extractor_e2e.py`) + 4 new conftest fixtures (`pgvector_pool`, `extractor_llm_mock`, `embedder_or_mock`, `clean_long_term_facts`). Per-module coverage gate PASSES at 97.4% (extractor.py) + 93.3% (memory_service.py) — both well above the 70% floor. Diff-cover vacuously PASSES (Plan 06 added zero production-code lines). 7 new integration tests SKIP gracefully on CI hosts without PostgreSQL; pre-tag check requires running them with -m pgvector against a live local PG to confirm 7/7 PASS.
 Last activity: 2026-05-16 — Plan 23-06 (91e19af→1806cc8→7a4acef→41ce20e). MEM-01 + MEM-04 integration verification + coverage gate; 7 new tests added; 27/27 Phase 23 unit suite GREEN; ruff clean.
 
@@ -35,7 +35,7 @@ Last activity: 2026-05-16 — Plan 23-06 (91e19af→1806cc8→7a4acef→41ce20e)
 | Phase | Name | REQ-IDs | Status |
 |-------|------|---------|--------|
 | 23 | Background Extractor + schema migration | MEM-01, MEM-02, MEM-03, MEM-04, MEM-05 | COMPLETE — 6/6 plans GREEN (23-01 MEM-01 ✓; 23-02 MEM-02 ✓; 23-03 MEM-03 ✓; 23-04 MEM-05 ✓; 23-05 MEM-04 ✓; 23-06 integration + coverage gate ✓ — SC-1/4/5 closed) |
-| 24 | pgvector RecallTool + semantic recall rewrite | MEM-06, MEM-07, MEM-08, MEM-09, MEM-10 | Pending |
+| 24 | pgvector RecallTool + semantic recall rewrite | MEM-06, MEM-07, MEM-08, MEM-09, MEM-10 | CONTEXT.md gathered (16 decisions, 4 areas); pending `/gsd-plan-phase 24` |
 | 25 | Eviction job + GDPR forget API | EVICT-01, EVICT-02, EVICT-03, GDPR-01, GDPR-02, GDPR-03 | Pending |
 
 ## Accumulated Context
