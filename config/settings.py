@@ -293,6 +293,16 @@ class Settings(BaseSettings):
     verifier_model:    str | None = None
     verifier_provider: Literal["openai", "anthropic"] | None = None
 
+    # Extractor sub-agent (Phase 23, MEM-03) ──────────────────────────────────
+    # extractor_enabled gates dispatch_extraction at the pipeline boundary
+    # (Plan 23-05). extractor_provider overrides the peer LLM provider just
+    # like verifier_provider; None = reuse the get_llm_client() singleton.
+    # extractor_model is reserved for per-call model override (not wired in
+    # v1.6; mirrors verifier_model precedent).
+    extractor_enabled:  bool                                = True
+    extractor_model:    str | None                          = None
+    extractor_provider: Literal["openai", "anthropic"] | None = None
+
     # ══════════════════════════════════════════════════════════════════════════
     # Swarm（Fork-Agent — AGENT-03）
     # ══════════════════════════════════════════════════════════════════════════
