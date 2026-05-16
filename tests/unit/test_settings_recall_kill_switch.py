@@ -92,7 +92,14 @@ def _reset_registry_and_reimport(monkeypatch, enabled: bool):  # type: ignore[no
     #    ``if settings.recall_tool_enabled: from services.agent.tools.recall import RecallTool``
     #    line ACTUALLY re-imports recall.py (running @register) rather than returning
     #    the cached no-op module reference.
-    sys.modules.pop("services.agent.tools.recall", None)
+    #
+    #    We save the existing recall module (if any) and pop it from sys.modules so the
+    #    reload re-evaluates the conditional import.  After the reload we PUT IT BACK so
+    #    that monkeypatch teardown (which restores _registry to the pre-test singleton)
+    #    sees a consistent sys.modules state — specifically, so that subsequent tests
+    #    that patch "services.agent.tools.recall.get_memory_service" target the same
+    #    module object that RecallTool's closure references.
+    _prior_recall_mod = sys.modules.pop("services.agent.tools.recall", None)
 
     # 4. Reload the tools package — re-evaluates the conditional import guard.
     import services.agent.tools as tools_mod  # noqa: PLC0415
@@ -105,6 +112,16 @@ def _reset_registry_and_reimport(monkeypatch, enabled: bool):  # type: ignore[no
 
     importlib.reload(r1)
     importlib.reload(r2)
+
+    # 6. Restore the recall module in sys.modules (put back the pre-test version).
+    #    This is critical: monkeypatch teardown will restore _registry to the
+    #    pre-test singleton (which has recall_memory already registered against the
+    #    original RecallTool class).  If sys.modules["services.agent.tools.recall"]
+    #    is absent at that point, the next `import services.agent.tools.recall` would
+    #    re-run @get_tool_registry().register on a registry that already has it →
+    #    ValueError.  By restoring the prior module, subsequent imports are no-ops.
+    if _prior_recall_mod is not None:
+        sys.modules.setdefault("services.agent.tools.recall", _prior_recall_mod)
 
     return tools_mod.get_tool_registry()
 
