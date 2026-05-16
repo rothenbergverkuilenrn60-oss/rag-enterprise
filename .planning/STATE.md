@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Memory Tool — Agent-Authored Long-Term Facts
-status: `services/memory/memory_service.py` has embedding column + HNSW index + register_vector pool init + MemoryFactWriteError + save_fact embed-on-write (typed MemoryFactWriteError on embedder/asyncpg failure; zero partial-write rows). `services/agent/extractor.py` ships Extractor sub-agent + ExtractedFact frozen model + get_extractor singleton + dispatch_extraction stub (body in Plan 05). config/settings.py has extractor_enabled/_model/_provider fields. `services/vectorizer/embedder.py` OpenAIEmbedder now passes dimensions=settings.embedding_dim (A1 Pitfall 2 closure). Plan 23-04 (MEM-05) ships 9-fixture adversarial proof set covering 4 defense layers; per-module coverage on extractor.py = 94.6%. Wave 2 complete; Plan 23-05 unblocked.
-stopped_at: Completed 23-02-PLAN.md (MEM-02 — save_fact embed-on-write + A1 OpenAI dimensions fix)
-last_updated: "2026-05-16T08:18:00Z"
-last_activity: 2026-05-16 — Plan 23-02 GREEN (de1e7ae→52ecde1→426247b). MEM-02 + A1 closed. 11 plan-scoped tests + 24 pre-existing memory tests GREEN; ruff clean.
+status: All of MEM-01..MEM-05 GREEN. `services/agent/extractor.py::dispatch_extraction` body filled (kill-switch + 2 log-then-skip auth gates + asyncio.create_task('extractor') + log_task_error done-callback + lazy _run_and_persist coroutine iterating extracted facts into LongTermMemory.save_fact). `services/pipeline.py` wired at TWO sites — AgentQueryPipeline._persist_turn (line 924) + SwarmQueryPipeline._run_with_state (line 1618) — both using the A2 hoist-ConversationTurn-then-share pattern. QueryPipeline.run intentionally NOT wired (anti-wire test enforces). Plan 23-06 (integration test) is the only remaining Phase 23 plan.
+stopped_at: Completed 23-05-PLAN.md (MEM-04 — dispatch_extraction body + agent-tier pipeline wire-in)
+last_updated: "2026-05-16T08:08:00Z"
+last_activity: 2026-05-16 — Plan 23-05 GREEN (cc6e370→f533ea4→6335959→01095e6). MEM-04 closed. 10 plan-scoped tests GREEN; Plans 01-05 sweep 45/45 GREEN; ruff clean.
 progress:
   total_phases: 3
   completed_phases: 0
@@ -25,16 +25,16 @@ See: .planning/PROJECT.md (updated 2026-05-15 after v1.6 open)
 
 ## Current Position
 
-Phase: 23 (in progress — Wave 2 complete; Wave 3 unblocked)
-Plan: 23-01 GREEN (MEM-01); 23-02 GREEN (MEM-02 + A1); 23-03 GREEN (MEM-03); 23-04 GREEN (MEM-05); 23-05/06 pending.
-Status: `services/memory/memory_service.py` has embedding column + HNSW index + register_vector pool init + MemoryFactWriteError + save_fact embed-on-write (typed errors, zero partial-write rows). `services/agent/extractor.py` ships Extractor sub-agent + ExtractedFact frozen model + get_extractor singleton + dispatch_extraction stub (body in Plan 05). config/settings.py has extractor_enabled/_model/_provider fields. `services/vectorizer/embedder.py` OpenAIEmbedder now passes dimensions=settings.embedding_dim (A1 Pitfall 2 closure). Plan 23-04 (MEM-05) adversarial proof set covers 4 defense layers; per-module coverage on extractor.py = 94.6%. Plan 23-05 (dispatch_extraction body + pipeline wire-in) is now unblocked.
-Last activity: 2026-05-16 — Plan 23-02 (de1e7ae→52ecde1→426247b). save_fact embed-on-write + OpenAIEmbedder dimensions kwarg; 11 plan-scoped tests GREEN + 24 pre-existing memory tests GREEN; ruff clean.
+Phase: 23 (in progress — Wave 3 complete; integration verification (23-06) is the last open plan)
+Plan: 23-01 GREEN (MEM-01); 23-02 GREEN (MEM-02 + A1); 23-03 GREEN (MEM-03); 23-04 GREEN (MEM-05); 23-05 GREEN (MEM-04); 23-06 pending.
+Status: All of MEM-01..MEM-05 GREEN. `services/agent/extractor.py::dispatch_extraction` body filled (kill-switch + 2 log-then-skip auth gates + asyncio.create_task('extractor') + log_task_error done-callback + lazy _run_and_persist coroutine iterating extracted facts into LongTermMemory.save_fact). `services/pipeline.py` wired at TWO sites — AgentQueryPipeline._persist_turn (line 924) + SwarmQueryPipeline._run_with_state (line 1618) — both using the A2 hoist-ConversationTurn-then-share pattern. QueryPipeline.run intentionally NOT wired (anti-wire structural test enforces). End-to-end extractor → save_fact → long_term_facts pipeline now operational at the unit level; Plan 23-06 verifies end-to-end with real PG + actual asyncio.create_task completion.
+Last activity: 2026-05-16 — Plan 23-05 (cc6e370→f533ea4→6335959→01095e6). MEM-04 dispatch body + 2 agent-tier pipeline wire-ins; 10 plan-scoped tests GREEN; Plans 01-05 sweep 45/45 GREEN; ruff clean.
 
 ## Phase Overview
 
 | Phase | Name | REQ-IDs | Status |
 |-------|------|---------|--------|
-| 23 | Background Extractor + schema migration | MEM-01, MEM-02, MEM-03, MEM-04, MEM-05 | In progress — 4/6 plans complete (23-01 MEM-01 ✓; 23-02 MEM-02 ✓; 23-03 MEM-03 ✓; 23-04 MEM-05 ✓; 23-05/06 pending) |
+| 23 | Background Extractor + schema migration | MEM-01, MEM-02, MEM-03, MEM-04, MEM-05 | In progress — 5/6 plans complete (23-01 MEM-01 ✓; 23-02 MEM-02 ✓; 23-03 MEM-03 ✓; 23-04 MEM-05 ✓; 23-05 MEM-04 ✓; 23-06 integration pending) |
 | 24 | pgvector RecallTool + semantic recall rewrite | MEM-06, MEM-07, MEM-08, MEM-09, MEM-10 | Pending |
 | 25 | Eviction job + GDPR forget API | EVICT-01, EVICT-02, EVICT-03, GDPR-01, GDPR-02, GDPR-03 | Pending |
 
