@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Memory Tool — Agent-Authored Long-Term Facts
-status: Phase 24 EXECUTION COMPLETE — 7/7 plans GREEN. Per-module coverage 93.2%, diff-cover 93%, all 11 eng-review amendments landed. Ready for `/gsd-verify-work 24`.
-stopped_at: Completed 24-07-PLAN.md (SC-1 + SC-3 + coverage gate); Phase 24 ready for verifier
-last_updated: "2026-05-16T20:00:00.000Z"
-last_activity: 2026-05-16 — Phase 24 fully executed. Plans 24-01..24-07 GREEN. SC-1 (cosine quality) + SC-3 (HNSW <50ms p95 @ 10k SQL-only) + coverage gate all closed. 32 pre-existing Redis-dependent unit-test failures flagged as unrelated to Phase 24 (touch no Phase 24 surface).
+status: Phase 25 CONTEXT gathered (13 decisions across 4 themes). PR #5 (Phase 23+24) open. Phase 25 ready for `/gsd-plan-phase 25`.
+stopped_at: Phase 25 25-CONTEXT.md + 25-DISCUSSION-LOG.md committed; EVICT-03 un-marked per D-4.1
+last_updated: "2026-05-16T20:35:00.000Z"
+last_activity: 2026-05-16 — Phase 24 shipped via PR #5 (gsd/v1.6-phases-23-24); pre-tag bench: SC-3 PASS p95=25.28ms, SC-1 MARGINAL ~0.005 off (A2-Assumption), SC-2 DEFERRED (env LLM unreachable). VERIFICATION flipped to status: pass with caveats. Phase 25 discussion: 13 decisions captured (Forget API surface, Audit-log shape, Eviction UX, Docs reconciliation). EVICT-03 un-marked from [x] to [ ] — Plan 24-06 delivered only Backfill section; cron + forget-curl deferred to Phase 25.
 progress:
   total_phases: 3
   completed_phases: 1
