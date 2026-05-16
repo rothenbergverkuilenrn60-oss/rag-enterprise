@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Memory Tool — Agent-Authored Long-Term Facts
-status: Phase 25 ENG-REVIEWED + AMENDED — 7 plans + 9 amendments T1-T9 applied. Eng-review verdict 2026-05-16; amendments commit pending. Next: commit `docs(25): apply eng-review amendments`, re-run `/gsd:plan-check 25` (expect PASS clean), then `/gsd-execute-phase 25`.
-stopped_at: Phase 25 plans + eng-review + 9 inline amendments applied to plan files
-last_updated: "2026-05-16T22:00:00.000Z"
-last_activity: 2026-05-16 — /plan-eng-review 25 produced 25-ENG-REVIEW.md (5 primary findings + 4 outside-voice findings + cross-model tension table + 9 implementation tasks; mirrors 24-ENG-REVIEW shape). Amendments T1-T9 applied inline to 25-01..25-07 — T6 (Field(ge=1) on memory_facts_cap_per_user, 25-01), T7 (chunk forget_user at 1000/txn, 25-02), T1 (audit-write try/except in 25-04 + 25-05), T2 (main.py mount, 25-04), T3 (cross-tenant 200/0 test + doc note, 25-04 + 25-07), T4 (dummy [0.0]*1024 seed, 25-06), T5 (SC-5 anchor N/A grep gate, 25-07), T8 (re-COUNT post-DELETE for evict audit, 25-05), T9 (role-403 before header-400, 25-04). All 3 plan-check warnings (W1, W2, W3) closed. Test counts grew: 25-01 4→5, 25-02 6→7, 25-04 8→11, 25-05 10→11 (others unchanged).
+status: Phase 25 EXECUTING — Wave 1 complete (25-01 ✓, 25-02 ✓, 25-03 ✓); Waves 2-4 pending. 12/12 new unit tests GREEN. No regressions vs pre-Wave-1 4086ebb baseline.
+stopped_at: Wave 1 merged at master 2faaa43; awaiting Wave 2 dispatch (25-04 controller, 25-05 CLI)
+last_updated: "2026-05-16T14:25:00.000Z"
+last_activity: 2026-05-16 — Wave 1 executed 3 parallel worktree agents (a4cc4aa, afa3450, a52994); merged + worktrees cleaned; 12 new unit tests GREEN
 progress:
   total_phases: 3
-  completed_phases: 1
-  total_plans: 13
-  completed_plans: 13
-  percent: 100
+  completed_phases: 2
+  total_plans: 20
+  completed_plans: 16
+  percent: 80
 ---
 
 # STATE — EnterpriseRAG (v1.6 planning)
@@ -21,15 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-15 after v1.6 open)
 
 **Core value:** Every query returns a grounded, auditable answer — no hallucinations, no silent failures, no security gaps.
-**Current focus:** v1.6 Memory Tool — agent-authored long-term facts as new agent-callable third store (extractor → pgvector RecallTool → eviction + GDPR forget API).
+**Current focus:** Phase 25 — Eviction job + GDPR forget API (Wave 1 complete; Waves 2-4 pending)
 
 ## Current Position
 
-Phase: 24 (planned; pending execute)
-Plan: 24-01..24-07 (7 plans, waves 1–4). Plan-checker PASSED.
-Status: Phase 24 planned. Ready for `/gsd-execute-phase 24`.
-Status: All of MEM-01..MEM-05 GREEN at the unit + integration layers. Plan 23-06 added 3 new integration test files (`tests/integration/test_long_term_facts_schema.py`, `tests/integration/test_extractor_e2e.py`, `tests/integration/test_swarm_pipeline_extractor_e2e.py`) + 4 new conftest fixtures (`pgvector_pool`, `extractor_llm_mock`, `embedder_or_mock`, `clean_long_term_facts`). Per-module coverage gate PASSES at 97.4% (extractor.py) + 93.3% (memory_service.py) — both well above the 70% floor. Diff-cover vacuously PASSES (Plan 06 added zero production-code lines). 7 new integration tests SKIP gracefully on CI hosts without PostgreSQL; pre-tag check requires running them with -m pgvector against a live local PG to confirm 7/7 PASS.
-Last activity: 2026-05-16 — Plan 23-06 (91e19af→1806cc8→7a4acef→41ce20e). MEM-01 + MEM-04 integration verification + coverage gate; 7 new tests added; 27/27 Phase 23 unit suite GREEN; ruff clean.
+Phase: 25 — EXECUTING (Wave 1 complete)
+Plan: Wave 1 = 3 plans complete (25-01, 25-02, 25-03); 4 plans pending (25-04 + 25-05 = Wave 2; 25-06 = Wave 3; 25-07 = Wave 4)
+Status: 12 new unit tests GREEN (5 `test_phase25_foundations.py` covering memory_facts_cap_per_user default + int + ge=1 rejection + 2 AuditAction enum gates; 7 `test_memory_forget.py` covering MemoryForgetError class, forget_user happy path + idempotent + PG-error + cause-chain + SQL args + T7 chunked-large-bucket). Phase 23 + 24 coverage holds. Pre-existing baseline drift (31 failures in `test_pipeline_coverage.py` + `test_agent_pipeline_refactor.py`) confirmed pre-Wave-1 on commit 4086ebb — NOT a regression introduced by Wave 1.
+Last activity: 2026-05-16 — Wave 1 merged at master 2faaa43 (3 worktree agents + 3 merge commits + 6 plan commits + 3 SUMMARY commits)
 
 ## Phase Overview
 
@@ -37,7 +36,7 @@ Last activity: 2026-05-16 — Plan 23-06 (91e19af→1806cc8→7a4acef→41ce20e)
 |-------|------|---------|--------|
 | 23 | Background Extractor + schema migration | MEM-01, MEM-02, MEM-03, MEM-04, MEM-05 | COMPLETE — 6/6 plans GREEN (23-01 MEM-01 ✓; 23-02 MEM-02 ✓; 23-03 MEM-03 ✓; 23-04 MEM-05 ✓; 23-05 MEM-04 ✓; 23-06 integration + coverage gate ✓ — SC-1/4/5 closed) |
 | 24 | pgvector RecallTool + semantic recall rewrite | MEM-06, MEM-07, MEM-08, MEM-09, MEM-10 | Planned (7 plans, 4 waves) — plan-checker PASSED; ready for /gsd-execute-phase 24 |
-| 25 | Eviction job + GDPR forget API | EVICT-01, EVICT-02, EVICT-03, GDPR-01, GDPR-02, GDPR-03 | Plans + eng-review + 9 amendments applied (T1-T9); commit pending; ready for `/gsd:plan-check 25` re-validation then `/gsd-execute-phase 25` |
+| 25 | Eviction job + GDPR forget API | EVICT-01, EVICT-02, EVICT-03, GDPR-01, GDPR-02, GDPR-03 | EXECUTING — Wave 1 complete (25-01 ✓ settings+AuditAction+T6 ge=1; 25-02 ✓ forget_user+T7 chunked; 25-03 ✓ EVICT-03 un-mark). Waves 2-4 pending (25-04+05 ‖ 25-06 → 25-07). 12 new unit tests GREEN. |
 
 ## Accumulated Context
 

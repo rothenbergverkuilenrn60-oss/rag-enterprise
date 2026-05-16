@@ -76,9 +76,9 @@ Plans:
   5. `docs/memory-eviction.md` contains a runnable k8s CronJob YAML example, the audit→enforce operator workflow, the cap-tuning guidance, the backfill cost section (cross-referenced from MEM-07), and the forget-API curl example; all internal anchors resolve (no broken links).
 **Plans:** 7 plans (Wave 1: 01+02+03 parallel; Wave 2: 04+05 parallel; Wave 3: 06; Wave 4: 07)
 Plans:
-- [ ] 25-01-PLAN.md — Wave 1 (execute): settings cap field + AuditAction enum extension (EVICT-01, EVICT-02, GDPR-03)
-- [ ] 25-02-PLAN.md — Wave 1 (execute): MemoryForgetError + LongTermMemory.forget_user method (GDPR-01)
-- [ ] 25-03-PLAN.md — Wave 1 (execute): EVICT-03 un-mark accounting correction (EVICT-03)
+- [x] 25-01-PLAN.md — Wave 1 (execute): settings cap field + AuditAction enum extension (EVICT-01, EVICT-02, GDPR-03)
+- [x] 25-02-PLAN.md — Wave 1 (execute): MemoryForgetError + LongTermMemory.forget_user method (GDPR-01)
+- [x] 25-03-PLAN.md — Wave 1 (execute): EVICT-03 un-mark accounting correction (EVICT-03)
 - [ ] 25-04-PLAN.md — Wave 2 (execute): DELETE /api/v1/memory/forget controller + router mount (GDPR-02, GDPR-03)
 - [ ] 25-05-PLAN.md — Wave 2 (execute): scripts/evict_long_term_facts.py chunked eviction CLI (EVICT-01, EVICT-02)
 - [ ] 25-06-PLAN.md — Wave 3 (execute): integration tests — SC-1 audit/enforce, SC-2 tie-break, SC-3 forget API, SC-4 audit_log (all reqs)
