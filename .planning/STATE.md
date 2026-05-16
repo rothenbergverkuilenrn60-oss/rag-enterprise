@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Memory Tool — Agent-Authored Long-Term Facts
-status: Phase 25 PLANNED — 7 plans across 4 waves; plan-checker PASS-WITH-WARNINGS (0 blockers, 3 warnings; W2 = action at execute time on test_evict_e2e seed). Ready for `/gsd-execute-phase 25`.
-stopped_at: Phase 25 plans + research + patterns + validation + plan-check committed
-last_updated: "2026-05-16T21:00:00.000Z"
-last_activity: 2026-05-16 — /gsd-plan-phase 25 produced 25-RESEARCH.md (8 pitfalls, 5 ASSUMED, 866 LOC) + 25-PATTERNS.md (10 analogs, 4 verbatim skeletons, 1024 LOC) + 7 PLAN.md files (~2,060 LOC across 4 waves) + 25-VALIDATION.md (31-row Nyquist matrix) + 25-PLAN-CHECK.md (PASS-WITH-WARNINGS). Plan-checker key flag: W2 (25-06 Task 1 seeds long_term_facts without embedding vector; check column NOT NULL constraint at execute time and add dummy `[0.0]*1024` if required).
+status: Phase 25 ENG-REVIEWED + AMENDED — 7 plans + 9 amendments T1-T9 applied. Eng-review verdict 2026-05-16; amendments commit pending. Next: commit `docs(25): apply eng-review amendments`, re-run `/gsd:plan-check 25` (expect PASS clean), then `/gsd-execute-phase 25`.
+stopped_at: Phase 25 plans + eng-review + 9 inline amendments applied to plan files
+last_updated: "2026-05-16T22:00:00.000Z"
+last_activity: 2026-05-16 — /plan-eng-review 25 produced 25-ENG-REVIEW.md (5 primary findings + 4 outside-voice findings + cross-model tension table + 9 implementation tasks; mirrors 24-ENG-REVIEW shape). Amendments T1-T9 applied inline to 25-01..25-07 — T6 (Field(ge=1) on memory_facts_cap_per_user, 25-01), T7 (chunk forget_user at 1000/txn, 25-02), T1 (audit-write try/except in 25-04 + 25-05), T2 (main.py mount, 25-04), T3 (cross-tenant 200/0 test + doc note, 25-04 + 25-07), T4 (dummy [0.0]*1024 seed, 25-06), T5 (SC-5 anchor N/A grep gate, 25-07), T8 (re-COUNT post-DELETE for evict audit, 25-05), T9 (role-403 before header-400, 25-04). All 3 plan-check warnings (W1, W2, W3) closed. Test counts grew: 25-01 4→5, 25-02 6→7, 25-04 8→11, 25-05 10→11 (others unchanged).
 progress:
   total_phases: 3
   completed_phases: 1
@@ -37,7 +37,7 @@ Last activity: 2026-05-16 — Plan 23-06 (91e19af→1806cc8→7a4acef→41ce20e)
 |-------|------|---------|--------|
 | 23 | Background Extractor + schema migration | MEM-01, MEM-02, MEM-03, MEM-04, MEM-05 | COMPLETE — 6/6 plans GREEN (23-01 MEM-01 ✓; 23-02 MEM-02 ✓; 23-03 MEM-03 ✓; 23-04 MEM-05 ✓; 23-05 MEM-04 ✓; 23-06 integration + coverage gate ✓ — SC-1/4/5 closed) |
 | 24 | pgvector RecallTool + semantic recall rewrite | MEM-06, MEM-07, MEM-08, MEM-09, MEM-10 | Planned (7 plans, 4 waves) — plan-checker PASSED; ready for /gsd-execute-phase 24 |
-| 25 | Eviction job + GDPR forget API | EVICT-01, EVICT-02, EVICT-03, GDPR-01, GDPR-02, GDPR-03 | Pending |
+| 25 | Eviction job + GDPR forget API | EVICT-01, EVICT-02, EVICT-03, GDPR-01, GDPR-02, GDPR-03 | Plans + eng-review + 9 amendments applied (T1-T9); commit pending; ready for `/gsd:plan-check 25` re-validation then `/gsd-execute-phase 25` |
 
 ## Accumulated Context
 
