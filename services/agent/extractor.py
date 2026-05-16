@@ -18,6 +18,7 @@ poison the user-visible response path).
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 from typing import Any
@@ -34,6 +35,7 @@ from services.generator.llm_client import (
 )
 from services.memory.memory_service import ConversationTurn
 from utils.models import ExtractedFact
+from utils.tasks import log_task_error
 
 # ──────────────────────────────────────────────────────────────────────────────
 # System prompt — RESEARCH §Pattern 3 (verbatim Chinese, ~350 tokens) +
@@ -190,7 +192,8 @@ def get_extractor() -> Extractor:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Dispatch wrapper — STUB ONLY in Plan 23-03; body filled in Plan 23-05.
+# Dispatch wrapper — Plan 23-05 / MEM-04.
+# Pattern source: services/events/event_bus.py:132-133 (verified verbatim).
 # ──────────────────────────────────────────────────────────────────────────────
 def dispatch_extraction(
     user_turn: ConversationTurn,
@@ -198,17 +201,69 @@ def dispatch_extraction(
     user_id: str | None,
     tenant_id: str | None,
 ) -> None:
-    """Stub — implemented in Plan 05 wire-in.
+    """Phase 23 / MEM-04 — post-turn fire-and-forget extractor dispatch.
 
-    Takes both ``user_turn`` and ``ai_turn`` because ``Extractor.run`` needs
-    the full exchange to extract user facts (eng-review A2). Plan 05 will
-    fill the body to:
-      1. ``asyncio.create_task(_run_and_persist(user_turn, ai_turn, user_id, tenant_id))``
-      2. ``task.add_done_callback(log_task_error)``
+    Wraps ``asyncio.create_task`` with a ``log_task_error`` done-callback so
+    any background failure surfaces to logs without affecting the user-facing
+    turn (Phase 12 isolation contract, CONTEXT D-01).
 
-    This stub exists so ``from services.agent.extractor import dispatch_extraction``
-    does not break Plan 04 or any other consumer that imports the symbol
-    early. Calling it before Plan 05 lands is a no-op.
+    Signature takes BOTH ``user_turn`` and ``ai_turn`` (per eng-review A2,
+    2026-05-16) — user-preference facts live in ``user_turn.content``; the
+    assistant's reply is supporting context only.
+
+    Skip-path order (matters for diagnostic clarity):
+      1. ``settings.extractor_enabled=False`` → kill-switch FIRST (cheapest).
+      2. ``user_id`` missing/empty → log-then-skip with ``reason="missing_user_id"``.
+      3. ``tenant_id`` missing/empty → log-then-skip with ``reason="missing_tenant_id"``.
+
+    Multi-tenant isolation: empty-string fallback is REJECTED — would otherwise
+    pollute the empty-tenant bucket across requests (T-23-05-A1 mitigation).
     """
-    # Plan 23-05 fills body. Intentionally empty.
-    return None
+    # Kill-switch FIRST — cheapest skip path.
+    if not settings.extractor_enabled:
+        logger.info(
+            "extractor skipped",
+            operation="extractor_skipped",
+            reason="disabled",
+        )
+        return
+    # Auth-precondition checks — order matters: missing user_id reported even
+    # when tenant_id is also missing.
+    if not user_id:
+        logger.info(
+            "extractor skipped",
+            operation="extractor_skipped",
+            reason="missing_user_id",
+        )
+        return
+    if not tenant_id:
+        logger.info(
+            "extractor skipped",
+            operation="extractor_skipped",
+            reason="missing_tenant_id",
+        )
+        return
+
+    async def _run_and_persist() -> None:
+        extractor = get_extractor()
+        facts = await extractor.run(user_turn, ai_turn)
+        if not facts:
+            return
+        # Lazy import — avoids a top-of-module circular: memory_service may
+        # transitively import services.agent.* via integration shims.
+        from services.memory.memory_service import get_memory_service
+        mem = get_memory_service()
+        for f in facts:
+            # save_fact embeds + INSERTs atomically (Plan 02 contract);
+            # MemoryFactWriteError bubbles into log_task_error via the
+            # callback boundary.
+            await mem._long.save_fact(
+                user_id=user_id,
+                tenant_id=tenant_id,
+                fact=f.fact,
+                source_doc="",
+                importance=f.importance,
+            )
+
+    task = asyncio.create_task(_run_and_persist(), name="extractor")
+    task.add_done_callback(log_task_error)
