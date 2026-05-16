@@ -12,6 +12,19 @@ from dataclasses import asdict, dataclass, field
 import asyncpg
 import redis.asyncio
 from loguru import logger
+from pgvector.asyncpg import register_vector
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 类型化异常 / Typed exceptions
+# ══════════════════════════════════════════════════════════════════════════════
+class MemoryFactWriteError(Exception):
+    """Typed error for save_fact embedding or persistence failure.
+
+    Wraps either ``asyncpg.PostgresError`` OR an embedding-adapter exception
+    so the ``dispatch_extraction`` wrapper can surface it via ``log_task_error``
+    without conflating the two failure modes at the call site.
+    """
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -132,15 +145,23 @@ class LongTermMemory:
 
     async def _get_pool(self):
         if self._pool is None:
-            import asyncpg
-
             from config.settings import settings
+
+            async def _init_conn(conn: "asyncpg.Connection") -> None:
+                # Pitfall #1: register pgvector codec on every acquired connection
+                # so $N::vector bindings in save_fact (Plan 23-02) resolve correctly.
+                await register_vector(conn)
+
             dsn = settings.pg_dsn.replace("postgresql+asyncpg://", "postgresql://")
-            self._pool = await asyncpg.create_pool(dsn, min_size=2, max_size=10)
+            self._pool = await asyncpg.create_pool(
+                dsn, min_size=2, max_size=10, init=_init_conn,
+            )
             await self._create_tables()
         return self._pool
 
     async def _create_tables(self) -> None:
+        from config.settings import settings
+
         pool = await self._get_pool()
         async with pool.acquire() as conn:
             await conn.execute("""
@@ -179,6 +200,19 @@ class LongTermMemory:
                     created_at   TIMESTAMPTZ DEFAULT NOW()
                 );
                 CREATE INDEX IF NOT EXISTS qh_user_idx ON query_history(user_id, tenant_id);
+            """)
+
+            # Phase 23 / MEM-01 — pgvector schema migration for long_term_facts.
+            # Pure-additive idempotency: ALTER ADD COLUMN IF NOT EXISTS + CREATE INDEX IF NOT EXISTS.
+            # Pattern map analog 2 forbids drop-rebuild here (no destructive index churn on this table).
+            await conn.execute("CREATE EXTENSION IF NOT EXISTS vector;")
+            await conn.execute(
+                f"ALTER TABLE long_term_facts ADD COLUMN IF NOT EXISTS embedding vector({settings.embedding_dim});"
+            )
+            await conn.execute("""
+                CREATE INDEX IF NOT EXISTS ltf_emb_hnsw_idx
+                    ON long_term_facts USING hnsw (embedding vector_cosine_ops)
+                    WITH (m = 16, ef_construction = 64);
             """)
 
     async def get_user_profile(self, user_id: str, tenant_id: str = "") -> UserProfile:
