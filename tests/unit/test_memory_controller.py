@@ -25,7 +25,6 @@ import os
 os.environ.setdefault("APP_MODEL_DIR", "/tmp")
 os.environ.setdefault("SECRET_KEY", "a-very-secure-key-for-testing-that-is-long-32c")
 
-import logging
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -47,16 +46,21 @@ def client() -> TestClient:
 
 
 @pytest.fixture
-def loguru_caplog(caplog):
-    """Propagate loguru logs into pytest's caplog (T1 structured-log assertion)."""
+def loguru_records():
+    """Capture full loguru records (incl. ``extra`` kwargs) for structured-log assertions.
 
-    class _PropagateHandler(logging.Handler):
-        def emit(self, record) -> None:
-            logging.getLogger(record.name).handle(record)
+    Loguru passes keyword args through ``record["extra"]``; the stdlib propagate
+    handler used by `caplog` does NOT surface them as ``LogRecord`` attributes.
+    This sink records the loguru record dict directly, so T1's assertion can
+    inspect the ``operation="forget_audit_log"`` field and the audit payload.
+    """
+    captured: list[dict] = []
 
-    handler_id = logger.add(_PropagateHandler(), format="{message}")
-    caplog.set_level(logging.ERROR)
-    yield caplog
+    def _sink(message) -> None:
+        captured.append(dict(message.record))
+
+    handler_id = logger.add(_sink, level="ERROR", format="{message}")
+    yield captured
     logger.remove(handler_id)
 
 
@@ -265,7 +269,7 @@ def test_forget_audit_called_after_forget_user(monkeypatch, client):
     assert audit_mock.await_count == 1
 
 
-def test_forget_audit_write_failure_returns_200(monkeypatch, client, loguru_caplog):
+def test_forget_audit_write_failure_returns_200(monkeypatch, client, loguru_records):
     """Test 9 [T1 — Architecture A1]: audit_service.log raises -> still 200.
 
     GDPR DELETE already committed; audit failure must NOT propagate to a 500.
@@ -288,24 +292,31 @@ def test_forget_audit_write_failure_returns_200(monkeypatch, client, loguru_capl
     assert resp.json() == {"deleted_row_count": 3}
     audit_mock.assert_awaited_once()
 
-    # Structured-log assertion: the ERROR record must have operation=forget_audit_log
-    # plus the canonical detail payload fields (loguru `extra` propagates to caplog
-    # records as plain attributes when bound via keyword args).
+    # Structured-log assertion: loguru's keyword args land in record["extra"].
     matched = [
-        rec for rec in loguru_caplog.records
-        if getattr(rec, "operation", None) == "forget_audit_log"
+        rec for rec in loguru_records
+        if rec.get("extra", {}).get("operation") == "forget_audit_log"
     ]
     assert matched, (
         "Expected an ERROR-level log with operation='forget_audit_log' after audit fail; "
-        f"records seen: {[r.getMessage() for r in loguru_caplog.records]}"
+        f"records seen: {[(r['message'], r.get('extra', {})) for r in loguru_records]}"
     )
     rec = matched[0]
-    assert rec.levelno >= logging.ERROR
-    # Required structured fields per T1
-    assert getattr(rec, "target_user_id", None) == "alice"
-    assert getattr(rec, "target_tenant_id", None) == "tenantA"
-    assert getattr(rec, "deleted_row_count", None) == 3
-    assert getattr(rec, "actor_user_id", None) == "admin-1"
+    assert rec["level"].name == "ERROR"
+    extra = rec["extra"]
+    # Required structured fields per T1 — convenience top-levels + the full payload
+    assert extra["target_user_id"] == "alice"
+    assert extra["target_tenant_id"] == "tenantA"
+    assert extra["deleted_row_count"] == 3
+    assert extra["actor_user_id"] == "admin-1"
+    # The full would-be audit-detail payload must be carried in the log so
+    # operators can reconstruct the missing audit row from logs (T1 contract).
+    payload = extra["audit_payload"]
+    assert payload["target_user_id"] == "alice"
+    assert payload["target_tenant_id"] == "tenantA"
+    assert payload["deleted_row_count"] == 3
+    assert payload["actor_user_id"] == "admin-1"
+    assert payload["actor_is_admin"] is True
 
 
 def test_forget_cross_tenant_unreachable_returns_200_zero(monkeypatch, client):

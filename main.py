@@ -28,6 +28,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from config.settings import settings
 from controllers.api import limiter as _route_limiter
 from controllers.api import router
+from controllers.memory import router as memory_router  # Phase 25 / T2 — GDPR forget API
 from utils.logger import setup_logger
 from utils.metrics import (
     active_requests_gauge,
@@ -384,6 +385,7 @@ async def auth_middleware(request: Request, call_next) -> Response:
 # 路由注册
 # ══════════════════════════════════════════════════════════════════════════════
 app.include_router(router)
+app.include_router(memory_router)  # Phase 25 / T2 — DELETE /api/v1/memory/forget
 
 # ─── 静态前端 (UI-01 / Phase 9) ───────────────────────────────────────────
 # Inline UI 字符串已抽到 `static/ui.html`，由 FastAPI StaticFiles 直接 serve。
