@@ -42,6 +42,8 @@ from services.ab_test.ab_test_service import (
     current_variant_config,
     get_ab_test_service,
 )
+# Phase 23 / MEM-04 — extractor dispatch wrapper.
+from services.agent.extractor import dispatch_extraction  # noqa: E402
 from services.agent.verifier import Verifier  # noqa: E402
 from services.audit.audit_service import (
     AuditAction,
@@ -924,14 +926,23 @@ class AgentQueryPipeline:
         """Save memory, write audit log, return GenerationResponse."""
         total_ms = round((time.perf_counter() - t0) * 1000, 1)
         user_id, tenant_id = getattr(req, "user_id", ""), getattr(req, "tenant_id", "")
+        # Phase 23 / MEM-04 (A2): hoist both turns into locals so the SAME
+        # ConversationTurn instances flow into both save_turn and the
+        # post-persist dispatch_extraction call (no parallel objects).
+        user_turn = ConversationTurn(role="user", content=req.query)
+        ai_turn = ConversationTurn(
+            role="assistant", content=answer,
+            sources=[c.doc_id for c in all_chunks[:3]],
+        )
         await self._memory.save_turn(
             session_id=req.session_id, user_id=user_id, tenant_id=tenant_id,
-            user_turn=ConversationTurn(role="user", content=req.query),
-            ai_turn=ConversationTurn(
-                role="assistant", content=answer,
-                sources=[c.doc_id for c in all_chunks[:3]],
-            ),
+            user_turn=user_turn,
+            ai_turn=ai_turn,
             intent=None,
+        )
+        dispatch_extraction(
+            user_turn=user_turn, ai_turn=ai_turn,
+            user_id=user_id, tenant_id=tenant_id,
         )
         await self._audit.log_query(
             user_id=user_id, tenant_id=tenant_id, query=req.query, trace_id=trace_id,
@@ -1616,13 +1627,22 @@ class SwarmQueryPipeline:
         total_ms = round((time.perf_counter() - t0) * 1000, 1)
 
         # Persist memory turn (mirrors AgentQueryPipeline pattern).
+        # Phase 23 / MEM-04 (A2): hoist both turns into locals so the SAME
+        # ConversationTurn instances flow into both save_turn and the
+        # post-persist dispatch_extraction call (no parallel objects).
+        user_turn = ConversationTurn(role="user", content=req.query)
+        ai_turn = ConversationTurn(role="assistant", content=final_answer)
         await self._memory.save_turn(
             session_id=req.session_id,
             user_id=user_id,
             tenant_id=tenant_id,
-            user_turn=ConversationTurn(role="user", content=req.query),
-            ai_turn=ConversationTurn(role="assistant", content=final_answer),
+            user_turn=user_turn,
+            ai_turn=ai_turn,
             intent=None,
+        )
+        dispatch_extraction(
+            user_turn=user_turn, ai_turn=ai_turn,
+            user_id=user_id, tenant_id=tenant_id,
         )
 
         # CRITICAL: audit via log() directly with AuditEvent — log_query has a

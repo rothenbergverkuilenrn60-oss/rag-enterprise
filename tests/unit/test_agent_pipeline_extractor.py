@@ -28,6 +28,16 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from services.memory.memory_service import ConversationTurn
+from utils.models import ChunkMetadata, RetrievedChunk
+
+
+def _chunk(doc_id: str) -> RetrievedChunk:
+    return RetrievedChunk(
+        chunk_id=f"c-{doc_id}",
+        doc_id=doc_id,
+        content="x",
+        metadata=ChunkMetadata(doc_id=doc_id),
+    )
 
 
 @pytest.mark.asyncio
@@ -54,15 +64,12 @@ async def test_persist_turn_dispatches_extractor(monkeypatch):
     req.top_k = 5
     req.filters = None
 
-    chunk = MagicMock()
-    chunk.doc_id = "d1"
-    chunk2 = MagicMock(); chunk2.doc_id = "d2"
-    chunk3 = MagicMock(); chunk3.doc_id = "d3"
+    chunks = [_chunk("d1"), _chunk("d2"), _chunk("d3")]
 
     await pipeline._persist_turn(
         req=req,
         answer="The answer",
-        all_chunks=[chunk, chunk2, chunk3],
+        all_chunks=chunks,
         trace_id="tr1",
         t0=time.perf_counter(),
         parallelism_factors=[],
