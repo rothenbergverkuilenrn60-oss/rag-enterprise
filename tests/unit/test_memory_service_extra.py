@@ -199,7 +199,14 @@ async def test_long_term_get_relevant_facts_pg_error_returns_empty():
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_long_term_save_fact_calls_insert():
+async def test_long_term_save_fact_calls_insert(monkeypatch):
+    # Phase 23 / MEM-02 — save_fact now embeds before INSERT. Mock the embedder
+    # at the source path so the lazy `from … import get_embedder` inside
+    # save_fact resolves to a stub returning a deterministic 1024-dim vector.
+    fake_embedder = MagicMock(embed_one=AsyncMock(return_value=[0.1] * 1024))
+    monkeypatch.setattr(
+        "services.vectorizer.embedder.get_embedder", lambda: fake_embedder
+    )
     conn = MagicMock()
     conn.execute = AsyncMock()
     lt = _make_long(_make_pool(conn))

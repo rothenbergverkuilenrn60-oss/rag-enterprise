@@ -290,17 +290,40 @@ class LongTermMemory:
         self, user_id: str, tenant_id: str,
         fact: str, source_doc: str = "", importance: float = 0.5,
     ) -> None:
+        # Plan 23-02 / MEM-02 — embed-on-write contract.
+        # Step 1 (embed) precedes Step 2 (INSERT) in SEPARATE try blocks so that
+        # an embedder failure returns BEFORE _get_pool is called → zero partial-write
+        # rows. Both failure paths raise typed MemoryFactWriteError so the Plan-05
+        # dispatch wrapper can surface them via log_task_error.
+        # Lazy imports (circular-import resilience per repo convention).
+        import httpx
+
+        from services.vectorizer.embedder import get_embedder
+
+        try:
+            embedding: list[float] = await get_embedder().embed_one(fact)
+        except (httpx.HTTPError, RuntimeError, OSError) as exc:
+            # Narrow-exception list (RESEARCH §Pattern 2):
+            #   RuntimeError      — OllamaEmbedder.embed_batch re-raise (embedder.py:68)
+            #   httpx.HTTPError   — Ollama + OpenAI transport failures
+            #   OSError           — HuggingFace torch device / model-load failures
+            logger.error(
+                "memory service failure", operation="save_fact_embed", exc_info=exc,
+            )
+            raise MemoryFactWriteError("embedding failed") from exc
+
         try:
             pool = await self._get_pool()
             async with pool.acquire() as conn:
                 await conn.execute(
                     """INSERT INTO long_term_facts
-                       (user_id, tenant_id, fact, source_doc, importance)
-                       VALUES ($1,$2,$3,$4,$5)""",
-                    user_id, tenant_id, fact, source_doc, importance,
+                       (user_id, tenant_id, fact, source_doc, importance, embedding)
+                       VALUES ($1,$2,$3,$4,$5,$6::vector)""",
+                    user_id, tenant_id, fact, source_doc, importance, embedding,
                 )
         except asyncpg.PostgresError as exc:
             logger.error("memory service failure", operation="save_fact", exc_info=exc)
+            raise MemoryFactWriteError("persistence failed") from exc
 
     async def save_query(
         self, user_id: str, tenant_id: str, session_id: str,
