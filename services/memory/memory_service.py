@@ -493,6 +493,23 @@ class MemoryService:
     ) -> None:
         await self._long.update_feedback(user_id, session_id, feedback)
 
+    async def get_relevant_facts(
+        self,
+        user_id: str,
+        tenant_id: str,
+        query: str,
+        limit: int = 5,
+    ) -> list[str]:
+        """Public passthrough — semantic recall over long_term_facts.
+
+        Added in Phase 24 / T2 (Decision-2). Plan 03 RecallTool calls this
+        rather than reaching into the private ``_long`` attribute. Mirrors
+        ``LongTermMemory.get_relevant_facts`` signature exactly.
+        """
+        return await self._long.get_relevant_facts(
+            user_id, tenant_id, query, limit=limit,
+        )
+
     async def get_formatted_history(
         self, session_id: str, max_turns: int = 6
     ) -> list[dict[str, str]]:

@@ -65,11 +65,16 @@ def test_memory_service_get_relevant_facts_signature():
     assert sig.parameters["limit"].default == 5, (
         f"limit default must be 5, got {sig.parameters['limit'].default!r}"
     )
-    # Return annotation must be list[str]
+    # Return annotation must be list[str].
+    # With `from __future__ import annotations` (PEP 563) active in the source
+    # module, inspect.signature returns annotations as strings, not evaluated
+    # types. Accept both forms.
     ann = sig.return_annotation
-    # Allow both inspect.Parameter.empty and list[str]; must NOT be empty.
     assert ann is not inspect.Parameter.empty, "Return annotation missing"
-    assert ann == list[str], f"Return annotation must be list[str], got {ann!r}"
+    # str form (PEP 563 deferred eval) OR resolved type
+    assert ann in ("list[str]", list[str]), (
+        f"Return annotation must be list[str], got {ann!r}"
+    )
 
 
 # ---------------------------------------------------------------------------
