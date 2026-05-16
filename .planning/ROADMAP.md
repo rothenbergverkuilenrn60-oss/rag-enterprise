@@ -279,6 +279,6 @@ Plans:
 | 20. WebSearchTool Real Implementation (Tavily) | v1.5 | 5/5 | Complete ✓ | 2026-05-10 |
 | 21. AGENT-05 Multi-Agent Debate / Sub-Agent Verifier | v1.5 | 6/6 | Complete ✓ | 2026-05-10 |
 | 22. Per-Module 70% Coverage Lift | v1.5 | 7/7 | Complete ✓ | 2026-05-11 |
-| 23. Background Extractor + schema migration | v1.6 | 3/6 | In progress — 23-01 MEM-01 ✓; 23-03 MEM-03 ✓; 23-04 MEM-05 ✓ (9 adversarial fixtures, coverage 94.6%); 23-02 (save_fact embed-on-write) pending; 23-05/06 pending | — |
+| 23. Background Extractor + schema migration | v1.6 | 4/6 | In progress — 23-01 MEM-01 ✓; 23-02 MEM-02 ✓ (save_fact embed-on-write + A1 OpenAI dim fix); 23-03 MEM-03 ✓; 23-04 MEM-05 ✓ (9 adversarial fixtures, coverage 94.6%); 23-05/06 pending | — |
 | 24. pgvector RecallTool + semantic recall rewrite | v1.6 | 0/0 | Pending | — |
 | 25. Eviction job + GDPR forget API | v1.6 | 0/0 | Pending | — |
