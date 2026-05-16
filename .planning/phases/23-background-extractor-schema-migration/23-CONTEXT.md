@@ -5,7 +5,7 @@
 **Requirements:** MEM-01, MEM-02, MEM-03, MEM-04, MEM-05
 
 <domain>
-Background extraction of agent-authored long-term facts. Post-turn (NOT in critical path), the extractor sub-agent reads ONLY the just-finished turn, picks at most 3 memorable facts that match a whitelist of safe categories, scores each with a fixed importance bucket, and persists them with their embedding into `long_term_facts`. Phase 24 will rewrite the recall path; this phase only writes.
+Background extraction of agent-authored long-term facts. Post-turn (NOT in critical path), the extractor sub-agent reads the just-finished (user_turn, ai_turn) exchange — **per eng-review A2 (2026-05-16), the original "ai_turn only" design was reversed because user-preference facts ("I prefer React", "I work in healthcare") live in `user_turn.content`, not the assistant's reply. Extractor now receives BOTH turns: `Extractor.run(user_turn, ai_turn)` and `dispatch_extraction(user_turn, ai_turn, user_id, tenant_id)`. Prompt format: `USER: {content[:2000]}\nASSISTANT: {content[:2000]}`. The "sub-agents do NOT inherit chat history" rule (v1.3 D-06) still holds — only this single exchange is visible, no scrollback.** Picks at most 3 memorable facts that match a whitelist of safe categories, scores each with a fixed importance bucket, and persists them with their embedding into `long_term_facts`. Phase 24 will rewrite the recall path; this phase only writes.
 </domain>
 
 <decisions>
@@ -64,7 +64,7 @@ Background extraction of agent-authored long-term facts. Post-turn (NOT in criti
 - Raise typed error caught by `log_task_error`: functionally equivalent to log-then-skip but noisier (error-level vs info-level).
 - Empty-string fallback (`tenant_id=''`): multi-tenant isolation regression — anonymous turns from tenant A would pollute the empty-tenant bucket and be recallable by tenant B's anonymous turns. Security regression masquerading as a feature.
 
-**Implementation note (for planner):** Dispatch wrapper is the place to check, NOT inside `Extractor.run()`. Wrapper signature: `dispatch_extraction(turn: ConversationTurn, user_id: str | None, tenant_id: str | None) -> None`. Wrapper does the precondition check, then `task = asyncio.create_task(_run_and_persist(...), name="extractor"); task.add_done_callback(log_task_error)`.
+**Implementation note (for planner):** Dispatch wrapper is the place to check, NOT inside `Extractor.run()`. Wrapper signature (**A2-amended 2026-05-16**): `dispatch_extraction(user_turn: ConversationTurn, ai_turn: ConversationTurn, user_id: str | None, tenant_id: str | None) -> None`. Wrapper does the precondition check (kill-switch FIRST, then `user_id`, then `tenant_id`), then `task = asyncio.create_task(_run_and_persist(...), name="extractor"); task.add_done_callback(log_task_error)`.
 
 </decisions>
 

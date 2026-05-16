@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Memory Tool — Agent-Authored Long-Term Facts
-status: Phase 23 planned; ready for `/gsd-execute-phase 23`
-stopped_at: Phase 23 plans created + verified (6 plans, 4 waves)
-last_updated: "2026-05-15T00:00:00.000Z"
-last_activity: 2026-05-15 — Phase 23 PLAN.md ×6 generated, plan-checker PASSED (6 non-blocking warnings)
+status: Phase 23 planned + eng-reviewed; ready for `/gsd-execute-phase 23`
+stopped_at: Phase 23 plans amended per /plan-eng-review (5 decisions + 2 TODOs)
+last_updated: "2026-05-16T07:09:00.000Z"
+last_activity: 2026-05-16 — /plan-eng-review on Phase 23 plans; 5 decisions landed in plan files (A1 OpenAI dimensions fix, A2 user+ai turn signature, A3 dedup deferred, A4 index deferred, A5 exception placement); 2 TODOs appended to STATE.md carry-forward
 progress:
   total_phases: 3
   completed_phases: 0
@@ -24,10 +24,10 @@ See: .planning/PROJECT.md (updated 2026-05-15 after v1.6 open)
 
 ## Current Position
 
-Phase: 23 (planned)
-Plan: 23-01..23-06 (6 plans, waves 1–4)
-Status: Phase 23 planned; plan-checker PASSED. Ready for `/gsd-execute-phase 23`.
-Last activity: 2026-05-15 — Phase 23 RESEARCH + PATTERNS + VALIDATION + 6 PLAN.md generated; plan-checker PASSED with 6 non-blocking warnings.
+Phase: 23 (planned + eng-reviewed)
+Plan: 23-01..23-06 (6 plans, waves 1–4) amended per /plan-eng-review 2026-05-16
+Status: Phase 23 planned + eng-reviewed. Ready for `/gsd-execute-phase 23`.
+Last activity: 2026-05-16 — /plan-eng-review surfaced 5 architecture findings + 2 test gaps + 2 follow-up TODOs; all decisions landed in PLAN 02/03/05/06 + CONTEXT.md + STATE.md (this file).
 
 ## Phase Overview
 
@@ -82,6 +82,8 @@ None.
 - [ ] v1.7+ follow-up: Per-tenant capacity overrides + importance decay (D5 option 4)
 - [ ] v1.7+ follow-up: UI-03 React/Vue full migration; TEST-07 mutation testing; UI-02 first-deploy browser smoke test
 - [ ] Docker Build CI fix (paddleocr / paddlex / paddlepaddle ABI churn — currently `continue-on-error: true`)
+- [ ] v1.7+ follow-up (per eng-review A3, 2026-05-16): `save_fact` embedding-dedup guard — `SELECT 1 ... <=> $embedding < 0.05` precheck before INSERT to skip near-duplicate facts (same user said "I prefer React" in turn 5 and turn 47 → two rows today). Threshold (0.05) to be tuned from Phase 24 recall eval data, not guessed pre-deploy.
+- [ ] v1.7+ follow-up (per eng-review perf-2, 2026-05-16): `LongTermMemory.save_facts(list[ExtractedFact])` batch path — 1× `embed_batch` + `executemany` cuts the current 3× round-trips per extractor turn to 1. Background-only latency improvement; useful once fact-throughput pressure surfaces.
 
 ## Session Continuity
 
@@ -92,7 +94,7 @@ None.
 **Plan Map (Phase 23):**
 | Plan | Wave | Reqs | Files | Depends on |
 |------|------|------|-------|------------|
-| 23-01 | 1 | MEM-01 | services/memory/memory_service.py (DDL + register_vector), utils/exceptions.py (`MemoryFactWriteError`) | — |
+| 23-01 | 1 | MEM-01 | services/memory/memory_service.py (DDL + register_vector + `MemoryFactWriteError` class — per eng-review A5, exception lives next to its caller, NOT in `utils/exceptions.py`) | — |
 | 23-02 | 2 | MEM-02 | services/memory/memory_service.py (`save_fact` embed-on-write) | 23-01 |
 | 23-03 | 1 | MEM-03 | services/agent/extractor.py, utils/models.py (`ExtractedFact`), config/settings.py | — |
 | 23-04 | 2 | MEM-05 | tests/unit/test_extractor_adversarial.py + fixtures | 23-03 |
