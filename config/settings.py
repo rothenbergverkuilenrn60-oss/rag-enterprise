@@ -417,6 +417,16 @@ class Settings(BaseSettings):
     metrics_enabled: bool = True
     metrics_path:    str  = "/metrics"
 
+    # Recall tool (Phase 24, MEM-09 / D-B4) ───────────────────────────────────
+    # recall_tool_enabled=False kill-switch (default True — always-on).
+    # Gates REGISTRATION (not allowlist membership) at
+    # services/agent/tools/__init__.py: when False, the conditional
+    # `if settings.recall_tool_enabled: from ... import RecallTool` skips the
+    # decorator → registry lookup returns absent → planner-LLM never sees the
+    # tool schema (D-B4 / Pattern 3). AGENT_TOOL_ALLOWLIST stays length 4
+    # regardless of toggle.
+    recall_tool_enabled: bool = True
+
     @field_validator("data_dir", "processed_dir", "index_dir", "log_dir", "cache_dir", mode="before")
     @classmethod
     def ensure_path(cls, v: str | Path) -> Path:
