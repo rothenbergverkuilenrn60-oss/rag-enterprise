@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Memory Tool — Agent-Authored Long-Term Facts
-status: Phase 25 EXECUTING — Waves 1+2 complete (25-01 ✓, 25-02 ✓, 25-03 ✓, 25-04 ✓, 25-05 ✓); Waves 3+4 pending (25-06 integration tests, 25-07 docs + verifier). 34/34 Phase 25 unit tests GREEN. 32 pre-existing Redis-dependent baseline failures NOT regressions (Phase 24 documented).
-stopped_at: Wave 2 merged at master 7540a8d; awaiting Wave 3 dispatch (25-06 integration tests, requires PG + may include the `arq` dep just added to pyproject.toml)
-last_updated: "2026-05-16T14:45:00.000Z"
-last_activity: 2026-05-16 — Wave 2 executed 2 parallel worktree agents (a574d88, a421d98); merged + worktrees cleaned; 22 new unit tests GREEN (11 controller + 11 CLI)
+status: Phase 25 EXECUTING — Waves 1+2+3 complete (25-01 ✓, 25-02 ✓, 25-03 ✓, 25-04 ✓, 25-05 ✓, 25-06 ✓); Wave 4 pending (25-07 docs + verifier + EVICT-03 re-mark). 34 Phase 25 unit tests GREEN. 8 integration tests SKIP gracefully (no PG in env); pre-tag verification on PG-capable host required to exercise SC-1..SC-4 assertions.
+stopped_at: Wave 3 merged at master a07a6cc; awaiting Wave 4 dispatch (25-07 — final docs extension + coverage gates + EVICT-03 re-mark)
+last_updated: "2026-05-16T15:00:00.000Z"
+last_activity: 2026-05-16 — Wave 3 executed 1 worktree agent (a3fd3b1); merged + worktree cleaned; 8 integration tests committed (4 eviction e2e + 4 forget API e2e) with T4 dummy [0.0]*1024 seed
 progress:
   total_phases: 3
   completed_phases: 2
   total_plans: 20
-  completed_plans: 18
-  percent: 90
+  completed_plans: 19
+  percent: 95
 ---
 
 # STATE — EnterpriseRAG (v1.6 planning)
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-15 after v1.6 open)
 
 **Core value:** Every query returns a grounded, auditable answer — no hallucinations, no silent failures, no security gaps.
-**Current focus:** Phase 25 — Eviction job + GDPR forget API (Waves 1+2 complete; Waves 3+4 pending)
+**Current focus:** Phase 25 — Eviction job + GDPR forget API (Waves 1+2+3 complete; Wave 4 pending)
 
 ## Current Position
 
-Phase: 25 — EXECUTING (Waves 1+2 complete; Waves 3+4 pending)
-Plan: 5 of 7 plans complete (25-01 settings+AuditAction+T6, 25-02 forget_user+T7, 25-03 EVICT-03 un-mark, 25-04 controller+T1/T2/T3/T9, 25-05 CLI+T1/T8); pending: 25-06 integration tests (requires PG), 25-07 docs + verifier + EVICT-03 re-mark.
-Status: 34 new unit tests GREEN (5 foundations + 7 forget_user + 11 controller + 11 CLI). 32 pre-existing Redis-dependent baseline failures in `test_pipeline_coverage.py` + `test_agent_pipeline_refactor.py` + `test_agent_sse.py` + `test_feedback_ab_forward.py` — confirmed isolation-reproducible with `redis.exceptions.ConnectionError: Error 111 connecting to localhost:6379` (Phase 24 documented). NOT a Wave 1+2 regression. Wave 2 also added `arq` dep to pyproject.toml + uv.lock (Rule 3 deviation by 25-04 — main.py / controllers/api.py imported arq without declaration, pre-existing pyproject gap).
-Last activity: 2026-05-16 — Wave 2 merged at master 7540a8d (2 worktree agents + 2 merge commits + 6 plan commits + 2 SUMMARY commits)
+Phase: 25 — EXECUTING (Waves 1+2+3 complete; Wave 4 pending)
+Plan: 6 of 7 plans complete (25-01 settings+AuditAction+T6, 25-02 forget_user+T7, 25-03 EVICT-03 un-mark, 25-04 controller+T1/T2/T3/T9, 25-05 CLI+T1/T8, 25-06 integration tests+T4); pending: 25-07 docs extension + coverage gates + EVICT-03 re-mark.
+Status: 34 Phase 25 unit tests GREEN (5 foundations + 7 forget_user + 11 controller + 11 CLI). 8 new integration tests committed: 4 eviction e2e (audit-mode-no-deletes, enforce-caps-bucket, small-bucket-untouched, eviction-tiebreak-correctness) + 4 forget API e2e (admin-200, idempotent, non-admin-403, audit-log-row). All SKIP on PG-less env; pre-tag verification on PG-capable host required to actually exercise SC-1..SC-4 assertions per RESEARCH §Pre-tag Manual Verification. 32 pre-existing Redis-dependent baseline failures unaffected (Phase 24 documented).
+Last activity: 2026-05-16 — Wave 3 merged at master a07a6cc (1 worktree agent + 1 merge commit + 3 plan commits + 1 SUMMARY commit)
 
 ## Phase Overview
 
@@ -36,7 +36,7 @@ Last activity: 2026-05-16 — Wave 2 merged at master 7540a8d (2 worktree agents
 |-------|------|---------|--------|
 | 23 | Background Extractor + schema migration | MEM-01, MEM-02, MEM-03, MEM-04, MEM-05 | COMPLETE — 6/6 plans GREEN (23-01 MEM-01 ✓; 23-02 MEM-02 ✓; 23-03 MEM-03 ✓; 23-04 MEM-05 ✓; 23-05 MEM-04 ✓; 23-06 integration + coverage gate ✓ — SC-1/4/5 closed) |
 | 24 | pgvector RecallTool + semantic recall rewrite | MEM-06, MEM-07, MEM-08, MEM-09, MEM-10 | Planned (7 plans, 4 waves) — plan-checker PASSED; ready for /gsd-execute-phase 24 |
-| 25 | Eviction job + GDPR forget API | EVICT-01, EVICT-02, EVICT-03, GDPR-01, GDPR-02, GDPR-03 | EXECUTING — Waves 1+2 complete (25-01 ✓, 25-02 ✓, 25-03 ✓, 25-04 ✓, 25-05 ✓). Waves 3+4 pending (25-06 integration tests → 25-07 docs+verifier). 34 new unit tests GREEN. |
+| 25 | Eviction job + GDPR forget API | EVICT-01, EVICT-02, EVICT-03, GDPR-01, GDPR-02, GDPR-03 | EXECUTING — Waves 1+2+3 complete (25-01..06 ✓). Wave 4 pending (25-07 docs+coverage gates+EVICT-03 re-mark). 34 unit + 8 integration tests committed. |
 
 ## Accumulated Context
 
