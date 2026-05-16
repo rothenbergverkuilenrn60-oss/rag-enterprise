@@ -39,7 +39,8 @@ Sixteen checkable requirements grouped into three categories. Each maps to exact
 - [x] **MEM-09
 **: `"recall_memory"` added to `AGENT_TOOL_ALLOWLIST` in `services/pipeline.py:742` (allowlist grows from 3 to 4). RecallTool registered via `@get_tool_registry().register` in `services/agent/tools/__init__.py`. Integration test asserts planner picks `recall_memory` for a query referencing prior preferences AND skips it for an unrelated query. No opt-in gate (always pickable, matches `search_knowledge_base` default). Phase 24.
 
-- [ ] **MEM-10**: Downstream consumer audit — semantic-shift in `MemoryService.load_context()` documented + regression-tested at all 4 call sites in `services/pipeline.py` (lines 427, 606, 960, 1051). Recall now returns query-relevant facts instead of popularity-ranked; prompt-budget impact (mean / p95 token delta) measured and documented. No new test failures in v1.0–v1.5 suites. Phase 24.
+- [x] **MEM-10
+**: Downstream consumer audit — semantic-shift in `MemoryService.load_context()` documented + regression-tested at all 4 call sites in `services/pipeline.py` (lines 427, 606, 960, 1051). Recall now returns query-relevant facts instead of popularity-ranked; prompt-budget impact (mean / p95 token delta) measured and documented. No new test failures in v1.0–v1.5 suites. Phase 24.
 
 ### Eviction (EVICT)
 
