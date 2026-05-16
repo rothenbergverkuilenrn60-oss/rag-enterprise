@@ -1,8 +1,28 @@
 # Phase 25: Eviction job + GDPR forget API — Context
 
 **Gathered:** 2026-05-16
-**Status:** Ready for planning
+**Status:** Plans → eng-reviewed → 9 amendments T1-T9 applied inline (2026-05-16). Ready for `/gsd:plan-check 25` re-validation, then `/gsd-execute-phase 25`.
 **Mode:** discuss (default; ADVISOR_MODE off)
+
+## Eng-Review Amendment Trail (2026-05-16)
+
+Inline amendments applied to plan files after `/plan-eng-review 25`. See `25-ENG-REVIEW.md` for the full review report + tasks JSONL artifact at `~/.gstack/projects/rothenbergverkuilenrn60-oss-rag-enterprise/tasks-eng-review-*.jsonl`.
+
+| Amendment | Plan(s) | Source |
+|-----------|---------|--------|
+| T1 — audit_svc.log() try/except in forget controller + eviction sweep | 25-04, 25-05 | Architecture A1 |
+| T2 — Mount memory_router in main.py (not controllers/__init__.py); router uses `prefix=settings.api_prefix` | 25-04 | Architecture A2 / Plan-check W3 / outside voice F5 |
+| T3 — Cross-tenant admin forget 200/0 semantics: unit test + Forget API doc note | 25-04, 25-07 | Code Quality C1 |
+| T4 — Integration test seed uses dummy `embedding=[0.0]*1024` (future-proof against NOT NULL) | 25-06 | Plan-check W2 |
+| T5 — SC-5 anchor verification: annotate N/A + grep gate `grep -c '\](#'` equals 0 | 25-07 | Plan-check W1 |
+| T6 — Pydantic `Field(default=500, ge=1)` rejects cap=0 at settings-load (closes T-25-01-D1 silent-wipe) | 25-01 | Outside voice F4 |
+| T7 — Chunk LongTermMemory.forget_user DELETE at 1000 rows/txn (mirror evict_bucket) | 25-02 | Outside voice F1 |
+| T8 — Re-COUNT post-DELETE for evict audit `remaining_count` (race accuracy) | 25-05 | Outside voice F2 |
+| T9 — Reorder forget controller body: role-403 BEFORE header-400 (fail-closed identity) | 25-04 | Outside voice F3 |
+
+**Plan-check status after amendments:** W1, W2, W3 all closed. Expect PASS clean on re-run.
+
+**Test count growth from amendments:** 25-01 4→5, 25-02 6→7, 25-04 8→11, 25-05 10→11. Plans 25-03 / 25-06 / 25-07 test counts unchanged but content amended.
 
 <domain>
 ## Phase Boundary
