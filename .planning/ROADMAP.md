@@ -39,7 +39,7 @@ Plans:
 - [ ] 23-02-PLAN.md — Wave 2 (execute): save_fact embed-on-write rewrite — $6::vector INSERT + narrow-exception catch + MemoryFactWriteError raise; zero partial-write contract (MEM-02)
 - [ ] 23-03-PLAN.md — Wave 1 (execute): Extractor sub-agent — ExtractedFact frozen Pydantic V2 + cross-field validator + provider-singleton + call_agentic_turn + defensive JSON parse + top-3 truncation; settings.extractor_{enabled,model,provider}; get_extractor singleton + dispatch_extraction stub (MEM-03)
 - [ ] 23-04-PLAN.md — Wave 2 (execute): adversarial fixture set (8 attack vectors across 4 defense layers: prompt + Literal category + cross-field validator + defensive parse); per-module coverage ≥ 70% on extractor.py (MEM-05)
-- [ ] 23-05-PLAN.md — Wave 3 (execute): dispatch_extraction body — kill-switch + log-then-skip + asyncio.create_task + log_task_error; wire into AgentQueryPipeline._persist_turn + SwarmQueryPipeline.run (QueryPipeline.run intentionally skipped) (MEM-04)
+- [x] 23-05-PLAN.md — Wave 3 (execute): dispatch_extraction body — kill-switch + log-then-skip + asyncio.create_task + log_task_error; wire into AgentQueryPipeline._persist_turn + SwarmQueryPipeline._run_with_state (QueryPipeline.run intentionally skipped) (MEM-04) ✓ 2026-05-16
 - [ ] 23-06-PLAN.md — Wave 4 (execute): integration tests — MEM-01 idempotency + HNSW EXPLAIN against real pgvector; MEM-04 row-within-2s + extractor-exception-isolated under real asyncio.create_task; coverage + diff-cover gates green (MEM-01, MEM-04)
 
 ### Phase 24: pgvector RecallTool + semantic recall rewrite
@@ -279,6 +279,6 @@ Plans:
 | 20. WebSearchTool Real Implementation (Tavily) | v1.5 | 5/5 | Complete ✓ | 2026-05-10 |
 | 21. AGENT-05 Multi-Agent Debate / Sub-Agent Verifier | v1.5 | 6/6 | Complete ✓ | 2026-05-10 |
 | 22. Per-Module 70% Coverage Lift | v1.5 | 7/7 | Complete ✓ | 2026-05-11 |
-| 23. Background Extractor + schema migration | v1.6 | 4/6 | In progress — 23-01 MEM-01 ✓; 23-02 MEM-02 ✓ (save_fact embed-on-write + A1 OpenAI dim fix); 23-03 MEM-03 ✓; 23-04 MEM-05 ✓ (9 adversarial fixtures, coverage 94.6%); 23-05/06 pending | — |
+| 23. Background Extractor + schema migration | v1.6 | 5/6 | In progress — 23-01 MEM-01 ✓; 23-02 MEM-02 ✓ (save_fact embed-on-write + A1 OpenAI dim fix); 23-03 MEM-03 ✓; 23-04 MEM-05 ✓ (9 adversarial fixtures, coverage 94.6%); 23-05 MEM-04 ✓ (dispatch body + 2 wire-ins); 23-06 integration pending | — |
 | 24. pgvector RecallTool + semantic recall rewrite | v1.6 | 0/0 | Pending | — |
 | 25. Eviction job + GDPR forget API | v1.6 | 0/0 | Pending | — |
