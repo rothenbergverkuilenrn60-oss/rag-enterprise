@@ -671,6 +671,57 @@ class VerifierVerdict(BaseModel):
     latency_ms:         int
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# Phase 23 — MEM-03 Background Extractor sub-agent return type
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+class ExtractedFact(BaseModel):
+    """Single agent-authored long-term fact (Phase 23 / MEM-03).
+
+    Frozen — Extractor emits, save_fact reads. Cross-field validator enforces
+    1:1 category→importance mapping per CONTEXT B2:
+
+        stable_preferences → 0.8
+        recurring_topics   → 0.5
+        transient_context  → 0.2
+
+    Schema-level adversarial defense (T-23-03-A1 / T-23-03-A2): even if the
+    LLM emits ``category="admin_policy"`` or mismatched importance, Pydantic
+    Literal + ``@model_validator(mode="after")`` reject the row before it
+    reaches ``save_fact``. ``_parse_and_truncate`` catches the ValidationError
+    and silently drops the offending item.
+    """
+    model_config = ConfigDict(frozen=True)
+
+    fact:       str
+    category:   Literal["stable_preferences", "recurring_topics", "transient_context"]
+    importance: Literal[0.2, 0.5, 0.8]
+
+    @field_validator("fact")
+    @classmethod
+    def _fact_len(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("fact must be non-empty")
+        if len(v) > 200:
+            raise ValueError("fact > 200 chars")
+        return v.strip()
+
+    @model_validator(mode="after")
+    def _category_importance_match(self) -> ExtractedFact:
+        expected = {
+            "stable_preferences": 0.8,
+            "recurring_topics":   0.5,
+            "transient_context":  0.2,
+        }[self.category]
+        if self.importance != expected:
+            raise ValueError(
+                f"category={self.category!r} requires importance={expected}; "
+                f"got {self.importance}"
+            )
+        return self
+
+
 class VerifierStartEvent(AgentEvent):
     """Emitted ONCE before Verifier.verify() awaits (D-09)."""
     event_type: ClassVar[str] = "verifier.start"
