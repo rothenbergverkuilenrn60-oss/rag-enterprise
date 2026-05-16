@@ -86,6 +86,7 @@ def _make_fake_pool(
     pool = MagicMock()
     pool.acquire = MagicMock(return_value=_AcquireCtx(conn))
     pool.fetchrow = fetchrow_mock
+    pool.fetch = fetch_mock  # cursor SELECT called directly on pool
 
     return pool, conn, txn_ctx
 
