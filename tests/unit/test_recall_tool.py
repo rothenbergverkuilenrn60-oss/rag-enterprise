@@ -28,7 +28,7 @@ os.environ.setdefault("MODEL_DIR", "/tmp/models")
 os.environ.setdefault("DATABASE_URL", "postgresql://test:test@localhost:5432/test")
 
 import inspect
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import asyncpg
 import httpx
@@ -243,28 +243,27 @@ async def test_missing_tenant_id_returns_empty(monkeypatch: pytest.MonkeyPatch) 
 # ---------------------------------------------------------------------------
 
 async def test_missing_query_returns_empty(monkeypatch: pytest.MonkeyPatch) -> None:
-    """No resolvable query (args={}, ctx query resolves to whitespace) -> empty marker."""
+    """No resolvable query (args with whitespace-only, ctx query also stripped) -> empty marker.
+
+    The tool resolves query as: (args.get("query") or ctx.req.query or "").strip()
+    Passing args={"query": "  "} (whitespace) AND ctx.req.query="  " (whitespace) gives
+    a query_str of "" after stripping, triggering the auth precondition short-circuit.
+
+    Since GenerationRequest.strip_query strips the query at validation time (min_length=1
+    after strip), we cannot set ctx.req.query to whitespace directly via Pydantic.
+    Instead, we supply a real ctx but pass args={"query": "  "} so the resolution is:
+    ("  " or ctx.req.query or "").strip() == "  ".strip() == "".
+    Note: "  " is truthy in Python (non-empty string), so it wins the `or` chain.
+    The strip() applied at the end makes query_str == "", triggering the precondition.
+    """
     from services.agent.tools.recall import RecallTool, _EMPTY_MARKER
 
     factory_spy = MagicMock()
     monkeypatch.setattr("services.agent.tools.recall.get_memory_service", factory_spy)
 
-    # args={} and ctx.req.query is a placeholder we want to look "empty" from tool's perspective
-    # We patch ctx.req.query to " " (whitespace, strips to "") via a custom ctx
-    ctx = ToolContext(
-        req=GenerationRequest(query="   ", user_id="u", tenant_id="t"),
-        tf={},
-        retriever=object(),
-        llm=object(),
-    )
-    # But GenerationRequest.strip_query will strip it — "   ".strip() = "" -> fails min_length.
-    # So we construct the scenario as: args={} (no "query" key), ctx.req.query stripped to "q"
-    # but then override query resolution by patching args key absent and query="":
-    # The most robust approach: test args={} and a ctx where the fallback also yields "".
-    # Since GenerationRequest validator strips and requires min_length=1, we can't set query="".
-    # Instead: pass args={"query": ""} to simulate an explicitly empty query arg.
-    ctx2 = _ctx(user_id="u", tenant_id="t", query="fallback")
-    result = await RecallTool().run({"query": ""}, ctx2)
+    ctx = _ctx(user_id="u", tenant_id="t", query="fallback")
+    # args["query"] = "  " (whitespace-only) — truthy so wins `or` chain, but strips to ""
+    result = await RecallTool().run({"query": "  "}, ctx)
 
     factory_spy.assert_not_called()
     assert result.content == _EMPTY_MARKER
@@ -355,18 +354,48 @@ async def test_error_path_uses_stable_marker_not_exception_text(
 # ---------------------------------------------------------------------------
 
 def test_no_long_private_attr_reach() -> None:
-    """Static guard: RecallTool.run source must not reach into mem._long.*
+    """Static guard: RecallTool.run executable code must not reach into mem._long.*
 
     T3 (eng-review 2026-05-16 / Decision-2): the tool calls only the public
     passthrough mem.get_relevant_facts(). Reaching into _long is banned.
+
+    We strip docstrings before checking so documentation comments about _long
+    (explaining the guard) don't trigger the assertion — only executable code matters.
     """
+    import ast
+    import textwrap
     from services.agent.tools.recall import RecallTool
 
-    src = inspect.getsource(RecallTool.run)
-    assert "_long." not in src, (
-        "RecallTool.run reaches into private _long attribute — "
+    full_src = inspect.getsource(RecallTool.run)
+    # Strip the leading docstring from the source so documentation text
+    # explaining the _long constraint doesn't self-trigger the guard.
+    # We do this by parsing the AST and reconstructing just the non-docstring lines.
+    dedented = textwrap.dedent(full_src)
+    try:
+        tree = ast.parse(dedented)
+        func_def = tree.body[0]
+        # Identify the docstring node (first Expr node with a Constant string value)
+        docstring_end_line = 0
+        if (
+            isinstance(func_def, ast.AsyncFunctionDef)
+            and func_def.body
+            and isinstance(func_def.body[0], ast.Expr)
+            and isinstance(func_def.body[0].value, ast.Constant)
+            and isinstance(func_def.body[0].value.value, str)
+        ):
+            docstring_end_line = func_def.body[0].end_lineno or 0
+        lines = dedented.splitlines()
+        # Keep only lines beyond the docstring
+        code_lines = lines[docstring_end_line:]
+        code_only = "\n".join(code_lines)
+    except SyntaxError:
+        # Fallback: use the raw source if AST parse fails
+        code_only = full_src
+
+    assert "_long." not in code_only, (
+        "RecallTool.run executable code reaches into private _long attribute — "
         "use mem.get_relevant_facts() public passthrough instead (T3 / Decision-2)."
     )
-    assert "mem._long" not in src, (
-        "RecallTool.run uses mem._long directly — forbidden by T3 / Decision-2."
+    assert "mem._long" not in code_only, (
+        "RecallTool.run executable code uses mem._long directly — forbidden by T3 / Decision-2."
     )
