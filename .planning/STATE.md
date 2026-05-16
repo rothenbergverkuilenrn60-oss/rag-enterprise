@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Memory Tool — Agent-Authored Long-Term Facts
-status: Phase 25 CONTEXT gathered (13 decisions across 4 themes). PR #5 (Phase 23+24) open. Phase 25 ready for `/gsd-plan-phase 25`.
-stopped_at: Phase 25 25-CONTEXT.md + 25-DISCUSSION-LOG.md committed; EVICT-03 un-marked per D-4.1
-last_updated: "2026-05-16T20:35:00.000Z"
-last_activity: 2026-05-16 — Phase 24 shipped via PR #5 (gsd/v1.6-phases-23-24); pre-tag bench: SC-3 PASS p95=25.28ms, SC-1 MARGINAL ~0.005 off (A2-Assumption), SC-2 DEFERRED (env LLM unreachable). VERIFICATION flipped to status: pass with caveats. Phase 25 discussion: 13 decisions captured (Forget API surface, Audit-log shape, Eviction UX, Docs reconciliation). EVICT-03 un-marked from [x] to [ ] — Plan 24-06 delivered only Backfill section; cron + forget-curl deferred to Phase 25.
+status: Phase 25 PLANNED — 7 plans across 4 waves; plan-checker PASS-WITH-WARNINGS (0 blockers, 3 warnings; W2 = action at execute time on test_evict_e2e seed). Ready for `/gsd-execute-phase 25`.
+stopped_at: Phase 25 plans + research + patterns + validation + plan-check committed
+last_updated: "2026-05-16T21:00:00.000Z"
+last_activity: 2026-05-16 — /gsd-plan-phase 25 produced 25-RESEARCH.md (8 pitfalls, 5 ASSUMED, 866 LOC) + 25-PATTERNS.md (10 analogs, 4 verbatim skeletons, 1024 LOC) + 7 PLAN.md files (~2,060 LOC across 4 waves) + 25-VALIDATION.md (31-row Nyquist matrix) + 25-PLAN-CHECK.md (PASS-WITH-WARNINGS). Plan-checker key flag: W2 (25-06 Task 1 seeds long_term_facts without embedding vector; check column NOT NULL constraint at execute time and add dummy `[0.0]*1024` if required).
 progress:
   total_phases: 3
   completed_phases: 1
