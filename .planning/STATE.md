@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Memory Tool — Agent-Authored Long-Term Facts
-status: verifying
-stopped_at: Completed 23-06-PLAN.md (Plan 23 wave 4 — integration + coverage gate, SC-1/4/5 closed)
-last_updated: "2026-05-16T08:22:10.151Z"
-last_activity: 2026-05-16 — Plan 23-05 (cc6e370→f533ea4→6335959→01095e6). MEM-04 dispatch body + 2 agent-tier pipeline wire-ins; 10 plan-scoped tests GREEN; Plans 01-05 sweep 45/45 GREEN; ruff clean.
+status: Phase 23 COMPLETE — verifier PASS (5/5 reqs, 5/5 SCs, 5/5 eng-review amendments). Ready for /gsd-discuss-phase 24.
+stopped_at: Phase 23 verified complete (VERIFICATION.md)
+last_updated: "2026-05-16T08:36:00.000Z"
+last_activity: 2026-05-16 — gsd-verifier PASS. MEM-01..05 + SC-1..5 + eng-review A1+A2+T1+T2+A5 all verified. Coverage 97.4% extractor.py / 80% memory_service.py touched lines (gates ≥70%). 26 commits cd14102..HEAD across 6 plans + retroactive SUMMARY + eng-review docs.
 progress:
   total_phases: 3
   completed_phases: 1
