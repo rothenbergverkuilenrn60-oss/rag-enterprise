@@ -84,10 +84,17 @@ class OpenAIEmbedder(BaseEmbedder):
     @retry(stop=stop_after_attempt(3), wait=wait_random_exponential(multiplier=1, max=10))
     async def embed_batch(self, texts: list[str]) -> list[list[float]]:
         # OpenAI 支持最多 2048 条/批次
+        # Phase 23 / A1 (Pitfall 2 fix): explicitly request `settings.embedding_dim`
+        # so `text-embedding-3-large` returns vectors matching the VECTOR(1024)
+        # column shape in long_term_facts / chunks. Without this kwarg the API
+        # returns native 3072-dim vectors and every save_fact INSERT raises
+        # pgvector dim-mismatch inside the background task (silently swallowed
+        # by log_task_error done-callback). See RESEARCH §Pitfall 2.
         resp = await self._client.embeddings.create(
             model=self._model,
             input=texts,
             encoding_format="float",
+            dimensions=settings.embedding_dim,
         )
         return [item.embedding for item in resp.data]
 
