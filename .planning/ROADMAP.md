@@ -53,7 +53,15 @@ Plans:
   3. HNSW prefilter performance: `WHERE user_id=$1 AND tenant_id=$2` recall against a 10k-row seeded `long_term_facts` table completes < 50ms p95 with `iterative_scan = strict_order` + tuned `ef_search` (matches v1.1 Phase 8 SLA).
   4. Backfill job (`scripts/backfill_fact_embeddings.py`) run twice in succession produces zero additional embedding API calls on the second run (idempotency: `WHERE embedding IS NULL` cursor skips already-embedded rows); resumable mid-run via cursor checkpoint; chunked at 100 rows/txn.
   5. Semantic-shift audit complete: all 4 `load_context` call sites in `services/pipeline.py` (lines 427, 606, 960, 1051) have a regression test asserting `load_context()` still returns ≤ N facts; prompt-budget impact (mean / p95 token delta vs popularity-ranked baseline) is measured and recorded in the phase audit; full v1.0–v1.5 test suite still passes (no new failures).
-**Plans:** TBD
+**Plans:** 7 plans (Wave 1 → 2 → 3 → 4; Plans 01 + 02 parallel on Wave 1; Plan 03 alone on Wave 2; Plans 04 + 05 + 06 parallel on Wave 3; Plan 07 alone on Wave 4 as the phase-shipping gate)
+Plans:
+- [ ] 24-01-PLAN.md — Wave 1 (execute): settings.recall_tool_enabled field + RecallTool stub module with three ClassVars (no decorator yet) (MEM-08, MEM-09 / D-B4)
+- [ ] 24-02-PLAN.md — Wave 1 (execute): get_relevant_facts semantic rewrite — embed query + HNSW strict_order + ef_search inside txn + cosine ORDER BY with tie-break + narrow-exception isolation (MEM-06)
+- [ ] 24-03-PLAN.md — Wave 2 (execute): RecallTool.run body — best-effort isolation + bullet formatting + empty marker + @get_tool_registry().register decorator (MEM-08)
+- [ ] 24-04-PLAN.md — Wave 3 (execute): conditional registration in services/agent/tools/__init__.py + AGENT_TOOL_ALLOWLIST 3→4 edit + planner-pick integration tests + 5 importlib.reload kill-switch tests (MEM-09)
+- [ ] 24-05-PLAN.md — Wave 3 (execute): MEM-10 load_context docstring acknowledgement + 4-call-site length regression integration test + token-delta audit artifact JSON (MEM-10 / D-B3)
+- [ ] 24-06-PLAN.md — Wave 3 (execute): scripts/backfill_fact_embeddings.py idempotent CLI + docs/memory-eviction.md companion section + 9 unit tests (MEM-07 / D-D1..D-D4)
+- [ ] 24-07-PLAN.md — Wave 4 (execute): SC-1 offline eval (React-preference cosine > 0.7) + per-module coverage ≥ 70% gate + diff-cover ≥ 80% + v1.5 baseline regression sweep (MEM-06, MEM-09)
 
 ### Phase 25: Eviction job + GDPR forget API
 **Goal:** Bound growth and meet GDPR. New `scripts/evict_long_term_facts.py` enforces a per-`(user_id, tenant_id)` capacity cap (`MEMORY_FACTS_CAP_PER_USER`, default 500) by deleting lowest-importance rows (tie-break: oldest `created_at` first), chunked at 1000 rows/txn, idempotent. **Audit-mode-before-enforce** is mandatory: `--mode=audit` logs per-bucket distribution with zero deletes (first production run); operator picks cap from observed distribution; `--mode=enforce` performs deletes. New `LongTermMemory.forget_user(user_id, tenant_id) → int` deletes all rows for a user; exposed via admin controller `DELETE /api/v1/memory/forget?user_id=...` (JWT-resolved tenant; admin claim OR self-delete authorization). Per-call audit-log entry written (actor, target user/tenant, row count, timestamp) using v1.0 Phase 2 audit-log infrastructure. `docs/memory-eviction.md` documents cron deployment (k8s CronJob example), cap tuning, audit→enforce workflow, embedding backfill cost (referenced from MEM-07), forget-API operational usage.
@@ -280,5 +288,5 @@ Plans:
 | 21. AGENT-05 Multi-Agent Debate / Sub-Agent Verifier | v1.5 | 6/6 | Complete ✓ | 2026-05-10 |
 | 22. Per-Module 70% Coverage Lift | v1.5 | 7/7 | Complete ✓ | 2026-05-11 |
 | 23. Background Extractor + schema migration | v1.6 | 6/6 | Complete ✓ — 23-01 MEM-01 ✓; 23-02 MEM-02 ✓ (save_fact embed-on-write + A1 OpenAI dim fix); 23-03 MEM-03 ✓; 23-04 MEM-05 ✓ (9 adversarial fixtures, coverage 94.6%); 23-05 MEM-04 ✓ (dispatch body + 2 wire-ins); 23-06 ✓ integration + coverage gate (SC-1/4/5 closed, per-module 97.4%/93.3%) | 2026-05-16 |
-| 24. pgvector RecallTool + semantic recall rewrite | v1.6 | 0/0 | Pending | — |
+| 24. pgvector RecallTool + semantic recall rewrite | v1.6 | 0/7 | Planned — 7 plans across 4 waves (Plans 01+02 parallel Wave 1; Plan 03 Wave 2; Plans 04+05+06 parallel Wave 3; Plan 07 Wave 4 shipping gate) | — |
 | 25. Eviction job + GDPR forget API | v1.6 | 0/0 | Pending | — |
