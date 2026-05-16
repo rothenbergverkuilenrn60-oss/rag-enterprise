@@ -17,7 +17,8 @@ Sixteen checkable requirements grouped into three categories. Each maps to exact
 
 ### Memory Extraction + Recall (MEM)
 
-- [ ] **MEM-01**: Schema migration — extend `LongTermMemory._create_tables()` (services/memory/memory_service.py:143) with `ALTER TABLE long_term_facts ADD COLUMN IF NOT EXISTS embedding VECTOR(1024)` matching `settings.embedding_dim`. HNSW index `CREATE INDEX IF NOT EXISTS ltf_emb_hnsw_idx ON long_term_facts USING hnsw (embedding vector_cosine_ops)`. No Alembic introduction — repo convention is inline DDL in `_create_tables()`. Phase 23.
+- [x] **MEM-01
+**: Schema migration — extend `LongTermMemory._create_tables()` (services/memory/memory_service.py:143) with `ALTER TABLE long_term_facts ADD COLUMN IF NOT EXISTS embedding VECTOR(1024)` matching `settings.embedding_dim`. HNSW index `CREATE INDEX IF NOT EXISTS ltf_emb_hnsw_idx ON long_term_facts USING hnsw (embedding vector_cosine_ops)`. No Alembic introduction — repo convention is inline DDL in `_create_tables()`. Phase 23.
 
 - [ ] **MEM-02**: `LongTermMemory.save_fact()` rewrite — computes embedding internally before write (single API, no two-method ambiguity). Existing signature `(user_id, tenant_id, fact, source_doc="", importance=0.5)` preserved; embedding step hidden inside. Embedding adapter reused from `services/vectorizer/`. Failure to embed surfaces as typed `MemoryFactWriteError` (no silent partial writes). Phase 23.
 
