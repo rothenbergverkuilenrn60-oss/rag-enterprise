@@ -270,20 +270,70 @@ class LongTermMemory:
     async def get_relevant_facts(
         self, user_id: str, tenant_id: str, query: str, limit: int = 5
     ) -> list[str]:
-        """检索用户的长期记忆中与当前查询相关的事实。"""
+        """Retrieve top-K facts semantically relevant to ``query`` (Phase 24 / MEM-06).
+
+        Replaces the v1.0 popularity-ranked path (``ORDER BY importance DESC,
+        created_at DESC``) with pgvector cosine-similarity recall inside an
+        explicit transaction so ``SET LOCAL`` GUC changes take effect (Pitfall 2).
+
+        HNSW tuning (D-A1 / D-A2):
+        - ``hnsw.iterative_scan = 'strict_order'`` — exact top-K under pre-filter;
+          slightly slower than ``relaxed_order`` but preserves ROADMAP SC-1
+          cosine-quality contract.
+        - ``hnsw.ef_search = settings.pgvector_ef_search_filtered`` — shared
+          tuning knob with ``vector_store.py`` (T-08-01 precedent).
+
+        ORDER BY: ``embedding <=> $3::vector, importance DESC, created_at DESC``
+        (ROADMAP tie-break literal; cosine distance primary, then recency/quality).
+
+        Returns ``[]`` on any failure — embedder down or DB unreachable — so the
+        caller (RecallTool) receives a stable empty list rather than an exception
+        (Pitfall 6 contract).
+
+        Lazy imports inside method body for circular-import resilience (Phase 23
+        convention shared with ``save_fact``, ``_get_pool``, ``_create_tables``).
+        """
+        # Lazy imports — circular-import resilience (Phase 23 convention)
+        import httpx
+
+        from config.settings import settings
+        from services.vectorizer.embedder import get_embedder
+
+        # Step 1: embed the query (separate try block — distinguish embedder vs DB)
+        try:
+            q_vec: list[float] = await get_embedder().embed_one(query)
+        except (httpx.HTTPError, RuntimeError, OSError) as exc:
+            # Narrow-exception tuple matches save_fact precedent (lines 303-313):
+            #   RuntimeError    — OllamaEmbedder.embed_batch re-raise (embedder.py:68)
+            #   httpx.HTTPError — Ollama + OpenAI transport failures
+            #   OSError         — HuggingFace torch device / model-load failures
+            logger.error(
+                "memory service failure", operation="get_facts_embed", exc_info=exc,
+            )
+            return []
+
+        # Step 2: HNSW filtered recall inside explicit txn (Pitfall 2 mitigation)
         try:
             pool = await self._get_pool()
             async with pool.acquire() as conn:
-                rows = await conn.fetch(
-                    """SELECT fact FROM long_term_facts
-                       WHERE user_id=$1 AND tenant_id=$2
-                       ORDER BY importance DESC, created_at DESC
-                       LIMIT $3""",
-                    user_id, tenant_id, limit,
-                )
+                async with conn.transaction():
+                    ef = int(getattr(settings, "pgvector_ef_search_filtered", 200))
+                    await conn.execute("SET LOCAL hnsw.iterative_scan = 'strict_order'")
+                    await conn.execute(f"SET LOCAL hnsw.ef_search = {ef}")
+                    rows = await conn.fetch(
+                        """SELECT fact FROM long_term_facts
+                           WHERE user_id=$1 AND tenant_id=$2
+                           ORDER BY embedding <=> $3::vector,
+                                    importance DESC,
+                                    created_at DESC
+                           LIMIT $4""",
+                        user_id, tenant_id, q_vec, limit,
+                    )
             return [r["fact"] for r in rows]
         except asyncpg.PostgresError as exc:
-            logger.error("memory service failure", operation="get_facts", exc_info=exc)
+            logger.error(
+                "memory service failure", operation="get_facts_semantic", exc_info=exc,
+            )
             return []
 
     async def save_fact(
