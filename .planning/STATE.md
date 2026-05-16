@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Memory Tool — Agent-Authored Long-Term Facts
-status: in_progress
-stopped_at: Completed 23-03-PLAN.md (MEM-03 — Extractor sub-agent infrastructure)
-last_updated: "2026-05-16T07:42:00Z"
-last_activity: 2026-05-16 — Plan 23-03 TDD cycle complete. ExtractedFact frozen model + Extractor sub-agent + extractor_* settings + dispatch_extraction stub. 21/21 tests GREEN; ruff clean; zero new mypy errors. Wave 1 now fully GREEN (23-01 + 23-03).
+status: completed
+stopped_at: Completed 23-04-PLAN.md (MEM-05 — adversarial fixture set + coverage gate ≥ 70% on extractor.py)
+last_updated: "2026-05-16T07:49:07Z"
+last_activity: 2026-05-16 — Plan 23-04 (MEM-05) GREEN. 9 adversarial fixtures + 1 invariants test; 31/31 extractor tests green; per-module coverage on services/agent/extractor.py = 94.6%; ruff clean. Commit 28c9730.
 progress:
   total_phases: 3
   completed_phases: 0
   total_plans: 6
-  completed_plans: 3
-  percent: 50
+  completed_plans: 4
+  percent: 67
 ---
 
 # STATE — EnterpriseRAG (v1.6 planning)
@@ -25,16 +25,16 @@ See: .planning/PROJECT.md (updated 2026-05-15 after v1.6 open)
 
 ## Current Position
 
-Phase: 23 (in progress — Wave 1 complete, Wave 2 unblocked)
-Plan: 23-01 GREEN (MEM-01); 23-03 GREEN (MEM-03); 23-02 / 23-04 next.
-Status: Wave 1 (parallel) complete. `services/memory/memory_service.py` has embedding column + HNSW index + register_vector pool init + MemoryFactWriteError. `services/agent/extractor.py` ships Extractor sub-agent + ExtractedFact frozen model + get_extractor singleton + dispatch_extraction stub (body in Plan 05). config/settings.py has extractor_enabled/_model/_provider fields. Plan 23-02 (`save_fact` embed-on-write) and Plan 23-04 (adversarial fixtures) both unblocked.
-Last activity: 2026-05-16 — Plan 23-03 TDD cycle (d9ec223→63c025d→a3ca425→33b5fdd). 21/21 tests GREEN (10 schema + 11 unit, 5 of 7 unit fns parametrized); ruff + mypy --strict clean on touched files.
+Phase: 23 (in progress — Wave 2 half-done; Wave 3 needs 23-02)
+Plan: 23-01 GREEN (MEM-01); 23-03 GREEN (MEM-03); 23-04 GREEN (MEM-05); 23-02 next (Wave 2 — `save_fact` embed-on-write).
+Status: `services/memory/memory_service.py` has embedding column + HNSW index + register_vector pool init + MemoryFactWriteError. `services/agent/extractor.py` ships Extractor sub-agent + ExtractedFact frozen model + get_extractor singleton + dispatch_extraction stub (body in Plan 05). config/settings.py has extractor_enabled/_model/_provider fields. Plan 23-04 (MEM-05) ships 9-fixture adversarial proof set covering 4 defense layers (prompt + Literal category + cross-field validator + defensive parse); per-module coverage on extractor.py = 94.6%. Plan 23-02 (`save_fact` embed-on-write) still pending; Plan 23-05 unblocks once 23-02 + 23-04 both land.
+Last activity: 2026-05-16 — Plan 23-04 (28c9730). 9 adversarial fixtures + 1 invariants test; 31/31 extractor tests green; per-module coverage 94.6%; ruff clean.
 
 ## Phase Overview
 
 | Phase | Name | REQ-IDs | Status |
 |-------|------|---------|--------|
-| 23 | Background Extractor + schema migration | MEM-01, MEM-02, MEM-03, MEM-04, MEM-05 | In progress — 2/6 plans complete (23-01 MEM-01 ✓; 23-03 MEM-03 ✓; 23-02/04/05/06 pending) |
+| 23 | Background Extractor + schema migration | MEM-01, MEM-02, MEM-03, MEM-04, MEM-05 | In progress — 3/6 plans complete (23-01 MEM-01 ✓; 23-03 MEM-03 ✓; 23-04 MEM-05 ✓; 23-02/05/06 pending) |
 | 24 | pgvector RecallTool + semantic recall rewrite | MEM-06, MEM-07, MEM-08, MEM-09, MEM-10 | Pending |
 | 25 | Eviction job + GDPR forget API | EVICT-01, EVICT-02, EVICT-03, GDPR-01, GDPR-02, GDPR-03 | Pending |
 
@@ -88,9 +88,9 @@ None.
 
 ## Session Continuity
 
-**Last updated:** 2026-05-16 — Plan 23-03 GREEN. Wave 1 complete (23-01 + 23-03 both landed). ExtractedFact frozen model + Extractor sub-agent + dispatch_extraction stub + extractor_* settings all in place.
-**Stopped at:** Completed 23-03-PLAN.md (MEM-03 — Extractor sub-agent + ExtractedFact schema)
-**Next action:** `/gsd-execute-phase 23` to run Wave 2 (Plan 23-02 `save_fact` + Plan 23-04 adversarial fixtures, both unblocked)
+**Last updated:** 2026-05-16 — Plan 23-04 GREEN. MEM-05 shipped: 9 adversarial fixtures spanning 4 defense layers all yield Extractor.run() == []; per-module coverage on services/agent/extractor.py = 94.6% (gate ≥ 70%). Wave 2 half-complete (Plan 23-02 `save_fact` still pending).
+**Stopped at:** Completed 23-04-PLAN.md (MEM-05 — adversarial fixture set + coverage gate ≥ 70% on extractor.py)
+**Next action:** `/gsd-execute-phase 23` to run Plan 23-02 (`save_fact` embed-on-write) — unblocks Wave 3 (Plan 23-05 dispatch wire-in)
 
 **Plan Map (Phase 23):**
 | Plan | Wave | Reqs | Files | Depends on |
