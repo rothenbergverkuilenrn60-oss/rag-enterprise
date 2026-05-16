@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Memory Tool — Agent-Authored Long-Term Facts
-status: Phase 25 EXECUTING — Wave 1 complete (25-01 ✓, 25-02 ✓, 25-03 ✓); Waves 2-4 pending. 12/12 new unit tests GREEN. No regressions vs pre-Wave-1 4086ebb baseline.
-stopped_at: Wave 1 merged at master 2faaa43; awaiting Wave 2 dispatch (25-04 controller, 25-05 CLI)
-last_updated: "2026-05-16T14:25:00.000Z"
-last_activity: 2026-05-16 — Wave 1 executed 3 parallel worktree agents (a4cc4aa, afa3450, a52994); merged + worktrees cleaned; 12 new unit tests GREEN
+status: Phase 25 EXECUTING — Waves 1+2 complete (25-01 ✓, 25-02 ✓, 25-03 ✓, 25-04 ✓, 25-05 ✓); Waves 3+4 pending (25-06 integration tests, 25-07 docs + verifier). 34/34 Phase 25 unit tests GREEN. 32 pre-existing Redis-dependent baseline failures NOT regressions (Phase 24 documented).
+stopped_at: Wave 2 merged at master 7540a8d; awaiting Wave 3 dispatch (25-06 integration tests, requires PG + may include the `arq` dep just added to pyproject.toml)
+last_updated: "2026-05-16T14:45:00.000Z"
+last_activity: 2026-05-16 — Wave 2 executed 2 parallel worktree agents (a574d88, a421d98); merged + worktrees cleaned; 22 new unit tests GREEN (11 controller + 11 CLI)
 progress:
   total_phases: 3
   completed_phases: 2
   total_plans: 20
-  completed_plans: 16
-  percent: 80
+  completed_plans: 18
+  percent: 90
 ---
 
 # STATE — EnterpriseRAG (v1.6 planning)
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-15 after v1.6 open)
 
 **Core value:** Every query returns a grounded, auditable answer — no hallucinations, no silent failures, no security gaps.
-**Current focus:** Phase 25 — Eviction job + GDPR forget API (Wave 1 complete; Waves 2-4 pending)
+**Current focus:** Phase 25 — Eviction job + GDPR forget API (Waves 1+2 complete; Waves 3+4 pending)
 
 ## Current Position
 
-Phase: 25 — EXECUTING (Wave 1 complete)
-Plan: Wave 1 = 3 plans complete (25-01, 25-02, 25-03); 4 plans pending (25-04 + 25-05 = Wave 2; 25-06 = Wave 3; 25-07 = Wave 4)
-Status: 12 new unit tests GREEN (5 `test_phase25_foundations.py` covering memory_facts_cap_per_user default + int + ge=1 rejection + 2 AuditAction enum gates; 7 `test_memory_forget.py` covering MemoryForgetError class, forget_user happy path + idempotent + PG-error + cause-chain + SQL args + T7 chunked-large-bucket). Phase 23 + 24 coverage holds. Pre-existing baseline drift (31 failures in `test_pipeline_coverage.py` + `test_agent_pipeline_refactor.py`) confirmed pre-Wave-1 on commit 4086ebb — NOT a regression introduced by Wave 1.
-Last activity: 2026-05-16 — Wave 1 merged at master 2faaa43 (3 worktree agents + 3 merge commits + 6 plan commits + 3 SUMMARY commits)
+Phase: 25 — EXECUTING (Waves 1+2 complete; Waves 3+4 pending)
+Plan: 5 of 7 plans complete (25-01 settings+AuditAction+T6, 25-02 forget_user+T7, 25-03 EVICT-03 un-mark, 25-04 controller+T1/T2/T3/T9, 25-05 CLI+T1/T8); pending: 25-06 integration tests (requires PG), 25-07 docs + verifier + EVICT-03 re-mark.
+Status: 34 new unit tests GREEN (5 foundations + 7 forget_user + 11 controller + 11 CLI). 32 pre-existing Redis-dependent baseline failures in `test_pipeline_coverage.py` + `test_agent_pipeline_refactor.py` + `test_agent_sse.py` + `test_feedback_ab_forward.py` — confirmed isolation-reproducible with `redis.exceptions.ConnectionError: Error 111 connecting to localhost:6379` (Phase 24 documented). NOT a Wave 1+2 regression. Wave 2 also added `arq` dep to pyproject.toml + uv.lock (Rule 3 deviation by 25-04 — main.py / controllers/api.py imported arq without declaration, pre-existing pyproject gap).
+Last activity: 2026-05-16 — Wave 2 merged at master 7540a8d (2 worktree agents + 2 merge commits + 6 plan commits + 2 SUMMARY commits)
 
 ## Phase Overview
 
@@ -36,7 +36,7 @@ Last activity: 2026-05-16 — Wave 1 merged at master 2faaa43 (3 worktree agents
 |-------|------|---------|--------|
 | 23 | Background Extractor + schema migration | MEM-01, MEM-02, MEM-03, MEM-04, MEM-05 | COMPLETE — 6/6 plans GREEN (23-01 MEM-01 ✓; 23-02 MEM-02 ✓; 23-03 MEM-03 ✓; 23-04 MEM-05 ✓; 23-05 MEM-04 ✓; 23-06 integration + coverage gate ✓ — SC-1/4/5 closed) |
 | 24 | pgvector RecallTool + semantic recall rewrite | MEM-06, MEM-07, MEM-08, MEM-09, MEM-10 | Planned (7 plans, 4 waves) — plan-checker PASSED; ready for /gsd-execute-phase 24 |
-| 25 | Eviction job + GDPR forget API | EVICT-01, EVICT-02, EVICT-03, GDPR-01, GDPR-02, GDPR-03 | EXECUTING — Wave 1 complete (25-01 ✓ settings+AuditAction+T6 ge=1; 25-02 ✓ forget_user+T7 chunked; 25-03 ✓ EVICT-03 un-mark). Waves 2-4 pending (25-04+05 ‖ 25-06 → 25-07). 12 new unit tests GREEN. |
+| 25 | Eviction job + GDPR forget API | EVICT-01, EVICT-02, EVICT-03, GDPR-01, GDPR-02, GDPR-03 | EXECUTING — Waves 1+2 complete (25-01 ✓, 25-02 ✓, 25-03 ✓, 25-04 ✓, 25-05 ✓). Waves 3+4 pending (25-06 integration tests → 25-07 docs+verifier). 34 new unit tests GREEN. |
 
 ## Accumulated Context
 
