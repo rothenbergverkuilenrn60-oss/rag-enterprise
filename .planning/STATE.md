@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Memory Tech-Debt Burn-Down
-status: Phase 26 SHIPPED — TD-01 + TD-03 + TD-07 closed
-stopped_at: Phase 26 verified passed (5/5 plans, 34/34 new tests green)
-last_updated: "2026-05-17T13:00:00.000Z"
-last_activity: "2026-05-17 — /gsd-execute-phase 26 complete: 5 plans shipped in 3 waves, 34 new tests (29 unit + 5 integration), eng-review fixes verified, 26-VERIFICATION.md written"
+status: Phase 26 PR #9 OPEN (awaiting merge)
+stopped_at: Phase 26 shipped via PR #9 on branch gsd/phase-26-memory-infra-hygiene
+last_updated: "2026-05-17T14:00:00.000Z"
+last_activity: "2026-05-17 — /gsd-ship: PR #9 opened (https://github.com/rothenbergverkuilenrn60-oss/rag-enterprise/pull/9). Branch gsd/phase-26-memory-infra-hygiene pushed; 22 commits ahead of origin/master; PR base = master."
 progress:
   total_phases: 3
   completed_phases: 1
@@ -95,9 +95,9 @@ The following v1.7 candidates were promoted out of "todos" into requirements (se
 
 ## Session Continuity
 
-**Last updated:** 2026-05-17 — `/gsd-execute-phase 26` shipped all 5 plans across 3 waves. New artifacts: `utils/asyncpg_helper.py` + `config/settings.py::resolve_embedding_model_path` + `LongTermMemory.close()` + `MemoryService.close()` + `AuditService._get_pool/_create_tables/close()` + main.py lifespan wiring. 34 new tests (29 unit + 5 integration) all green; v1.6 audit + memory suites (116 unit tests) still green. Eng-review fixes A1/A2/C1/P1 + R1 regression test verified. 26-VERIFICATION.md status: passed.
-**Stopped at:** Phase 26 shipped; awaiting Phase 27
-**Next action:** `/gsd-discuss-phase 27` → `/gsd-plan-phase 27` → `/gsd-execute-phase 27`. Phase 27 = Test Isolation + Memory Reliability (TD-02 create_app factory + TD-04 save_fact dedupe + TD-05 save_facts batch + TD-06 Redis-mock fixture). Or `/gsd-ship` to PR Phase 26 first.
+**Last updated:** 2026-05-17 — `/gsd-ship` opened PR #9 (https://github.com/rothenbergverkuilenrn60-oss/rag-enterprise/pull/9) on branch `gsd/phase-26-memory-infra-hygiene`. PR base = `master`. 22 commits + 3522 insertions / 113 deletions across 30 files. Local master is ahead of origin/master by the same 22 commits (will reconcile via `git pull --rebase` after PR merges).
+**Stopped at:** Phase 26 PR #9 awaiting CI + merge
+**Next action:** Wait for CI + reviewer; after merge → `git checkout master && git pull --rebase` to sync local master. Then `/gsd-discuss-phase 27` (Test Isolation + Memory Reliability — TD-02 + TD-04 + TD-05 + TD-06). Phase 27 will also close the 16 pre-existing unit-test failures via Redis-mock fixture rollout.
 
 **Planned Phase:** Phase 27 — Test Isolation + Memory Reliability.
 
