@@ -2,15 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Memory Tech-Debt Burn-Down
-status: Phase 26 plans reviewed + fixes applied (ENG CLEARED)
-stopped_at: Phase 26 plan-check complete (4 findings, all fixed; 1 regression test added; 3 v1.8+ todos surfaced)
-last_updated: "2026-05-17T05:00:00.000Z"
-last_activity: "2026-05-17 — /plan-eng-review 26: A1 DSN scheme + C1 URL-strip fixes in 26-01; A2 close-lock + P1 partial-init fixes in 26-04; R1 regression test added; 26-PLAN-CHECK.md written"
+status: Phase 26 SHIPPED — TD-01 + TD-03 + TD-07 closed
+stopped_at: Phase 26 verified passed (5/5 plans, 34/34 new tests green)
+last_updated: "2026-05-17T13:00:00.000Z"
+last_activity: "2026-05-17 — /gsd-execute-phase 26 complete: 5 plans shipped in 3 waves, 34 new tests (29 unit + 5 integration), eng-review fixes verified, 26-VERIFICATION.md written"
 progress:
   total_phases: 3
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 5
-  completed_plans: 0
+  completed_plans: 5
+  percent: 33
 ---
 
 # STATE — EnterpriseRAG (v1.7 planning)
@@ -24,16 +25,16 @@ See: .planning/PROJECT.md (updated 2026-05-17 — v1.7 opened)
 
 ## Current Position
 
-Phase: 26 — Memory Infra Hygiene
-Plan: 5 plans drafted (Wave 1: 26-01, 26-02 | Wave 2: 26-03, 26-04 | Wave 3: 26-05)
-Status: Phase 26 plans ready for execution
-Last activity: 2026-05-17 — Phase 26 PLANs written: 26-01 asyncpg_helper foundation, 26-02 bge-m3 resolver, 26-03 memory_service consumes helper + close(), 26-04 AuditService pool + _create_tables + close(), 26-05 lifespan shutdown wiring + integration test
+Phase: 26 — Memory Infra Hygiene ✅ SHIPPED
+Plan: 5/5 complete (W1 26-01 + 26-02, W2 26-03 + 26-04, W3 26-05); 34 new tests green
+Status: Awaiting Phase 27 (Test Isolation + Memory Reliability — TD-02, TD-04, TD-05, TD-06)
+Last activity: 2026-05-17 — Phase 26 execute + verify complete. New code: `utils/asyncpg_helper.py` (NEW), `config/settings.py::resolve_embedding_model_path`, `LongTermMemory.close()`, `MemoryService.close()`, `AuditService._get_pool` + `_create_tables` + `close()`, `main.py` lifespan shutdown wiring
 
 ## Phase Overview
 
 | Phase | Name | REQ-IDs | Status |
 |-------|------|---------|--------|
-| 26 | Memory Infra Hygiene | TD-01, TD-03, TD-07 | Plans drafted (5 plans, 3 waves) |
+| 26 | Memory Infra Hygiene | TD-01, TD-03, TD-07 | ✅ Shipped 2026-05-17 (5 plans, 34 new tests) |
 | 27 | Test Isolation + Memory Reliability | TD-02, TD-04, TD-05, TD-06 | Planning |
 | 28 | Doc Sweep + v1.7 Release | DOC-01 | Planning |
 
@@ -94,9 +95,10 @@ The following v1.7 candidates were promoted out of "todos" into requirements (se
 
 ## Session Continuity
 
-**Last updated:** 2026-05-17 — `/plan-eng-review 26` completed. 4 findings (A1 DSN scheme divergence, A2 close()-lock missing, C1 inherited URL-strip bug, P1 partial-init permanent breakage), all fixed in 26-01 + 26-04 plans. R1 regression test added per IRON RULE. 3 v1.8+ todos surfaced (see above). VERDICT: ENG CLEARED.
-**Prior:** `/gsd-plan-phase 26` wrote 5 plans across 3 waves: W1 26-01 + 26-02 (parallel) → W2 26-03 + 26-04 (parallel) → W3 26-05.
-**Stopped at:** Phase 26 plans reviewed + fixes applied (Plan-Check file written)
-**Next action:** `/gsd-execute-phase 26` (or `/gsd-execute-plan 26-01` to step one plan at a time). All plan fixes already committed; executor will see the post-review plans.
+**Last updated:** 2026-05-17 — `/gsd-execute-phase 26` shipped all 5 plans across 3 waves. New artifacts: `utils/asyncpg_helper.py` + `config/settings.py::resolve_embedding_model_path` + `LongTermMemory.close()` + `MemoryService.close()` + `AuditService._get_pool/_create_tables/close()` + main.py lifespan wiring. 34 new tests (29 unit + 5 integration) all green; v1.6 audit + memory suites (116 unit tests) still green. Eng-review fixes A1/A2/C1/P1 + R1 regression test verified. 26-VERIFICATION.md status: passed.
+**Stopped at:** Phase 26 shipped; awaiting Phase 27
+**Next action:** `/gsd-discuss-phase 27` → `/gsd-plan-phase 27` → `/gsd-execute-phase 27`. Phase 27 = Test Isolation + Memory Reliability (TD-02 create_app factory + TD-04 save_fact dedupe + TD-05 save_facts batch + TD-06 Redis-mock fixture). Or `/gsd-ship` to PR Phase 26 first.
+
+**Planned Phase:** Phase 27 — Test Isolation + Memory Reliability.
 
 **Planned Phase:** Phase 26 — Memory Infra Hygiene (TD-01 + TD-03 + TD-07).

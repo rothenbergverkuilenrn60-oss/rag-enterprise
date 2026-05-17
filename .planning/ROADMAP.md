@@ -279,6 +279,6 @@ Plans:
 | 23. Background Extractor + schema migration | v1.6 | 6/6 | Complete ✓ | 2026-05-16 |
 | 24. pgvector RecallTool + semantic recall rewrite | v1.6 | 7/7 | Complete ✓ | 2026-05-16 |
 | 25. Eviction job + GDPR forget API | v1.6 | 7/7 | Complete ✓ | 2026-05-17 |
-| 26. Memory Infra Hygiene | v1.7 | 0/? | Planning | — |
+| 26. Memory Infra Hygiene | v1.7 | 5/5 | Complete ✓ | 2026-05-17 |
 | 27. Test Isolation + Memory Reliability | v1.7 | 0/? | Planning | — |
 | 28. Doc Sweep + v1.7 Release | v1.7 | 0/? | Planning | — |
