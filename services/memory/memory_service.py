@@ -161,8 +161,16 @@ class LongTermMemory:
                 await register_vector(conn)
 
             dsn = settings.pg_dsn.replace("postgresql+asyncpg://", "postgresql://")
+            # SQLAlchemy-style `?ssl=disable` in pg_dsn is mishandled by asyncpg's
+            # URL parser (treated as server_settings → CantChangeRuntimeParamError).
+            # Strip from URL and pass as ssl= kwarg instead.
+            ssl_kwarg: dict[str, str] = {}
+            for token in ("?ssl=disable", "&ssl=disable"):
+                if token in dsn:
+                    dsn = dsn.replace(token, "")
+                    ssl_kwarg["ssl"] = "disable"
             self._pool = await asyncpg.create_pool(
-                dsn, min_size=2, max_size=10, init=_init_conn,
+                dsn, min_size=2, max_size=10, init=_init_conn, **ssl_kwarg,
             )
             await self._create_tables()
         return self._pool
