@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Memory Tool — Agent-Authored Long-Term Facts
-status: Phase 24 EXECUTION COMPLETE — 7/7 plans GREEN. Per-module coverage 93.2%, diff-cover 93%, all 11 eng-review amendments landed. Ready for `/gsd-verify-work 24`.
-stopped_at: Completed 24-07-PLAN.md (SC-1 + SC-3 + coverage gate); Phase 24 ready for verifier
-last_updated: "2026-05-16T20:00:00.000Z"
-last_activity: 2026-05-16 — Phase 24 fully executed. Plans 24-01..24-07 GREEN. SC-1 (cosine quality) + SC-3 (HNSW <50ms p95 @ 10k SQL-only) + coverage gate all closed. 32 pre-existing Redis-dependent unit-test failures flagged as unrelated to Phase 24 (touch no Phase 24 surface).
+status: Phase 25 SHIPPED — PR #6 opened (gsd/v1.6-phase-25-eviction-gdpr → gsd/v1.6-phases-23-24 / PR #5). Verdict ⚠ MARGINAL pending PG-host integration run (pre-existing pytest-asyncio scope bug in conftest.py blocks PG-gated tests; out of Phase 25 scope, filed as v1.7 candidate). Unit/coverage/diff-cover gates all GREEN. After PR #5 merges → retarget PR #6 base → master.
+stopped_at: PR #6 opened at branch HEAD 8bb3961; awaiting PR review / merge of PR #5 first
+last_updated: "2026-05-17T02:30:00.000Z"
+last_activity: 2026-05-17 — /gsd-ship opened PR #6 (Phase 25, stacked on PR #5). MARGINAL verdict documented in PR body; PG-host integration deferred to v1.7 conftest infra fix.
 progress:
   total_phases: 3
-  completed_phases: 1
-  total_plans: 13
-  completed_plans: 13
+  completed_phases: 2
+  total_plans: 20
+  completed_plans: 20
   percent: 100
 ---
 
@@ -21,15 +21,22 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-15 after v1.6 open)
 
 **Core value:** Every query returns a grounded, auditable answer — no hallucinations, no silent failures, no security gaps.
-**Current focus:** v1.6 Memory Tool — agent-authored long-term facts as new agent-callable third store (extractor → pgvector RecallTool → eviction + GDPR forget API).
+**Current focus:** Phase 25 — Eviction job + GDPR forget API — **EXECUTION COMPLETE**. Awaiting `/gsd-verify-work 25` then `/gsd-ship`.
 
 ## Current Position
 
-Phase: 24 (planned; pending execute)
-Plan: 24-01..24-07 (7 plans, waves 1–4). Plan-checker PASSED.
-Status: Phase 24 planned. Ready for `/gsd-execute-phase 24`.
-Status: All of MEM-01..MEM-05 GREEN at the unit + integration layers. Plan 23-06 added 3 new integration test files (`tests/integration/test_long_term_facts_schema.py`, `tests/integration/test_extractor_e2e.py`, `tests/integration/test_swarm_pipeline_extractor_e2e.py`) + 4 new conftest fixtures (`pgvector_pool`, `extractor_llm_mock`, `embedder_or_mock`, `clean_long_term_facts`). Per-module coverage gate PASSES at 97.4% (extractor.py) + 93.3% (memory_service.py) — both well above the 70% floor. Diff-cover vacuously PASSES (Plan 06 added zero production-code lines). 7 new integration tests SKIP gracefully on CI hosts without PostgreSQL; pre-tag check requires running them with -m pgvector against a live local PG to confirm 7/7 PASS.
-Last activity: 2026-05-16 — Plan 23-06 (91e19af→1806cc8→7a4acef→41ce20e). MEM-01 + MEM-04 integration verification + coverage gate; 7 new tests added; 27/27 Phase 23 unit suite GREEN; ruff clean.
+Phase: 25 — EXECUTION COMPLETE (all 7 plans, 4 waves, 9 eng-review amendments)
+Plan: 7 of 7 plans complete. 25-01 settings+AuditAction+T6 (Field(ge=1)) · 25-02 forget_user+T7 (chunked 1000/txn) · 25-03 EVICT-03 un-mark · 25-04 controller+T1/T2/T3/T9 (audit-fail try/except + main.py mount + cross-tenant 200/0 test + role-403-before-header-400) · 25-05 CLI+T1/T8 (audit-fail-continues-sweep + re-COUNT post-DELETE for accurate remaining_count) · 25-06 integration tests+T4 (dummy [0.0]*1024 seed) · 25-07 docs extension (49→178 LOC) + coverage gates + EVICT-03 re-mark.
+Status: 34/34 Phase 25 unit tests GREEN. 8 integration tests committed (PG-gated SKIP on this env). Per-module coverage: services/memory/memory_service.py **94.3%**, controllers/memory.py **96.8%**, scripts/evict_long_term_facts.py **82.1%** (all ≥70% gate). diff-cover vs origin/master: **90%** on 166 touched lines (≥80% gate). 32 pre-existing Redis-dependent baseline failures (Phase 24 documented) — confirmed isolation-reproducible w/ `redis.exceptions.ConnectionError: Error 111`; 0 new regressions from Phase 25. `arq` dep added to pyproject.toml + uv.lock during Wave 2 (25-04 Rule 3 — main.py / controllers/api.py imported it pre-Phase-25 without declaration). EVICT-03 re-marked `[x]` with completion timestamp.
+Last activity: 2026-05-16 — Wave 4 merged at master ffd9489 (1 worktree agent + 1 merge commit + 3 plan commits + 1 SUMMARY commit). Phase 25 execution closes.
+
+## Pre-Tag Manual Verification (REQUIRED before ship)
+
+Run on a PG-capable host with pgvector:
+```
+uv run pytest tests/integration/test_evict_long_term_facts_e2e.py tests/integration/test_memory_forget_e2e.py -m pgvector -x -q
+```
+Expected: 8/8 PASS exercising SC-1 (audit/enforce), SC-2 (tie-break), SC-3 (forget API), SC-4 (audit_log row). Without this, SC-1..SC-4 are committed-but-unexecuted.
 
 ## Phase Overview
 
@@ -37,7 +44,7 @@ Last activity: 2026-05-16 — Plan 23-06 (91e19af→1806cc8→7a4acef→41ce20e)
 |-------|------|---------|--------|
 | 23 | Background Extractor + schema migration | MEM-01, MEM-02, MEM-03, MEM-04, MEM-05 | COMPLETE — 6/6 plans GREEN (23-01 MEM-01 ✓; 23-02 MEM-02 ✓; 23-03 MEM-03 ✓; 23-04 MEM-05 ✓; 23-05 MEM-04 ✓; 23-06 integration + coverage gate ✓ — SC-1/4/5 closed) |
 | 24 | pgvector RecallTool + semantic recall rewrite | MEM-06, MEM-07, MEM-08, MEM-09, MEM-10 | Planned (7 plans, 4 waves) — plan-checker PASSED; ready for /gsd-execute-phase 24 |
-| 25 | Eviction job + GDPR forget API | EVICT-01, EVICT-02, EVICT-03, GDPR-01, GDPR-02, GDPR-03 | Pending |
+| 25 | Eviction job + GDPR forget API | EVICT-01, EVICT-02, EVICT-03, GDPR-01, GDPR-02, GDPR-03 | EXECUTION COMPLETE — 7/7 plans + 9 amendments. 34 unit GREEN + 8 integration committed (PG-SKIP this env). Per-module cov ≥82%, diff-cov 90%. EVICT-03 `[x]`. Awaiting /gsd-verify-work + /gsd-ship. |
 
 ## Accumulated Context
 

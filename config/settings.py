@@ -427,6 +427,13 @@ class Settings(BaseSettings):
     # regardless of toggle.
     recall_tool_enabled: bool = True
 
+    # Phase 25 / EVICT-01 — per-user long_term_facts row cap ─────────────────
+    # Consumed by scripts/evict_long_term_facts.py and (v1.7+) save_fact.
+    # Override via env MEMORY_FACTS_CAP_PER_USER=<int>.
+    # T6 (eng-review F4): Field(ge=1) rejects 0/negative at settings-load to
+    # prevent ConfigMap typo from wiping every long_term_facts row.
+    memory_facts_cap_per_user: int = Field(default=500, ge=1)
+
     @field_validator("data_dir", "processed_dir", "index_dir", "log_dir", "cache_dir", mode="before")
     @classmethod
     def ensure_path(cls, v: str | Path) -> Path:

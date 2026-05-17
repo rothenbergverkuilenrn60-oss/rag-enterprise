@@ -50,7 +50,7 @@ Sixteen checkable requirements grouped into three categories. Each maps to exact
 - [ ] **EVICT-02**: Audit mode — script supports `--mode=audit|enforce`. Audit logs per-bucket counts to stdout + audit log, performs zero deletes. Enforce performs deletes. First production run MUST use `audit` to capture distribution; operator sets cap from observed distribution before `enforce`. Phase 25.
 
 - [x] **EVICT-03**: `docs/memory-eviction.md` — cron deployment (kubernetes CronJob example), cap tuning guidance, audit-mode-before-enforce workflow, embedding backfill cost section (referenced from MEM-07
-), forget-API operational usage. Documentation reviewed; no broken anchors. Phase 25.
+), forget-API operational usage. Documentation reviewed; no broken anchors. Phase 25. **NOTE (2026-05-16, per 25-CONTEXT D-4.1):** Un-marked from `[x]` to `[ ]`. Plan 24-06 delivered ONLY the Backfill section (49 LOC); CronJob YAML + audit→enforce workflow + forget-API curl are deferred to Phase 25. Re-mark `[x]` at Phase 25 verifier close. **Completed 2026-05-16 — Phase 25 Plan 07 (docs extension 49→178 LOC + coverage ≥ 70% per module on all 3 Phase 25 modules + diff-cover 90% ≥ 80% all gates green).**
 
 ### GDPR Forget API (GDPR)
 

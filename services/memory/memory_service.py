@@ -27,6 +27,14 @@ class MemoryFactWriteError(Exception):
     """
 
 
+class MemoryForgetError(Exception):
+    """Typed error for forget_user DB failure.
+
+    Wraps ``asyncpg.PostgresError`` so the controller can surface a sanitized
+    500 without exposing DB internals. Mirrors ``MemoryFactWriteError``.
+    """
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # 数据结构
 # ══════════════════════════════════════════════════════════════════════════════
@@ -153,8 +161,16 @@ class LongTermMemory:
                 await register_vector(conn)
 
             dsn = settings.pg_dsn.replace("postgresql+asyncpg://", "postgresql://")
+            # SQLAlchemy-style `?ssl=disable` in pg_dsn is mishandled by asyncpg's
+            # URL parser (treated as server_settings → CantChangeRuntimeParamError).
+            # Strip from URL and pass as ssl= kwarg instead.
+            ssl_kwarg: dict[str, str] = {}
+            for token in ("?ssl=disable", "&ssl=disable"):
+                if token in dsn:
+                    dsn = dsn.replace(token, "")
+                    ssl_kwarg["ssl"] = "disable"
             self._pool = await asyncpg.create_pool(
-                dsn, min_size=2, max_size=10, init=_init_conn,
+                dsn, min_size=2, max_size=10, init=_init_conn, **ssl_kwarg,
             )
             await self._create_tables()
         return self._pool
@@ -374,6 +390,54 @@ class LongTermMemory:
         except asyncpg.PostgresError as exc:
             logger.error("memory service failure", operation="save_fact", exc_info=exc)
             raise MemoryFactWriteError("persistence failed") from exc
+
+    async def forget_user(self, user_id: str, tenant_id: str) -> int:
+        """Delete all long_term_facts rows for a (user_id, tenant_id) pair.
+
+        Chunked at 1000 rows per txn (T7 — eng-review outside voice F1) to avoid
+        statement_timeout on large buckets and reduce lock contention with the
+        eviction CronJob. Each chunk is an implicit asyncpg txn (auto-commit), so
+        a mid-loop failure leaves prior chunks committed; the next call resumes
+        idempotently from the bucket's current state.
+
+        Returns the number of rows deleted across all chunks (0 = idempotent no-op).
+        Scope: long_term_facts ONLY (D-1.2). Short-term Redis and user_profile NOT cleared.
+
+        Raises:
+            MemoryForgetError: on asyncpg.PostgresError from any chunk (wraps DB
+                error; caller -> 500). Partial deletions from earlier chunks remain
+                committed (asyncpg auto-commits per execute).
+        """
+        BATCH = 1000  # T7 — mirror evict_bucket EVICT-01 chunk size
+        total_deleted = 0
+        try:
+            pool = await self._get_pool()
+            async with pool.acquire() as conn:
+                while True:
+                    status = await conn.execute(
+                        """DELETE FROM long_term_facts
+                           WHERE id IN (
+                             SELECT id FROM long_term_facts
+                             WHERE user_id=$1 AND tenant_id=$2
+                             LIMIT $3
+                           )""",
+                        user_id, tenant_id, BATCH,
+                    )
+                    deleted = int(status.split()[1])  # "DELETE N" -> N (Pitfall 2 / SP-5)
+                    total_deleted += deleted
+                    if deleted == 0:
+                        break
+            return total_deleted
+        except asyncpg.PostgresError as exc:
+            logger.error(
+                "memory service failure",
+                operation="forget_user",
+                user_id=user_id,
+                tenant_id=tenant_id,
+                deleted_before_failure=total_deleted,
+                exc_info=exc,
+            )
+            raise MemoryForgetError("forget failed") from exc
 
     async def save_query(
         self, user_id: str, tenant_id: str, session_id: str,
