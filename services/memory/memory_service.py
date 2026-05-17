@@ -513,7 +513,7 @@ class LongTermMemory:
         except Exception as exc:  # noqa: BLE001 — audit-write failure must NOT block (v1.6 GDPR T1)
             logger.warning("audit write failed (non-fatal): {}", exc)
 
-    async def _bulk_near_duplicate_check(
+    async def _bulk_near_duplicate_check_raw(
         self,
         conn: "asyncpg.Connection",
         *,
@@ -533,34 +533,32 @@ class LongTermMemory:
         live PG — RESEARCH §10 lines 281-304 / D-13). Pass ``$1`` as a list of
         pgvector text literals: ``'[0.1,0.2,...]'``.
 
-        Mirrors the GUC discipline from ``_is_near_duplicate`` so the HNSW
-        index participates under the per-(user, tenant) pre-filter.
+        GUC discipline (``hnsw.iterative_scan`` + ``hnsw.ef_search``) MUST be
+        established by the CALLER before invoking this helper. This ``_raw``
+        variant does NOT open a ``conn.transaction()`` and does NOT issue
+        ``SET LOCAL`` — the caller owns the txn and GUCs (A1-A: SAVEPOINT release
+        would revert ``SET LOCAL`` before the bulk SELECT runs, silently degrading
+        the HNSW scan — plan-review finding 29-00).
 
         Caller MUST wrap the call in ``try / except asyncpg.PostgresError`` for
         fail-OPEN semantics (matches save_fact precheck contract).
         """
-        from config.settings import settings  # lazy — circular-resilience
-
         # Build pgvector text literals for the bulk binding (C1).
         vec_literals = [
             "[" + ",".join(str(x) for x in vec) + "]" for vec in embeddings
         ]
 
-        async with conn.transaction():
-            ef = int(getattr(settings, "pgvector_ef_search_filtered", 200))
-            await conn.execute("SET LOCAL hnsw.iterative_scan = 'strict_order'")
-            await conn.execute(f"SET LOCAL hnsw.ef_search = {ef}")
-            rows = await conn.fetch(
-                """SELECT (idx - 1) AS zero_idx
-                   FROM unnest($1::text[]) WITH ORDINALITY AS t(vec_txt, idx)
-                   WHERE EXISTS (
-                       SELECT 1 FROM long_term_facts
-                       WHERE user_id = $2
-                         AND tenant_id = $3
-                         AND embedding <=> vec_txt::vector < $4
-                   )""",
-                vec_literals, user_id, tenant_id, threshold,
-            )
+        rows = await conn.fetch(
+            """SELECT (idx - 1) AS zero_idx
+               FROM unnest($1::text[]) WITH ORDINALITY AS t(vec_txt, idx)
+               WHERE EXISTS (
+                   SELECT 1 FROM long_term_facts
+                   WHERE user_id = $2
+                     AND tenant_id = $3
+                     AND embedding <=> vec_txt::vector < $4
+               )""",
+            vec_literals, user_id, tenant_id, threshold,
+        )
         return {row["zero_idx"] for row in rows}
 
     async def save_facts(
@@ -576,10 +574,29 @@ class LongTermMemory:
 
         Wire shape (typical N=5, no duplicates, no embed failures):
             1× embed_batch ............ embedder (one call, all texts)
+            1× pg_advisory_xact_lock .. PG (TOC-01 v1.8 lock — see below)
             1× bulk dedupe SELECT ..... PG (C1 unnest text[] cast)
             1× executemany INSERT ..... PG
             K× audit_log emit ......... K = duplicate count (D-09 best-effort)
-        Total: 3 + K PG round-trips, regardless of N (was: 3N RTT pre-TD-05).
+        Total: 4 + K PG round-trips (was: 3 + K pre-29-00).
+
+        Advisory-lock discipline (TOC-01 v1.8 / D-TOC-01):
+            The precheck SELECT and executemany INSERT are wrapped in a single
+            ``async with conn.transaction():`` that begins with
+            ``SELECT pg_advisory_xact_lock(hashtext($1 || '|' || $2))``
+            keyed on ``(user_id, tenant_id)``. Lock is auto-released at txn end.
+            Granularity: per-(user_id, tenant_id) — writers for different pairs
+            do NOT serialize. The ``'|'`` separator prevents prefix collision.
+            See .planning/phases/29-toctou-silent-skip-enforcement/29-CONTEXT.md
+            D-TOC-01 for full rationale.
+
+        GUC discipline (A1-A inlining — plan-review finding 29-00):
+            ``SET LOCAL hnsw.iterative_scan = 'strict_order'`` and
+            ``SET LOCAL hnsw.ef_search`` are issued inside the OUTER advisory-lock
+            transaction (NOT inside a nested SAVEPOINT). ``_bulk_near_duplicate_check_raw``
+            runs inside the same outer txn — GUCs remain in effect. Moving these
+            into an inner ``conn.transaction()`` (SAVEPOINT) would revert them at
+            SAVEPOINT release, silently degrading the HNSW scan.
 
         Failure modes:
             - empty facts list:          early-return ``SaveFactsResult(0, 0, 0)``.
@@ -588,6 +605,9 @@ class LongTermMemory:
                                          exceptions count as ``skipped_embed_failures``.
             - all embeds fail:           return ``SaveFactsResult(0, 0, N)``;
                                          executemany NOT called.
+            - lock acquisition raises:   ``asyncpg.PostgresError`` → logged →
+                                         re-raised as ``MemoryFactWriteError``
+                                         (lock failure = persistence failure).
             - bulk dedupe SQL raises:    fail-OPEN (log warning, treat as no-dup);
                                          executemany still runs.
             - executemany raises:        re-raised as ``MemoryFactWriteError``;
@@ -645,7 +665,7 @@ class LongTermMemory:
 
         # Step 2 — drop embed-failed entries (preserves original positional
         # indexing inside ``indexed`` so dup_zero_idxs lines up with the
-        # post-filter list passed to _bulk_near_duplicate_check).
+        # post-filter list passed to _bulk_near_duplicate_check_raw).
         indexed: list[tuple[int, ExtractedFact, list[float]]] = [
             (i, f, e)
             for i, (f, e) in enumerate(zip(facts, embeddings, strict=True))
@@ -655,60 +675,88 @@ class LongTermMemory:
             # Every embed failed — nothing to persist, nothing to dedupe.
             return SaveFactsResult(0, 0, embed_failures)
 
-        # Step 3 — acquire pool + bulk dedupe.
+        # Step 3 — acquire pool, then wrap precheck + INSERT in an advisory-lock
+        # transaction to close the TOCTOU race (TOC-01 v1.8 / D-TOC-01).
+        # embed_batch (Step 1) deliberately runs OUTSIDE the lock so per-user
+        # write throughput is not serialized on the slow embedding step
+        # (29-CONTEXT Open Risks #1).
         pool = await self._get_pool()
         async with pool.acquire() as conn:
             valid_embeddings = [e for _, _, e in indexed]
-            try:
-                dup_zero_idxs = await self._bulk_near_duplicate_check(
-                    conn,
-                    user_id=user_id,
-                    tenant_id=tenant_id,
-                    embeddings=valid_embeddings,
-                    threshold=settings.memory_near_duplicate_threshold,
-                )
-            except (asyncpg.PostgresError, asyncpg.InterfaceError) as exc:
-                # Fail-OPEN — mirrors save_fact precheck contract.
-                logger.warning(
-                    "bulk dedupe check failed (fail-open): {}", exc,
-                )
-                dup_zero_idxs = set()
-
-            # Step 4 — fire audit rows for each duplicate (D-09 audit-mode-only).
-            # Best-effort, parallel via gather(return_exceptions=True). dist=None
-            # on the bulk path because the bulk SELECT doesn't return per-row
-            # distance (out of scope per RESEARCH; v1.8 follow-up).
-            if dup_zero_idxs:
-                audit_tasks = [
-                    self._fire_near_duplicate_audit(
-                        user_id, tenant_id, indexed[local_i][1].fact, None,
+            async with conn.transaction():
+                # TOC-01 v1.8 — acquire per-(user_id, tenant_id) advisory lock.
+                # '|' separator prevents prefix collision: ('alice','tcorp') ≠ ('alicetcorp','').
+                try:
+                    await conn.execute(  # TOC-01 v1.8
+                        "SELECT pg_advisory_xact_lock(hashtext($1 || '|' || $2))",
+                        user_id, tenant_id,
                     )
-                    for local_i in dup_zero_idxs
-                ]
-                await asyncio.gather(*audit_tasks, return_exceptions=True)
+                except asyncpg.PostgresError as exc:
+                    logger.error(
+                        "memory service failure",
+                        operation="save_facts_lock",
+                        exc_info=exc,
+                    )
+                    raise MemoryFactWriteError("lock acquisition failed") from exc
 
-            # Step 5 — executemany INSERT (C3 — INSERT ALL rows including
-            # duplicates per D-09 audit-mode-only). INSERT SQL kept verbatim
-            # from the singular save_fact path so a single bulk-cast precedent
-            # exists in the codebase.
-            rows_to_insert = [
-                (user_id, tenant_id, f.fact, source_doc, f.importance, e)
-                for _, f, e in indexed
-            ]
-            try:
-                await conn.executemany(
-                    """INSERT INTO long_term_facts
-                       (user_id, tenant_id, fact, source_doc, importance, embedding)
-                       VALUES ($1,$2,$3,$4,$5,$6::vector)""",
-                    rows_to_insert,
-                )
-            except asyncpg.PostgresError as exc:
-                logger.error(
-                    "memory service failure",
-                    operation="save_facts",
-                    exc_info=exc,
-                )
-                raise MemoryFactWriteError("batch persistence failed") from exc
+                # A1-A inlined GUC — SET LOCAL inside the OUTER txn (NOT a nested
+                # SAVEPOINT) so the GUCs are still in effect when the bulk SELECT runs.
+                # A nested conn.transaction() (SAVEPOINT) would revert SET LOCAL at
+                # SAVEPOINT release — plan-review finding 29-00 A1-A.
+                ef = int(getattr(settings, "pgvector_ef_search_filtered", 200))
+                await conn.execute("SET LOCAL hnsw.iterative_scan = 'strict_order'")  # A1-A inlined GUC
+                await conn.execute(f"SET LOCAL hnsw.ef_search = {ef}")  # A1-A inlined GUC
+
+                try:
+                    dup_zero_idxs = await self._bulk_near_duplicate_check_raw(
+                        conn,
+                        user_id=user_id,
+                        tenant_id=tenant_id,
+                        embeddings=valid_embeddings,
+                        threshold=settings.memory_near_duplicate_threshold,
+                    )
+                except (asyncpg.PostgresError, asyncpg.InterfaceError) as exc:
+                    # Fail-OPEN — mirrors save_fact precheck contract.
+                    logger.warning(
+                        "bulk dedupe check failed (fail-open): {}", exc,
+                    )
+                    dup_zero_idxs = set()
+
+                # Step 4 — fire audit rows for each duplicate (D-09 audit-mode-only).
+                # Best-effort, parallel via gather(return_exceptions=True). dist=None
+                # on the bulk path because the bulk SELECT doesn't return per-row
+                # distance (out of scope per RESEARCH; v1.8 follow-up).
+                if dup_zero_idxs:
+                    audit_tasks = [
+                        self._fire_near_duplicate_audit(
+                            user_id, tenant_id, indexed[local_i][1].fact, None,
+                        )
+                        for local_i in dup_zero_idxs
+                    ]
+                    await asyncio.gather(*audit_tasks, return_exceptions=True)
+
+                # Step 5 — executemany INSERT (C3 — INSERT ALL rows including
+                # duplicates per D-09 audit-mode-only). INSERT SQL kept verbatim
+                # from the singular save_fact path so a single bulk-cast precedent
+                # exists in the codebase.
+                rows_to_insert = [
+                    (user_id, tenant_id, f.fact, source_doc, f.importance, e)
+                    for _, f, e in indexed
+                ]
+                try:
+                    await conn.executemany(
+                        """INSERT INTO long_term_facts
+                           (user_id, tenant_id, fact, source_doc, importance, embedding)
+                           VALUES ($1,$2,$3,$4,$5,$6::vector)""",
+                        rows_to_insert,
+                    )
+                except asyncpg.PostgresError as exc:
+                    logger.error(
+                        "memory service failure",
+                        operation="save_facts",
+                        exc_info=exc,
+                    )
+                    raise MemoryFactWriteError("batch persistence failed") from exc
 
         return SaveFactsResult(
             saved_count=len(rows_to_insert),
