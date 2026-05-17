@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.8
 milestone_name: Production Hardening Round 2
-status: v1.8 opened — Phase 29 + 30 in planning; 7 pre-seeded reqs (SK-01, TOC-01, TEST-INFRA-02 → Phase 29; OAI-01, EVT-01, TEST-INFRA-01, MYPY-01 → Phase 30)
-stopped_at: /gsd-new-milestone complete — REQUIREMENTS-v1.8.md promoted to active REQUIREMENTS.md; PROJECT.md + ROADMAP.md + STATE.md updated; ready for /gsd-discuss-phase 29
-last_updated: "2026-05-17T23:45:00.000Z"
-last_activity: "2026-05-17 — /gsd-new-milestone complete. v1.8 Production Hardening Round 2 opened. Skipped research per user pref (pre-seeded backlog from v1.7 Phase 28 plan 28-03 sufficient). 7 reqs promoted: TOC-01 + SK-01 + TEST-INFRA-02 into Phase 29 (TOCTOU + Silent-Skip Enforcement — paired by same code paths); OAI-01 + EVT-01 + TEST-INFRA-01 + MYPY-01 into Phase 30 (Test Infra + mypy Hardening). Zero new user-facing capabilities — pure reliability + test infra polish."
+status: planning
+stopped_at: REQUIREMENTS.md + PROJECT.md + ROADMAP.md + STATE.md updated for v1.8 open; ready for Phase 29 discussion.
+last_updated: "2026-05-17T10:23:40.910Z"
+last_activity: 2026-05-17 — /gsd-new-milestone complete. v1.8 Production Hardening Round 2 opened with 7 pre-seeded reqs split across Phase 29 + 30.
 progress:
   total_phases: 2
   completed_phases: 0
-  total_plans: 0
+  total_plans: 3
   completed_plans: 0
   percent: 0
 ---
@@ -98,4 +98,4 @@ The following v1.7-deferred candidates were promoted into v1.8 requirements (see
 **Stopped at:** REQUIREMENTS.md + PROJECT.md + ROADMAP.md + STATE.md updated for v1.8 open; ready for Phase 29 discussion.
 **Next action:** Run `/gsd-discuss-phase 29` (TOCTOU + Silent-Skip Enforcement) to clarify approach. Optional pre-Phase-29: cut v1.7.0 annotated tag per `.planning/milestones/v1.7-release-tag.md` (independent ceremony).
 
-**Planned Phase:** Phase 29 — TOCTOU + Silent-Skip Enforcement.
+**Planned Phase:** 29 (TOCTOU + Silent-Skip Enforcement) — 3 plans — 2026-05-17T10:23:40.903Z
