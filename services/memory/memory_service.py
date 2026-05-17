@@ -466,9 +466,17 @@ class LongTermMemory:
             pool = await self._get_pool()
             async with pool.acquire() as conn:
                 # Plan 27-03 / TD-04 — cosine near-duplicate precheck (D-09 audit-mode-only).
-                # Fail-OPEN: precheck PostgresError → log warning, treat as non-duplicate,
-                # INSERT proceeds. Mirrors get_relevant_facts:353-357 ("returns [] on failure")
-                # and matches v1.6 GDPR T1 Pattern D "audit-write failure must NOT block".
+                # Fail-OPEN: precheck error → log warning, treat as non-duplicate,
+                # INSERT proceeds. Mirrors get_relevant_facts:353-357 ("returns [] on
+                # failure") and matches v1.6 GDPR T1 Pattern D "audit-write failure
+                # must NOT block".
+                #
+                # asyncpg exception hierarchy note: PostgresError and InterfaceError
+                # are SIBLINGS (not parent/child) — server-reported failures vs.
+                # client-side connection / protocol failures. Both must be fail-open
+                # because either class of failure during the precheck SHOULD NOT
+                # block the actual save (which carries its own narrow PostgresError
+                # handler around the INSERT below).
                 try:
                     is_dup, dist = await self._is_near_duplicate(
                         conn,
@@ -477,7 +485,7 @@ class LongTermMemory:
                         embedding=embedding,
                         threshold=settings.memory_near_duplicate_threshold,
                     )
-                except asyncpg.PostgresError as exc:
+                except (asyncpg.PostgresError, asyncpg.InterfaceError) as exc:
                     logger.warning(
                         "near-duplicate precheck failed (fail-open): {}", exc,
                     )
