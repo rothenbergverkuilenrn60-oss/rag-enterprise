@@ -4,14 +4,14 @@ milestone: v1.8
 milestone_name: Production Hardening Round 2
 status: planning
 stopped_at: Phase 30 context gathered
-last_updated: "2026-05-17T12:20:04.008Z"
+last_updated: "2026-05-17T12:32:02.187Z"
 last_activity: 2026-05-17 — /gsd-new-milestone complete. v1.8 Production Hardening Round 2 opened with 7 pre-seeded reqs split across Phase 29 + 30.
 progress:
   total_phases: 2
   completed_phases: 1
-  total_plans: 3
+  total_plans: 7
   completed_plans: 3
-  percent: 100
+  percent: 43
 ---
 
 # STATE — EnterpriseRAG (v1.8 planning)
@@ -98,4 +98,4 @@ The following v1.7-deferred candidates were promoted into v1.8 requirements (see
 **Stopped at:** Phase 30 context gathered
 **Next action:** Run `/gsd-discuss-phase 29` (TOCTOU + Silent-Skip Enforcement) to clarify approach. Optional pre-Phase-29: cut v1.7.0 annotated tag per `.planning/milestones/v1.7-release-tag.md` (independent ceremony).
 
-**Planned Phase:** 29 (TOCTOU + Silent-Skip Enforcement) — 3 plans — 2026-05-17T10:23:40.903Z
+**Planned Phase:** 30 (Test Infra + mypy Hardening) — 4 plans — 2026-05-17T12:32:02.180Z
