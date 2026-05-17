@@ -40,6 +40,11 @@ See [milestones/v1.7-ROADMAP.md](milestones/v1.7-ROADMAP.md) for full phase deta
 2. When `_is_near_duplicate` returns `True` for a candidate, the candidate is NOT included in `rows_to_insert`; `executemany` inserts only non-duplicate rows; `MEMORY_NEAR_DUPLICATE_SKIPPED` audit row still emitted. v1.7 pin test `test_dedupe_in_batch_fires_audit_AND_executemany_inserts_all_rows` flipped to `..._inserts_non_dup_rows_only` form. `save_fact` wrapper (D-12) inherits via delegation.
 3. `save_facts` precheck unit tests rewritten against bulk-SELECT mock shape; `nearest_distance=None` branch covered explicitly; assertions match C1 SQL shape (`unnest($1::text[]) WITH ORDINALITY` + `vec_txt::vector` cast). Per-file LOC delta ≤ +150; no production-code changes from TEST-INFRA-02 alone.
 
+**Plans:** 3 plans
+- [ ] 29-00-PLAN.md — TOC-01: advisory-lock wraps precheck+INSERT in `save_facts` (TDD, Wave 1)
+- [ ] 29-01-PLAN.md — SK-01: silent-skip filter excludes dups from `rows_to_insert` (TDD, Wave 2, depends on 29-00)
+- [ ] 29-02-PLAN.md — TEST-INFRA-02: rewrite precheck unit tests to C1 bulk-SELECT shape (execute, Wave 2, depends on 29-00)
+
 ### Phase 30: Test Infra + mypy Hardening
 
 **Goal:** Clean up the test surface that's been masking real failures + finish the mypy --strict sweep. Fixes 32 openai-SDK-drift failures + 14 event-loop singleton leaks + 1 known-flaky extractor_e2e test + parametric-type annotations.
