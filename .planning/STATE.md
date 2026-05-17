@@ -1,42 +1,41 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.7
-milestone_name: Memory Tech-Debt Burn-Down
-status: v1.7 shipped — Phase 28 complete; v1.8 not yet opened
-stopped_at: Phase 28 28-04-SUMMARY committed; v1.7 archived to .planning/milestones/v1.7-*; CHANGELOG + release-notes + RUNBOOK + REQUIREMENTS-v1.8 scaffold all committed; ready for /gsd-new-milestone for v1.8 open
-last_updated: "2026-05-17T23:30:00.000Z"
-last_activity: "2026-05-17 — /gsd-execute-phase 28 complete. 5 plans across 2 waves: Wave 1 parallel (28-00 docs/RUNBOOK.md three-section ops runbook; 28-01 README + ARCHITECTURE + memory-eviction surgical patches + CHANGELOG v1.7.0 entry; 28-02 docs/release-notes-v1.7.md + .planning/milestones/v1.7-release-tag.md; 28-03 .planning/REQUIREMENTS-v1.8.md scaffold with 7 pre-seeded items SK/TOC/OAI/EVT/MYPY/TEST-INFRA). Wave 2 sequential (28-04 v1.7 milestone archive — ROADMAP+REQUIREMENTS snapshots, git mv Phase 26/27/28 → milestones/v1.7-phases/, ROADMAP v1.7 section collapsed into <details>, MILESTONES.md created at repo root with 8 v1.* backfill entries, STATE.md updated). v1.7 Memory Tech-Debt Burn-Down SHIPPED — 3 phases / 15 plans / 8 requirements (TD-01..07 + DOC-01) / 0 carry-forward blockers."
+milestone: v1.8
+milestone_name: Production Hardening Round 2
+status: v1.8 opened — Phase 29 + 30 in planning; 7 pre-seeded reqs (SK-01, TOC-01, TEST-INFRA-02 → Phase 29; OAI-01, EVT-01, TEST-INFRA-01, MYPY-01 → Phase 30)
+stopped_at: /gsd-new-milestone complete — REQUIREMENTS-v1.8.md promoted to active REQUIREMENTS.md; PROJECT.md + ROADMAP.md + STATE.md updated; ready for /gsd-discuss-phase 29
+last_updated: "2026-05-17T23:45:00.000Z"
+last_activity: "2026-05-17 — /gsd-new-milestone complete. v1.8 Production Hardening Round 2 opened. Skipped research per user pref (pre-seeded backlog from v1.7 Phase 28 plan 28-03 sufficient). 7 reqs promoted: TOC-01 + SK-01 + TEST-INFRA-02 into Phase 29 (TOCTOU + Silent-Skip Enforcement — paired by same code paths); OAI-01 + EVT-01 + TEST-INFRA-01 + MYPY-01 into Phase 30 (Test Infra + mypy Hardening). Zero new user-facing capabilities — pure reliability + test infra polish."
 progress:
-  total_phases: 3
-  completed_phases: 3
-  total_plans: 15
-  completed_plans: 15
-  percent: 100
+  total_phases: 2
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
-# STATE — EnterpriseRAG (v1.7 planning)
+# STATE — EnterpriseRAG (v1.8 planning)
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-17 — v1.7 opened)
+See: .planning/PROJECT.md (updated 2026-05-17 — v1.8 opened)
 
 **Core value:** Every query returns a grounded, auditable answer — no hallucinations, no silent failures, no security gaps.
-**Current focus:** v1.7 Memory Tech-Debt Burn-Down — 7 deferred items from v1.6 ship + end-of-milestone doc sweep
+**Current focus:** v1.8 Production Hardening Round 2 — 7 deferred items from v1.7 (silent-skip enforcement + TOCTOU + openai SDK drift + event-loop leaks + mypy strict sweep + test infra)
 
 ## Current Position
 
-Phase: v1.8 (not yet opened — run /gsd-new-milestone)
-Plan: n/a
-Status: v1.7 milestone shipped 2026-05-17 — all 3 phases (26, 27, 28) complete; 15/15 plans; 8/8 requirements; archived to .planning/milestones/v1.7-*
-Last activity: 2026-05-17 — /gsd-execute-phase 28 complete. 5 plans across 2 waves; doc sweep + release artifacts (RUNBOOK / CHANGELOG / release-notes / REQUIREMENTS-v1.8 scaffold) + v1.7 milestone archive (snapshot + git mv phase dirs + ROADMAP collapse + MILESTONES.md backfill + STATE.md ship marker).
+Phase: 29 — TOCTOU + Silent-Skip Enforcement (planning — not yet discussed)
+Plan: n/a — next action `/gsd-discuss-phase 29`
+Status: v1.8 opened 2026-05-17; Phase 29 + 30 in planning; 0/2 phases complete; 0/0 plans (none drafted yet)
+Last activity: 2026-05-17 — /gsd-new-milestone complete. v1.8 Production Hardening Round 2 opened with 7 pre-seeded reqs split across Phase 29 + 30.
 
 ## Phase Overview
 
 | Phase | Name | REQ-IDs | Status |
 |-------|------|---------|--------|
-| 26 | Memory Infra Hygiene | TD-01, TD-03, TD-07 | ✅ Shipped 2026-05-17 (5 plans, 34 new tests) |
-| 27 | Test Isolation + Memory Reliability | TD-02, TD-04, TD-05, TD-06 | ✅ Shipped 2026-05-17 (5 plans, 28+33 unit + 4 integration + 1 benchmark) |
-| 28 | Doc Sweep + v1.7 Release | DOC-01 | ✅ Shipped 2026-05-17 (5 plans, doc sweep + v1.7 release artifacts) |
+| 29 | TOCTOU + Silent-Skip Enforcement | TOC-01, SK-01, TEST-INFRA-02 | Planning (not yet discussed) |
+| 30 | Test Infra + mypy Hardening | OAI-01, EVT-01, TEST-INFRA-01, MYPY-01 | Planning (not yet discussed) |
 
 ## Accumulated Context
 
@@ -64,7 +63,7 @@ None — v1.7 opens clean.
 
 None.
 
-### Todos (carry-forward, NOT v1.7-scoped)
+### Todos (carry-forward, NOT v1.8-scoped)
 
 - [ ] asyncpg pool + RLS: verify `app.current_tenant` per-connection in production pool
 - [ ] PyMuPDF AGPL license: resolve commercial licensing for on-premise deployments
@@ -81,23 +80,22 @@ None.
 - [ ] v1.8+ follow-up: AuditService pool `application_name=audit_service` for `pg_stat_activity` dashboard visibility. Surfaced by `/plan-eng-review 26` Claude's Discretion review.
 - [ ] v1.8+ follow-up: **openai SDK signature drift cleanup** — 32 unit tests fail with `APIError.__init__() missing 1 required positional argument: 'request'`. Files: `test_agent_pipeline_refactor.py` (11), `test_agent_sse.py` (9), `test_pipeline_coverage.py` (10), `test_feedback_ab_forward.py` (1), `test_memory_controller.py`, `test_recall_tool.py`. Has been latent on master since v1.5 (lint gate masked it). Surfaced by Phase 26 PR #9 CI (run 25981918166 — first run where lint passed and unit tests actually executed). NOT introduced by Phase 26.
 
-### Promoted Into v1.7 Active Scope
+### Promoted Into v1.8 Active Scope
 
-The following v1.7 candidates were promoted out of "todos" into requirements (see REQUIREMENTS.md):
+The following v1.7-deferred candidates were promoted into v1.8 requirements (see REQUIREMENTS.md):
 
-- TD-01 `audit_log` auto-create
-- TD-02 Per-test `create_app()` factory
-- TD-03 `utils/asyncpg_helper.py` centralization
-- TD-04 `save_fact` near-duplicate guard
-- TD-05 `save_facts` batch path
-- TD-06 Redis-mock fixture rollout
-- TD-07 bge-m3 model dir layout fix
-- DOC-01 doc + CHANGELOG sweep
+- SK-01 Silent-skip near-duplicate enforcement (Phase 29)
+- TOC-01 TOCTOU mitigation (Phase 29)
+- TEST-INFRA-02 save_facts precheck test rewrite (Phase 29)
+- OAI-01 openai SDK signature drift cleanup (Phase 30)
+- EVT-01 +14 event-loop singleton leaks (Phase 30)
+- TEST-INFRA-01 extractor_e2e embedder fixture ordering (Phase 30)
+- MYPY-01 mypy --strict cleanup (Phase 30)
 
 ## Session Continuity
 
-**Last updated:** 2026-05-17 — `/gsd-execute-phase 28` complete. v1.7 Memory Tech-Debt Burn-Down SHIPPED — 3 phases / 15 plans / 8 requirements / 0 carry-forward blockers. Archived to `.planning/milestones/v1.7-{ROADMAP,REQUIREMENTS}.md` + `.planning/milestones/v1.7-phases/{26,27,28}-*/`. MILESTONES.md created at repo root with v1.0..v1.7 backfill.
-**Stopped at:** Phase 28 28-04-SUMMARY committed; v1.7 archive complete.
-**Next action:** Run `/gsd-new-milestone` to open v1.8 (pre-seeded items in `.planning/REQUIREMENTS-v1.8.md`: SK-01, TOC-01, OAI-01, EVT-01, MYPY-01, TEST-INFRA-01, TEST-INFRA-02). Optional pre-v1.8: cut the v1.7.0 annotated tag per `.planning/milestones/v1.7-release-tag.md`.
+**Last updated:** 2026-05-17 — `/gsd-new-milestone` complete. v1.8 Production Hardening Round 2 opened. 7 pre-seeded reqs from v1.7 Phase 28 plan 28-03 scaffold promoted to active. Phase 29 = TOC-01 + SK-01 + TEST-INFRA-02 (same code paths). Phase 30 = OAI-01 + EVT-01 + TEST-INFRA-01 + MYPY-01 (test surface + type-check sweep).
+**Stopped at:** REQUIREMENTS.md + PROJECT.md + ROADMAP.md + STATE.md updated for v1.8 open; ready for Phase 29 discussion.
+**Next action:** Run `/gsd-discuss-phase 29` (TOCTOU + Silent-Skip Enforcement) to clarify approach. Optional pre-Phase-29: cut v1.7.0 annotated tag per `.planning/milestones/v1.7-release-tag.md` (independent ceremony).
 
-**Planned Phase:** v1.8 not yet opened.
+**Planned Phase:** Phase 29 — TOCTOU + Silent-Skip Enforcement.
