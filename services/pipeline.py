@@ -42,6 +42,8 @@ from services.ab_test.ab_test_service import (
     current_variant_config,
     get_ab_test_service,
 )
+# Phase 23 / MEM-04 — extractor dispatch wrapper.
+from services.agent.extractor import dispatch_extraction  # noqa: E402
 from services.agent.verifier import Verifier  # noqa: E402
 from services.audit.audit_service import (
     AuditAction,
@@ -736,10 +738,18 @@ _DISAGREE_BANNER_TEMPLATE: str = (
 MAX_ITERATIONS: int = 5
 
 # Explicit allowlist of tool names exposed to the planner LLM (AGENT-07).
-# Phase 20: web_search joins the allowlist with the real Tavily impl
-# (services/agent/tools/web_search.py). Empty TAVILY_API_KEY is a runtime
-# short-circuit per CONTEXT D-03 — no startup-time filtering here.
-AGENT_TOOL_ALLOWLIST: list[str] = ["search_knowledge_base", "refine_search", "web_search"]
+# Phase 20: web_search joins with real Tavily impl (services/agent/tools/web_search.py).
+# Phase 24 / MEM-09: recall_memory joins with pgvector cosine-recall impl
+# (services/agent/tools/recall.py). settings.recall_tool_enabled gates
+# REGISTRATION (not allowlist membership) — when False the registry lookup
+# at registry.py:78 silently drops "recall_memory" from schemas_for(...).
+# List stays length 4 regardless of recall_tool_enabled toggle (D-B4).
+AGENT_TOOL_ALLOWLIST: list[str] = [
+    "search_knowledge_base",
+    "refine_search",
+    "web_search",
+    "recall_memory",
+]
 
 
 class AgentQueryPipeline:
@@ -924,14 +934,23 @@ class AgentQueryPipeline:
         """Save memory, write audit log, return GenerationResponse."""
         total_ms = round((time.perf_counter() - t0) * 1000, 1)
         user_id, tenant_id = getattr(req, "user_id", ""), getattr(req, "tenant_id", "")
+        # Phase 23 / MEM-04 (A2): hoist both turns into locals so the SAME
+        # ConversationTurn instances flow into both save_turn and the
+        # post-persist dispatch_extraction call (no parallel objects).
+        user_turn = ConversationTurn(role="user", content=req.query)
+        ai_turn = ConversationTurn(
+            role="assistant", content=answer,
+            sources=[c.doc_id for c in all_chunks[:3]],
+        )
         await self._memory.save_turn(
             session_id=req.session_id, user_id=user_id, tenant_id=tenant_id,
-            user_turn=ConversationTurn(role="user", content=req.query),
-            ai_turn=ConversationTurn(
-                role="assistant", content=answer,
-                sources=[c.doc_id for c in all_chunks[:3]],
-            ),
+            user_turn=user_turn,
+            ai_turn=ai_turn,
             intent=None,
+        )
+        dispatch_extraction(
+            user_turn=user_turn, ai_turn=ai_turn,
+            user_id=user_id, tenant_id=tenant_id,
         )
         await self._audit.log_query(
             user_id=user_id, tenant_id=tenant_id, query=req.query, trace_id=trace_id,
@@ -1616,13 +1635,22 @@ class SwarmQueryPipeline:
         total_ms = round((time.perf_counter() - t0) * 1000, 1)
 
         # Persist memory turn (mirrors AgentQueryPipeline pattern).
+        # Phase 23 / MEM-04 (A2): hoist both turns into locals so the SAME
+        # ConversationTurn instances flow into both save_turn and the
+        # post-persist dispatch_extraction call (no parallel objects).
+        user_turn = ConversationTurn(role="user", content=req.query)
+        ai_turn = ConversationTurn(role="assistant", content=final_answer)
         await self._memory.save_turn(
             session_id=req.session_id,
             user_id=user_id,
             tenant_id=tenant_id,
-            user_turn=ConversationTurn(role="user", content=req.query),
-            ai_turn=ConversationTurn(role="assistant", content=final_answer),
+            user_turn=user_turn,
+            ai_turn=ai_turn,
             intent=None,
+        )
+        dispatch_extraction(
+            user_turn=user_turn, ai_turn=ai_turn,
+            user_id=user_id, tenant_id=tenant_id,
         )
 
         # CRITICAL: audit via log() directly with AuditEvent — log_query has a

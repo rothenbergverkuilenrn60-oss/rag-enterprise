@@ -293,6 +293,16 @@ class Settings(BaseSettings):
     verifier_model:    str | None = None
     verifier_provider: Literal["openai", "anthropic"] | None = None
 
+    # Extractor sub-agent (Phase 23, MEM-03) ──────────────────────────────────
+    # extractor_enabled gates dispatch_extraction at the pipeline boundary
+    # (Plan 23-05). extractor_provider overrides the peer LLM provider just
+    # like verifier_provider; None = reuse the get_llm_client() singleton.
+    # extractor_model is reserved for per-call model override (not wired in
+    # v1.6; mirrors verifier_model precedent).
+    extractor_enabled:  bool                                = True
+    extractor_model:    str | None                          = None
+    extractor_provider: Literal["openai", "anthropic"] | None = None
+
     # ══════════════════════════════════════════════════════════════════════════
     # Swarm（Fork-Agent — AGENT-03）
     # ══════════════════════════════════════════════════════════════════════════
@@ -406,6 +416,16 @@ class Settings(BaseSettings):
     # ══════════════════════════════════════════════════════════════════════════
     metrics_enabled: bool = True
     metrics_path:    str  = "/metrics"
+
+    # Recall tool (Phase 24, MEM-09 / D-B4) ───────────────────────────────────
+    # recall_tool_enabled=False kill-switch (default True — always-on).
+    # Gates REGISTRATION (not allowlist membership) at
+    # services/agent/tools/__init__.py: when False, the conditional
+    # `if settings.recall_tool_enabled: from ... import RecallTool` skips the
+    # decorator → registry lookup returns absent → planner-LLM never sees the
+    # tool schema (D-B4 / Pattern 3). AGENT_TOOL_ALLOWLIST stays length 4
+    # regardless of toggle.
+    recall_tool_enabled: bool = True
 
     @field_validator("data_dir", "processed_dir", "index_dir", "log_dir", "cache_dir", mode="before")
     @classmethod

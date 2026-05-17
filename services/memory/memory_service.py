@@ -12,6 +12,19 @@ from dataclasses import asdict, dataclass, field
 import asyncpg
 import redis.asyncio
 from loguru import logger
+from pgvector.asyncpg import register_vector
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 类型化异常 / Typed exceptions
+# ══════════════════════════════════════════════════════════════════════════════
+class MemoryFactWriteError(Exception):
+    """Typed error for save_fact embedding or persistence failure.
+
+    Wraps either ``asyncpg.PostgresError`` OR an embedding-adapter exception
+    so the ``dispatch_extraction`` wrapper can surface it via ``log_task_error``
+    without conflating the two failure modes at the call site.
+    """
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -132,15 +145,23 @@ class LongTermMemory:
 
     async def _get_pool(self):
         if self._pool is None:
-            import asyncpg
-
             from config.settings import settings
+
+            async def _init_conn(conn: "asyncpg.Connection") -> None:
+                # Pitfall #1: register pgvector codec on every acquired connection
+                # so $N::vector bindings in save_fact (Plan 23-02) resolve correctly.
+                await register_vector(conn)
+
             dsn = settings.pg_dsn.replace("postgresql+asyncpg://", "postgresql://")
-            self._pool = await asyncpg.create_pool(dsn, min_size=2, max_size=10)
+            self._pool = await asyncpg.create_pool(
+                dsn, min_size=2, max_size=10, init=_init_conn,
+            )
             await self._create_tables()
         return self._pool
 
     async def _create_tables(self) -> None:
+        from config.settings import settings
+
         pool = await self._get_pool()
         async with pool.acquire() as conn:
             await conn.execute("""
@@ -179,6 +200,19 @@ class LongTermMemory:
                     created_at   TIMESTAMPTZ DEFAULT NOW()
                 );
                 CREATE INDEX IF NOT EXISTS qh_user_idx ON query_history(user_id, tenant_id);
+            """)
+
+            # Phase 23 / MEM-01 — pgvector schema migration for long_term_facts.
+            # Pure-additive idempotency: ALTER ADD COLUMN IF NOT EXISTS + CREATE INDEX IF NOT EXISTS.
+            # Pattern map analog 2 forbids drop-rebuild here (no destructive index churn on this table).
+            await conn.execute("CREATE EXTENSION IF NOT EXISTS vector;")
+            await conn.execute(
+                f"ALTER TABLE long_term_facts ADD COLUMN IF NOT EXISTS embedding vector({settings.embedding_dim});"
+            )
+            await conn.execute("""
+                CREATE INDEX IF NOT EXISTS ltf_emb_hnsw_idx
+                    ON long_term_facts USING hnsw (embedding vector_cosine_ops)
+                    WITH (m = 16, ef_construction = 64);
             """)
 
     async def get_user_profile(self, user_id: str, tenant_id: str = "") -> UserProfile:
@@ -236,37 +270,110 @@ class LongTermMemory:
     async def get_relevant_facts(
         self, user_id: str, tenant_id: str, query: str, limit: int = 5
     ) -> list[str]:
-        """检索用户的长期记忆中与当前查询相关的事实。"""
+        """Retrieve top-K facts semantically relevant to ``query`` (Phase 24 / MEM-06).
+
+        Replaces the v1.0 popularity-ranked path (``ORDER BY importance DESC,
+        created_at DESC``) with pgvector cosine-similarity recall inside an
+        explicit transaction so ``SET LOCAL`` GUC changes take effect (Pitfall 2).
+
+        HNSW tuning (D-A1 / D-A2):
+        - ``hnsw.iterative_scan = 'strict_order'`` — exact top-K under pre-filter;
+          slightly slower than ``relaxed_order`` but preserves ROADMAP SC-1
+          cosine-quality contract.
+        - ``hnsw.ef_search = settings.pgvector_ef_search_filtered`` — shared
+          tuning knob with ``vector_store.py`` (T-08-01 precedent).
+
+        ORDER BY: ``embedding <=> $3::vector, importance DESC, created_at DESC``
+        (ROADMAP tie-break literal; cosine distance primary, then recency/quality).
+
+        Returns ``[]`` on any failure — embedder down or DB unreachable — so the
+        caller (RecallTool) receives a stable empty list rather than an exception
+        (Pitfall 6 contract).
+
+        Lazy imports inside method body for circular-import resilience (Phase 23
+        convention shared with ``save_fact``, ``_get_pool``, ``_create_tables``).
+        """
+        # Lazy imports — circular-import resilience (Phase 23 convention)
+        import httpx
+
+        from config.settings import settings
+        from services.vectorizer.embedder import get_embedder
+
+        # Step 1: embed the query (separate try block — distinguish embedder vs DB)
+        try:
+            q_vec: list[float] = await get_embedder().embed_one(query)
+        except (httpx.HTTPError, RuntimeError, OSError) as exc:
+            # Narrow-exception tuple matches save_fact precedent (lines 303-313):
+            #   RuntimeError    — OllamaEmbedder.embed_batch re-raise (embedder.py:68)
+            #   httpx.HTTPError — Ollama + OpenAI transport failures
+            #   OSError         — HuggingFace torch device / model-load failures
+            logger.error(
+                "memory service failure", operation="get_facts_embed", exc_info=exc,
+            )
+            return []
+
+        # Step 2: HNSW filtered recall inside explicit txn (Pitfall 2 mitigation)
         try:
             pool = await self._get_pool()
             async with pool.acquire() as conn:
-                rows = await conn.fetch(
-                    """SELECT fact FROM long_term_facts
-                       WHERE user_id=$1 AND tenant_id=$2
-                       ORDER BY importance DESC, created_at DESC
-                       LIMIT $3""",
-                    user_id, tenant_id, limit,
-                )
+                async with conn.transaction():
+                    ef = int(getattr(settings, "pgvector_ef_search_filtered", 200))
+                    await conn.execute("SET LOCAL hnsw.iterative_scan = 'strict_order'")
+                    await conn.execute(f"SET LOCAL hnsw.ef_search = {ef}")
+                    rows = await conn.fetch(
+                        """SELECT fact FROM long_term_facts
+                           WHERE user_id=$1 AND tenant_id=$2
+                           ORDER BY embedding <=> $3::vector,
+                                    importance DESC,
+                                    created_at DESC
+                           LIMIT $4""",
+                        user_id, tenant_id, q_vec, limit,
+                    )
             return [r["fact"] for r in rows]
         except asyncpg.PostgresError as exc:
-            logger.error("memory service failure", operation="get_facts", exc_info=exc)
+            logger.error(
+                "memory service failure", operation="get_facts_semantic", exc_info=exc,
+            )
             return []
 
     async def save_fact(
         self, user_id: str, tenant_id: str,
         fact: str, source_doc: str = "", importance: float = 0.5,
     ) -> None:
+        # Plan 23-02 / MEM-02 — embed-on-write contract.
+        # Step 1 (embed) precedes Step 2 (INSERT) in SEPARATE try blocks so that
+        # an embedder failure returns BEFORE _get_pool is called → zero partial-write
+        # rows. Both failure paths raise typed MemoryFactWriteError so the Plan-05
+        # dispatch wrapper can surface them via log_task_error.
+        # Lazy imports (circular-import resilience per repo convention).
+        import httpx
+
+        from services.vectorizer.embedder import get_embedder
+
+        try:
+            embedding: list[float] = await get_embedder().embed_one(fact)
+        except (httpx.HTTPError, RuntimeError, OSError) as exc:
+            # Narrow-exception list (RESEARCH §Pattern 2):
+            #   RuntimeError      — OllamaEmbedder.embed_batch re-raise (embedder.py:68)
+            #   httpx.HTTPError   — Ollama + OpenAI transport failures
+            #   OSError           — HuggingFace torch device / model-load failures
+            logger.error(
+                "memory service failure", operation="save_fact_embed", exc_info=exc,
+            )
+            raise MemoryFactWriteError("embedding failed") from exc
+
         try:
             pool = await self._get_pool()
             async with pool.acquire() as conn:
                 await conn.execute(
                     """INSERT INTO long_term_facts
-                       (user_id, tenant_id, fact, source_doc, importance)
-                       VALUES ($1,$2,$3,$4,$5)""",
-                    user_id, tenant_id, fact, source_doc, importance,
+                       (user_id, tenant_id, fact, source_doc, importance, embedding)
+                       VALUES ($1,$2,$3,$4,$5,$6::vector)""",
+                    user_id, tenant_id, fact, source_doc, importance, embedding,
                 )
         except asyncpg.PostgresError as exc:
             logger.error("memory service failure", operation="save_fact", exc_info=exc)
+            raise MemoryFactWriteError("persistence failed") from exc
 
     async def save_query(
         self, user_id: str, tenant_id: str, session_id: str,
@@ -343,10 +450,38 @@ class MemoryService:
         tenant_id:  str,
         query:      str,
     ) -> MemoryContext:
-        """加载当前请求所需的全部记忆上下文。"""
-        short_term, long_term_facts, user_profile = await asyncio.gather(
+        """加载当前请求所需的全部记忆上下文。
+
+        Phase 24 / T1 (Decision-1) — ``long_term_facts`` is NO LONGER auto-injected
+        here. Planner reads long-term facts on opt-in via ``RecallTool``
+        (services/agent/tools/recall.py). ``MemoryContext.long_term_facts`` is
+        preserved as a typed field but always set to ``[]`` by this method;
+        downstream code that referenced ``mem_ctx.long_term_facts`` continues
+        to receive a typed empty list (no AttributeError).
+
+        Pre-removal shape (v1.0-v1.5):           Post-removal shape (v1.6 Phase 24):
+        ┌──────────────────────────────────┐    ┌──────────────────────────────────┐
+        │ asyncio.gather(                  │    │ asyncio.gather(                  │
+        │   _short.get_history(session),   │    │   _short.get_history(session),   │
+        │   _long.get_relevant_facts(...),─┼──X │   _long.get_user_profile(u, t),  │
+        │   _long.get_user_profile(u, t),  │    │   return_exceptions=True,        │
+        │   return_exceptions=True,        │    │ )                                │
+        │ )                                │    │                                  │
+        │   ↓                              │    │   ↓                              │
+        │ MemoryContext(                   │    │ MemoryContext(                   │
+        │   short_term=[...],              │    │   short_term=[...],              │
+        │   long_term_facts=[...],   ──────┼──X │   long_term_facts=[],   (always) │
+        │   user_profile=...,              │    │   user_profile=...,              │
+        │ )                                │    │ )                                │
+        └──────────────────────────────────┘    └──────────────────────────────────┘
+                                                 RecallTool (planner opt-in) is now
+                                                 the sole reader of long_term_facts.
+
+        See ``tests/integration/test_pipeline_load_context_audit.py`` (Plan 05)
+        for the 4-call-site removal regression gate.
+        """
+        short_term, user_profile = await asyncio.gather(
             self._short.get_history(session_id),
-            self._long.get_relevant_facts(user_id, tenant_id, query),
             self._long.get_user_profile(user_id, tenant_id),
             return_exceptions=True,
         )
@@ -355,7 +490,7 @@ class MemoryService:
             user_id=user_id,
             tenant_id=tenant_id,
             short_term=short_term if isinstance(short_term, list) else [],
-            long_term_facts=long_term_facts if isinstance(long_term_facts, list) else [],
+            long_term_facts=[],  # T1 (Decision-1) — RecallTool is sole read path
             user_profile=user_profile if isinstance(user_profile, UserProfile) else None,
         )
 
@@ -385,6 +520,23 @@ class MemoryService:
         self, user_id: str, session_id: str, feedback: int
     ) -> None:
         await self._long.update_feedback(user_id, session_id, feedback)
+
+    async def get_relevant_facts(
+        self,
+        user_id: str,
+        tenant_id: str,
+        query: str,
+        limit: int = 5,
+    ) -> list[str]:
+        """Public passthrough — semantic recall over long_term_facts.
+
+        Added in Phase 24 / T2 (Decision-2). Plan 03 RecallTool calls this
+        rather than reaching into the private ``_long`` attribute. Mirrors
+        ``LongTermMemory.get_relevant_facts`` signature exactly.
+        """
+        return await self._long.get_relevant_facts(
+            user_id, tenant_id, query, limit=limit,
+        )
 
     async def get_formatted_history(
         self, session_id: str, max_turns: int = 6
