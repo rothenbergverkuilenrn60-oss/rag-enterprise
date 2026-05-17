@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Memory Tech-Debt Burn-Down
-status: Phase 26 PR #9 OPEN (awaiting merge)
-stopped_at: Phase 26 shipped via PR #9 on branch gsd/phase-26-memory-infra-hygiene
-last_updated: "2026-05-17T14:00:00.000Z"
-last_activity: "2026-05-17 — /gsd-ship: PR #9 opened (https://github.com/rothenbergverkuilenrn60-oss/rag-enterprise/pull/9). Branch gsd/phase-26-memory-infra-hygiene pushed; 22 commits ahead of origin/master; PR base = master."
+status: Phase 26 MERGED — squash commit 4956190 (PR #9)
+stopped_at: Phase 26 merged into master; awaiting Phase 27
+last_updated: "2026-05-17T15:00:00.000Z"
+last_activity: "2026-05-17 — PR #9 merged via --admin (squash) 05:09:10Z. Merge commit 4956190. Lint job NOW passes on master (chore commit fixed 35 ruff E/F/W/I errors). 32 pre-existing unit-test failures (openai SDK signature drift; v1.4/v1.5 test files) remain on master — surfaced for the first time because lint was previously gating them out. Tracked as v1.8+ todo."
 progress:
   total_phases: 3
   completed_phases: 1
@@ -79,6 +79,7 @@ None.
 - [ ] v1.8+ follow-up: backport Phase 26 Plan 26-04 P1 fix (`_get_pool` resets `self._pool = None` on `_create_tables` failure) to `services/memory/memory_service.py::LongTermMemory._get_pool` — same partial-init bug exists in v1.6-shipped MEM-* path. Surfaced by `/plan-eng-review 26` Finding P1.
 - [ ] v1.8+ follow-up: graceful-shutdown close-then-reuse discipline — after `audit_service.close()` / `memory_service.close()`, in-flight background tasks may lazily re-build the pool. Needs project-wide `_closed: bool` guard pattern. Surfaced by `/plan-eng-review 26` architecture notes.
 - [ ] v1.8+ follow-up: AuditService pool `application_name=audit_service` for `pg_stat_activity` dashboard visibility. Surfaced by `/plan-eng-review 26` Claude's Discretion review.
+- [ ] v1.8+ follow-up: **openai SDK signature drift cleanup** — 32 unit tests fail with `APIError.__init__() missing 1 required positional argument: 'request'`. Files: `test_agent_pipeline_refactor.py` (11), `test_agent_sse.py` (9), `test_pipeline_coverage.py` (10), `test_feedback_ab_forward.py` (1), `test_memory_controller.py`, `test_recall_tool.py`. Has been latent on master since v1.5 (lint gate masked it). Surfaced by Phase 26 PR #9 CI (run 25981918166 — first run where lint passed and unit tests actually executed). NOT introduced by Phase 26.
 
 ### Promoted Into v1.7 Active Scope
 
@@ -100,5 +101,3 @@ The following v1.7 candidates were promoted out of "todos" into requirements (se
 **Next action:** Wait for CI + reviewer; after merge → `git checkout master && git pull --rebase` to sync local master. Then `/gsd-discuss-phase 27` (Test Isolation + Memory Reliability — TD-02 + TD-04 + TD-05 + TD-06). Phase 27 will also close the 16 pre-existing unit-test failures via Redis-mock fixture rollout.
 
 **Planned Phase:** Phase 27 — Test Isolation + Memory Reliability.
-
-**Planned Phase:** Phase 26 — Memory Infra Hygiene (TD-01 + TD-03 + TD-07).
