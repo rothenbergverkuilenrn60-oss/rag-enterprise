@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Memory Tech-Debt Burn-Down
-status: Defining requirements
-stopped_at: Phase 26 context gathered
-last_updated: "2026-05-17T03:48:46.535Z"
-last_activity: 2026-05-17 — Milestone v1.7 started
+status: Phase 26 planned
+stopped_at: Phase 26 plans drafted (5 plans, 3 waves)
+last_updated: "2026-05-17T04:30:00.000Z"
+last_activity: "2026-05-17 — Phase 26 plans written (26-01..26-05); ready for execute-phase"
 progress:
   total_phases: 3
   completed_phases: 0
-  total_plans: 0
+  total_plans: 5
   completed_plans: 0
 ---
 
@@ -25,15 +25,15 @@ See: .planning/PROJECT.md (updated 2026-05-17 — v1.7 opened)
 ## Current Position
 
 Phase: 26 — Memory Infra Hygiene
-Plan: — (CONTEXT.md captured; awaiting `/gsd-plan-phase 26`)
-Status: Phase 26 context gathered
-Last activity: 2026-05-17 — Phase 26 CONTEXT.md + DISCUSSION-LOG.md written; 4 implementation themes locked (asyncpg_helper API, AuditService pool migration, lazy `_create_tables` trigger, bge-m3 resolver)
+Plan: 5 plans drafted (Wave 1: 26-01, 26-02 | Wave 2: 26-03, 26-04 | Wave 3: 26-05)
+Status: Phase 26 plans ready for execution
+Last activity: 2026-05-17 — Phase 26 PLANs written: 26-01 asyncpg_helper foundation, 26-02 bge-m3 resolver, 26-03 memory_service consumes helper + close(), 26-04 AuditService pool + _create_tables + close(), 26-05 lifespan shutdown wiring + integration test
 
 ## Phase Overview
 
 | Phase | Name | REQ-IDs | Status |
 |-------|------|---------|--------|
-| 26 | Memory Infra Hygiene | TD-01, TD-03, TD-07 | Planning |
+| 26 | Memory Infra Hygiene | TD-01, TD-03, TD-07 | Plans drafted (5 plans, 3 waves) |
 | 27 | Test Isolation + Memory Reliability | TD-02, TD-04, TD-05, TD-06 | Planning |
 | 28 | Doc Sweep + v1.7 Release | DOC-01 | Planning |
 
@@ -91,8 +91,11 @@ The following v1.7 candidates were promoted out of "todos" into requirements (se
 
 ## Session Continuity
 
-**Last updated:** 2026-05-17 — `/gsd-discuss-phase 26` completed. 4 gray-area themes locked: (1) `prepare_dsn(dsn) -> (str, dict)` pure helper for TD-03; (2) `AuditService` migrates to singleton pool (`min_size=1, max_size=4`) mirroring `LongTermMemory._get_pool`; (3) `_create_tables` fires lazily on first pool acquire — INSERT-ONLY invariant preserved; (4) `resolve_embedding_model_path(name)` searches env override → HF flat → legacy → HF hub cache, falls back to legacy on miss; reranker in scope.
-**Stopped at:** Phase 26 context gathered
-**Next action:** `/gsd-plan-phase 26` to generate PLAN.md. Researcher not installed → planning will be inline.
+**Last updated:** 2026-05-17 — `/gsd-plan-phase 26` completed (research + plan-check skipped — `agents_installed: false` + CONTEXT.md already concrete). 5 plans written, 3 waves:
+- Wave 1 (parallel, no deps): 26-01 `utils/asyncpg_helper.prepare_dsn` foundation; 26-02 `resolve_embedding_model_path` resolver + conftest update
+- Wave 2 (depends 26-01): 26-03 `memory_service.py` consumes `prepare_dsn` + `close()` on LongTermMemory + MemoryContext; 26-04 `AuditService` pool migration + `_create_tables` DDL port + `close()` + real-PG cold-start integration test
+- Wave 3 (depends 26-03, 26-04): 26-05 main.py lifespan shutdown wiring + 3-test integration suite
+**Stopped at:** Phase 26 plans drafted (5 plans, 3 waves)
+**Next action:** `/gsd-execute-phase 26` (or `/gsd-execute-plan 26-01` to step one plan at a time). main.py already uses `@asynccontextmanager lifespan` (modern pattern — no refactor needed in 26-05). `agents_installed: false` so execute will run inline.
 
 **Planned Phase:** Phase 26 — Memory Infra Hygiene (TD-01 + TD-03 + TD-07).
