@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Memory Tech-Debt Burn-Down
-status: Phase 26 MERGED — squash commit 4956190 (PR #9)
-stopped_at: Phase 26 merged into master; awaiting Phase 27
-last_updated: "2026-05-17T15:00:00.000Z"
-last_activity: "2026-05-17 — PR #9 merged via --admin (squash) 05:09:10Z. Merge commit 4956190. Lint job NOW passes on master (chore commit fixed 35 ruff E/F/W/I errors). 32 pre-existing unit-test failures (openai SDK signature drift; v1.4/v1.5 test files) remain on master — surfaced for the first time because lint was previously gating them out. Tracked as v1.8+ todo."
+status: Phase 27 context gathered (4 themes locked)
+stopped_at: Phase 27 CONTEXT.md written; ready for /gsd-plan-phase 27
+last_updated: "2026-05-17T16:00:00.000Z"
+last_activity: "2026-05-17 — /gsd-discuss-phase 27: 4 gray-area clusters locked. TD-02 brute-force singleton reset in tests/factories/app.py::create_app() with lint test guarding inventory; TD-04 per-(user,tenant) precheck with settings.memory_near_duplicate_threshold + AuditAction.MEMORY_NEAR_DUPLICATE_SKIPPED (audit-mode-only in v1.7); TD-05 save_facts(list) canonical with bulk SQL precheck + 1-RTT executemany + best-effort embed-fail; TD-06 redis_mock fixture in tests/conftest.py with @pytest.mark.uses_redis marker-opt-in mocking utils.cache.get_redis. Caveat: 32 PR #9 unit failures are openai SDK drift, not Redis — TD-06 may close a separate set; D-22 diagnostic during planning will measure."
 progress:
   total_phases: 3
   completed_phases: 1
@@ -25,17 +25,17 @@ See: .planning/PROJECT.md (updated 2026-05-17 — v1.7 opened)
 
 ## Current Position
 
-Phase: 26 — Memory Infra Hygiene ✅ SHIPPED
-Plan: 5/5 complete (W1 26-01 + 26-02, W2 26-03 + 26-04, W3 26-05); 34 new tests green
-Status: Awaiting Phase 27 (Test Isolation + Memory Reliability — TD-02, TD-04, TD-05, TD-06)
-Last activity: 2026-05-17 — Phase 26 execute + verify complete. New code: `utils/asyncpg_helper.py` (NEW), `config/settings.py::resolve_embedding_model_path`, `LongTermMemory.close()`, `MemoryService.close()`, `AuditService._get_pool` + `_create_tables` + `close()`, `main.py` lifespan shutdown wiring
+Phase: 27 — Test Isolation + Memory Reliability (context gathered)
+Plan: 27-CONTEXT.md written (4 themes locked); awaiting /gsd-plan-phase 27
+Status: Ready for planning
+Last activity: 2026-05-17 — /gsd-discuss-phase 27 complete. Phase 26 ✅ SHIPPED via PR #9.
 
 ## Phase Overview
 
 | Phase | Name | REQ-IDs | Status |
 |-------|------|---------|--------|
 | 26 | Memory Infra Hygiene | TD-01, TD-03, TD-07 | ✅ Shipped 2026-05-17 (5 plans, 34 new tests) |
-| 27 | Test Isolation + Memory Reliability | TD-02, TD-04, TD-05, TD-06 | Planning |
+| 27 | Test Isolation + Memory Reliability | TD-02, TD-04, TD-05, TD-06 | Context gathered; awaiting plan |
 | 28 | Doc Sweep + v1.7 Release | DOC-01 | Planning |
 
 ## Accumulated Context
