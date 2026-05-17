@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Memory Tech-Debt Burn-Down
-status: Phase 27 context gathered (4 themes locked)
-stopped_at: Phase 27 CONTEXT.md written; ready for /gsd-plan-phase 27
-last_updated: "2026-05-17T16:00:00.000Z"
-last_activity: "2026-05-17 — /gsd-discuss-phase 27: 4 gray-area clusters locked. TD-02 brute-force singleton reset in tests/factories/app.py::create_app() with lint test guarding inventory; TD-04 per-(user,tenant) precheck with settings.memory_near_duplicate_threshold + AuditAction.MEMORY_NEAR_DUPLICATE_SKIPPED (audit-mode-only in v1.7); TD-05 save_facts(list) canonical with bulk SQL precheck + 1-RTT executemany + best-effort embed-fail; TD-06 redis_mock fixture in tests/conftest.py with @pytest.mark.uses_redis marker-opt-in mocking utils.cache.get_redis. Caveat: 32 PR #9 unit failures are openai SDK drift, not Redis — TD-06 may close a separate set; D-22 diagnostic during planning will measure."
+status: Phase 27 planned (5 plans, 13 tasks, plan-check PASS)
+stopped_at: Phase 27 PLAN.md set written + plan-checker verdict READY_FOR_EXECUTION; ready for /gsd-execute-phase 27
+last_updated: "2026-05-17T18:30:00.000Z"
+last_activity: "2026-05-17 — /gsd-plan-phase 27: researcher caught 3 critical corrections (D-13 pgvector.asyncpg codec quirk — bulk dedupe needs unnest(text[]) WITH ORDINALITY + inline ::vector cast NOT $1::vector[]; D-16 embed_batch is fail-fast not per-item-None — needs gather(return_exceptions=True) fallback; SC-3 vs D-09 contradiction — D-09 audit-mode-only WINS, v1.7 INSERT still runs and metric fires, silent-skip deferred to v1.8). Plans: 27-00 test-infra-prep (Wave 0), 27-01 create-app-factory (Wave 1 TD-02), 27-02 redis-mock-rollout (Wave 1 TD-06), 27-03 save-fact-cosine-precheck (Wave 2 TD-04), 27-04 save-facts-batch (Wave 2 TD-05+TD-02). Plan-checker: PASS with 2 HIGH fixes applied inline (27-03 depends_on adds 27-02 for memory_service.py file ordering; 27-04 SC-5 benchmark gating policy clarified — assertion stays hard but pytest -m 'not benchmark' is default CI gate). All 13 Wave-0 test files mapped. v1.8 follow-up: silent-skip enforcement on near-dup save."
 progress:
   total_phases: 3
   completed_phases: 1
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-05-17 — v1.7 opened)
 
 ## Current Position
 
-Phase: 27 — Test Isolation + Memory Reliability (context gathered)
-Plan: 27-CONTEXT.md written (4 themes locked); awaiting /gsd-plan-phase 27
-Status: Ready for planning
-Last activity: 2026-05-17 — /gsd-discuss-phase 27 complete. Phase 26 ✅ SHIPPED via PR #9.
+Phase: 27 — Test Isolation + Memory Reliability (planned)
+Plan: 5 PLAN.md files (27-00..27-04), 13 tasks across 3 waves; plan-checker READY_FOR_EXECUTION
+Status: Ready for /gsd-execute-phase 27
+Last activity: 2026-05-17 — /gsd-plan-phase 27 complete. 3 critical RESEARCH corrections threaded (C1 pgvector.asyncpg unnest(text[]) quirk; C2 embed_batch fail-fast fallback; C3 D-09 audit-mode-only — INSERT still happens). Plan-checker PASS, 2 HIGH fixes applied inline (cross-plan dep + SC-5 gating).
 
 ## Phase Overview
 

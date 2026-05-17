@@ -1,8 +1,8 @@
 ---
 phase: 27
 slug: test-isolation-memory-reliability
-status: draft
-nyquist_compliant: false
+status: approved
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-05-17
 ---
