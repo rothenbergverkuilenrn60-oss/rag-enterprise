@@ -38,7 +38,8 @@ All requirements are scoped to this milestone. Traceability to phases is filled 
 
 ### Documentation
 
-- [ ] **DOC-01**: End-of-milestone doc + CHANGELOG sweep. README, `ARCHITECTURE.md`, dev runbook, and `docs/memory-eviction.md` (where touched) are refreshed for v1.7 changes. CHANGELOG entry for v1.7 added with item-level call-outs (TD-01..07).
+- [x] **DOC-01
+**: End-of-milestone doc + CHANGELOG sweep. README, `ARCHITECTURE.md`, dev runbook, and `docs/memory-eviction.md` (where touched) are refreshed for v1.7 changes. CHANGELOG entry for v1.7 added with item-level call-outs (TD-01..07).
   - **Acceptance:** `docs/`, `README.md`, and `CHANGELOG.md` are consistent with the post-v1.7 codebase; reviewer can walk every changed module from the docs without grep.
 
 ## Out of Scope (deferred to v1.8+)
