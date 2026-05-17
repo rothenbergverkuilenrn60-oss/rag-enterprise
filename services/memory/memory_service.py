@@ -88,10 +88,9 @@ class MemoryContext:
 #
 # Returned by ``LongTermMemory.save_facts`` so callers (ExtractorAgent + the
 # D-12 ``save_fact`` wrapper) can observe how many facts were persisted vs.
-# skipped because of embed failures, AND how many were flagged as near-duplicates
-# under D-09 audit-mode-only (note: ``skipped_near_duplicates`` is *semantic*
-# intent — v1.7 still INSERTs duplicates and emits an audit row per item;
-# v1.8 promotes to actual silent-skip).
+# skipped because of embed failures or SK-01 silent-skip near-duplicate
+# enforcement (v1.8 -- duplicates are filtered from rows_to_insert; audit row
+# still emitted per dup for ops dashboard visibility).
 # ══════════════════════════════════════════════════════════════════════════════
 @dataclass(frozen=True)
 class SaveFactsResult:
@@ -725,7 +724,8 @@ class LongTermMemory:
                     )
                     dup_zero_idxs = set()
 
-                # Step 4 — fire audit rows for each duplicate (D-09 audit-mode-only).
+                # Step 4 — fire audit rows for each duplicate (D-09 audit emit,
+                # preserved by SK-01 for ops dashboard visibility).
                 # Best-effort, parallel via gather(return_exceptions=True). dist=None
                 # on the bulk path because the bulk SELECT doesn't return per-row
                 # distance (out of scope per RESEARCH; v1.8 follow-up).
