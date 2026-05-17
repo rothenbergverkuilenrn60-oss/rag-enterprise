@@ -171,6 +171,25 @@ def patch_pipeline_singletons(monkeypatch: pytest.MonkeyPatch):
         monkeypatch.setattr("services.pipeline.get_llm_client", lambda: _LLM())
         monkeypatch.setattr("services.pipeline.get_retriever",  lambda: object())
 
+        # Prevent Redis-dependent helpers from creating connections that are bound
+        # to the current event loop and cause "Future attached to a different
+        # loop" failures in subsequent tests (EVT-01 root cause).
+        from unittest.mock import AsyncMock as _AsyncMock, MagicMock as _MagicMock
+        monkeypatch.setattr(
+            "services.pipeline._ab_assign_and_map",
+            _AsyncMock(return_value=(None, None)),
+        )
+        monkeypatch.setattr(
+            "services.pipeline._store_last_qa",
+            _AsyncMock(),
+        )
+        # Prevent dispatch_extraction from creating background asyncio tasks that
+        # outlive the test event loop and contaminate the next test's loop.
+        monkeypatch.setattr(
+            "services.pipeline.dispatch_extraction",
+            _MagicMock(),
+        )
+
         return AgentQueryPipeline()
 
     return _do

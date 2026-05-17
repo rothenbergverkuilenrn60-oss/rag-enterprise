@@ -132,6 +132,23 @@ def mock_pipeline(monkeypatch):
         "services.pipeline.get_executor",
         lambda: Executor(retriever=pipe._retriever, llm=pipe._llm),
     )
+    # Prevent Redis-dependent helpers from creating connections that are bound to
+    # the current event loop and cause "Future attached to a different loop"
+    # failures in subsequent tests (EVT-01 root cause).
+    monkeypatch.setattr(
+        "services.pipeline._ab_assign_and_map",
+        AsyncMock(return_value=(None, None)),
+    )
+    monkeypatch.setattr(
+        "services.pipeline._store_last_qa",
+        AsyncMock(),
+    )
+    # Prevent dispatch_extraction from creating background asyncio.create_task()
+    # calls that outlive the test event loop and contaminate the next test's loop.
+    monkeypatch.setattr(
+        "services.pipeline.dispatch_extraction",
+        MagicMock(),
+    )
     return pipe
 
 

@@ -116,6 +116,7 @@ async def test_negative_feedback_pushes_annotation_task(monkeypatch):
     ann_svc.push_task_from_feedback.assert_awaited_once_with(
         question="Q?", answer="A!",
         contexts=["ctx1", "ctx2"], tenant_id="t1",
+        user_comment="",
     )
 
 
