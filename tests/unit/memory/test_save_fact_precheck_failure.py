@@ -1,7 +1,10 @@
-"""tests/unit/memory/test_save_fact_precheck_failure.py — Phase 27 / TD-04 / SC-3.
+"""tests/unit/memory/test_save_fact_precheck_failure.py — Phase 29 / TEST-INFRA-02.
 
-Covers fail-OPEN semantics for the cosine near-duplicate dedupe wired into
-``LongTermMemory.save_fact`` via the D-12 ``save_facts`` wrapper (plan 27-04).
+Rewritten (v1.8) to assert the C1 bulk-SELECT SQL shape for failure paths and
+the ``nearest_distance=None`` / empty-table branch.
+
+Covers fail-OPEN semantics for ``_bulk_near_duplicate_check_raw`` wired into
+``LongTermMemory.save_facts`` (and via D-12 wrapper ``save_fact``).
 
   * asyncpg error on the bulk dedupe SELECT must NOT raise
     MemoryFactWriteError — it must log a warning and proceed with the INSERT.
@@ -11,10 +14,29 @@ Covers fail-OPEN semantics for the cosine near-duplicate dedupe wired into
   * Audit-write failure (RuntimeError raised by AuditService.log) is also
     non-fatal — the save still succeeds.
 
-Phase 27 / TD-05 internal shape change: the bulk dedupe SELECT goes through
-``conn.fetch`` (was ``conn.fetchrow`` in plan 27-03). The fail-OPEN contract
+  * Empty-table branch (``conn.fetch`` returns ``[]`` for a 3-fact batch):
+    dup_zero_idxs == set(), executemany called with 3 rows,
+    skipped_near_duplicates == 0. This is the nearest_distance=None /
+    empty-table branch per TEST-INFRA-02 req acceptance.
+
+Phase 27 / TD-05 internal shape: the bulk dedupe SELECT goes through
+``conn.fetch`` (not the legacy singular SELECT). The fail-OPEN contract
 is identical: a PG-error on the dedupe step does NOT escalate to the caller.
-The INSERT path now lands via ``conn.executemany`` (was ``conn.execute``).
+
+Test inventory:
+  (i)  test_precheck_postgres_error_is_fail_open
+         asyncpg.PostgresError on conn.fetch → warning logged + INSERT runs.
+  (ii) test_precheck_interface_error_is_fail_open
+         asyncpg.InterfaceError on conn.fetch → same fail-OPEN behavior.
+  (iii) test_precheck_empty_table_nearest_distance_none_branch
+         conn.fetch returns [] for 3-fact batch (empty table, no existing rows).
+         TEST-INFRA-02 nearest_distance=None branch coverage.
+  (iv) test_audit_log_failure_is_non_fatal
+         AuditService.log raises RuntimeError → save_fact succeeds; SK-01
+         dup-filtered so executemany == 0.
+  (v)  test_insert_failure_still_raises_typed_error
+         Regression bar: executemany INSERT PostgresError still raises
+         MemoryFactWriteError (fail-OPEN applies ONLY to the dedupe step).
 """
 from __future__ import annotations
 
@@ -29,6 +51,7 @@ import asyncpg
 import pytest
 
 from services.memory.memory_service import LongTermMemory, MemoryFactWriteError
+from utils.models import ExtractedFact
 
 
 # -----------------------------------------------------------------------------
@@ -89,9 +112,9 @@ def _make_long(pool: MagicMock) -> LongTermMemory:
     return lt
 
 
-def _patch_embedder(monkeypatch) -> MagicMock:
+def _patch_embedder_batch(monkeypatch, n: int = 1) -> MagicMock:
     fake = MagicMock(
-        embed_batch=AsyncMock(return_value=[[0.1] * 1024]),
+        embed_batch=AsyncMock(return_value=[[0.1] * 1024 for _ in range(n)]),
         embed_one=AsyncMock(return_value=[0.1] * 1024),
     )
     monkeypatch.setattr(
@@ -115,30 +138,28 @@ def _patch_audit(monkeypatch, log_side_effect=None) -> MagicMock:
     return mock_audit
 
 
-# -----------------------------------------------------------------------------
-# Test — bulk dedupe PostgresError is fail-OPEN
-# -----------------------------------------------------------------------------
-@pytest.mark.parametrize(
-    "exc_cls",
-    [
-        asyncpg.PostgresError,
-        asyncpg.ConnectionDoesNotExistError,
-        asyncpg.InterfaceError,
-    ],
-)
-@pytest.mark.asyncio
-async def test_precheck_postgres_error_is_fail_open(monkeypatch, exc_cls):
-    """asyncpg error on the bulk dedupe SELECT → warning logged + INSERT runs.
+def _make_facts(n: int) -> list[ExtractedFact]:
+    return [
+        ExtractedFact(fact=f"test fact {i}", category="recurring_topics", importance=0.5)
+        for i in range(n)
+    ]
 
-    save_fact must NOT raise MemoryFactWriteError when the dedupe step itself
-    blows up — the dedupe is a "good-faith" guard. Only the actual INSERT
-    raising should escalate.
+
+# -----------------------------------------------------------------------------
+# (i) asyncpg.PostgresError on bulk dedupe SELECT → fail-OPEN
+# -----------------------------------------------------------------------------
+@pytest.mark.asyncio
+async def test_precheck_postgres_error_is_fail_open(monkeypatch):
+    """(i) asyncpg.PostgresError on conn.fetch → warning logged + INSERT runs.
+
+    save_fact must NOT raise MemoryFactWriteError when the dedupe step raises
+    asyncpg.PostgresError — the dedupe is a "good-faith" guard. Only an actual
+    INSERT failure should escalate (covered by test (v) below).
     """
-    _patch_embedder(monkeypatch)
+    _patch_embedder_batch(monkeypatch, n=1)
     _patch_audit(monkeypatch)
 
-    # bulk dedupe SELECT raises the parametrized PG error.
-    fetch = AsyncMock(side_effect=exc_cls("dedupe boom"))
+    fetch = AsyncMock(side_effect=asyncpg.PostgresError("conn lost"))
     pool, conn = _make_fake_pool(fetch_mock=fetch)
     mem = _make_long(pool)
 
@@ -147,12 +168,90 @@ async def test_precheck_postgres_error_is_fail_open(monkeypatch, exc_cls):
 
     # INSERT proceeded via executemany despite dedupe failure.
     assert conn.executemany.await_count == 1, (
-        "Bulk dedupe PostgresError must be fail-OPEN — INSERT must still run."
+        "asyncpg.PostgresError on bulk dedupe must be fail-OPEN — INSERT must still run. "
+        f"Got {conn.executemany.await_count} executemany calls."
     )
 
 
 # -----------------------------------------------------------------------------
-# Test — audit-write failure is non-fatal (Pattern D)
+# (ii) asyncpg.InterfaceError on bulk dedupe SELECT → fail-OPEN
+# -----------------------------------------------------------------------------
+@pytest.mark.asyncio
+async def test_precheck_interface_error_is_fail_open(monkeypatch):
+    """(ii) asyncpg.InterfaceError on conn.fetch → same fail-OPEN behavior.
+
+    Covered by ``except (asyncpg.PostgresError, asyncpg.InterfaceError)`` in
+    save_facts Step 3. Both narrow exception types must be handled.
+    """
+    _patch_embedder_batch(monkeypatch, n=1)
+    _patch_audit(monkeypatch)
+
+    fetch = AsyncMock(side_effect=asyncpg.InterfaceError("pool closed"))
+    pool, conn = _make_fake_pool(fetch_mock=fetch)
+    mem = _make_long(pool)
+
+    # Must NOT raise — fail-OPEN applies to InterfaceError too.
+    await mem.save_fact(user_id="u1", tenant_id="t1", fact="some fact")
+
+    assert conn.executemany.await_count == 1, (
+        "asyncpg.InterfaceError on bulk dedupe must be fail-OPEN — INSERT must still run. "
+        f"Got {conn.executemany.await_count} executemany calls."
+    )
+
+
+# -----------------------------------------------------------------------------
+# (iii) nearest_distance=None / empty-table branch — TEST-INFRA-02
+# -----------------------------------------------------------------------------
+@pytest.mark.asyncio
+async def test_precheck_empty_table_nearest_distance_none_branch(monkeypatch):
+    """(iii) conn.fetch returns [] for a 3-fact batch — empty-table branch.
+
+    TEST-INFRA-02 nearest_distance=None branch coverage.
+
+    When no existing rows match the EXISTS clause for any candidate (empty
+    table or simply no near-duplicates), conn.fetch returns []. This maps to
+    dup_zero_idxs == set() — all rows pass to executemany.
+
+    Assertions:
+      * dup_zero_idxs == set() (implicit: executemany called with 3 rows).
+      * executemany called exactly once with 3 rows (all passed through).
+      * result.skipped_near_duplicates == 0.
+      * result.saved_count == 3.
+      * C1 SQL shape present: unnest($1::text[]) WITH ORDINALITY in SQL issued
+        to conn.fetch.
+    """
+    n = 3
+    _patch_embedder_batch(monkeypatch, n=n)
+    _patch_audit(monkeypatch)
+
+    # Empty-table branch: no rows match the EXISTS clause → bulk SELECT returns [].
+    fetch = AsyncMock(return_value=[])
+    pool, conn = _make_fake_pool(fetch_mock=fetch)
+    mem = _make_long(pool)
+
+    facts = _make_facts(n)
+    result = await mem.save_facts(facts, user_id="u1", tenant_id="t1")
+
+    # Empty result → all 3 rows passed to executemany.
+    assert conn.executemany.await_count == 1, (
+        "Empty-table branch: executemany must run with all rows."
+    )
+    rows = conn.executemany.call_args.args[1]
+    assert len(rows) == 3, (
+        f"nearest_distance=None branch: expected 3 rows to executemany, got {len(rows)}"
+    )
+    assert result.skipped_near_duplicates == 0
+    assert result.saved_count == 3
+
+    # C1 SQL-shape assertion for the empty-table path.
+    sql = conn.fetch.call_args.args[0]
+    assert "unnest($1::text[]) WITH ORDINALITY" in sql, (
+        f"C1 SQL shape missing 'unnest($1::text[]) WITH ORDINALITY'. SQL: {sql!r}"
+    )
+
+
+# -----------------------------------------------------------------------------
+# (iv) Audit-write failure is non-fatal (Pattern D)
 # -----------------------------------------------------------------------------
 @pytest.mark.asyncio
 async def test_audit_log_failure_is_non_fatal(monkeypatch):
@@ -164,13 +263,8 @@ async def test_audit_log_failure_is_non_fatal(monkeypatch):
     SK-01 v1.8: when index 0 is a near-dup, the skip-INSERT short-circuits
     (rows_to_insert is empty -- no executemany call). Audit-write failure must
     still not propagate. executemany.await_count == 0 (dup filtered, not error).
-
-    Phase 27 / TD-05 also wraps the audit emits in
-    ``gather(return_exceptions=True)`` inside save_facts, so a raise from
-    AuditService.log surfaces as a gather-captured BaseException and is
-    swallowed by the gather rather than propagating.
     """
-    _patch_embedder(monkeypatch)
+    _patch_embedder_batch(monkeypatch, n=1)
     _patch_audit(monkeypatch, log_side_effect=RuntimeError("audit table missing"))
 
     # Trigger near-dup path so audit.log is invoked.
@@ -189,19 +283,19 @@ async def test_audit_log_failure_is_non_fatal(monkeypatch):
 
 
 # -----------------------------------------------------------------------------
-# Sanity gate — confirm INSERT-failure path is unchanged (still raises typed)
+# (v) Sanity gate — INSERT failure path unchanged (still raises typed error)
 # -----------------------------------------------------------------------------
 @pytest.mark.asyncio
 async def test_insert_failure_still_raises_typed_error(monkeypatch):
-    """Regression bar: fail-OPEN treatment applies ONLY to the dedupe.
-    INSERT PostgresError (now via executemany) must still raise
-    MemoryFactWriteError so the dispatch wrapper surfaces the failure via
-    log_task_error.
+    """Regression bar: fail-OPEN applies ONLY to the dedupe step.
+
+    INSERT PostgresError (via executemany) must still raise MemoryFactWriteError
+    so the dispatch wrapper surfaces the failure via log_task_error.
     """
-    _patch_embedder(monkeypatch)
+    _patch_embedder_batch(monkeypatch, n=1)
     _patch_audit(monkeypatch)
 
-    # Dedupe succeeds, executemany INSERT fails.
+    # Dedupe succeeds (returns []), executemany INSERT fails.
     executemany_mock = AsyncMock(side_effect=asyncpg.PostgresError("insert boom"))
     pool, _ = _make_fake_pool(executemany_mock=executemany_mock)
     mem = _make_long(pool)
