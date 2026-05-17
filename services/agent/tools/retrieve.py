@@ -24,6 +24,13 @@ from loguru import logger
 from services.ab_test.ab_test_service import current_variant_config
 from services.agent.tools.base import BaseTool
 from services.agent.tools.registry import get_tool_registry
+from utils.models import (
+    GenerationRequest,
+    RetrievedChunk,
+    ToolCall,
+    ToolContext,
+    ToolResult,
+)
 
 
 def _apply_variant_top_k(llm_top_k: int) -> int:
@@ -39,13 +46,6 @@ def _apply_variant_top_k(llm_top_k: int) -> int:
         )
         return override
     return llm_top_k
-from utils.models import (
-    GenerationRequest,
-    RetrievedChunk,
-    ToolCall,
-    ToolContext,
-    ToolResult,
-)
 
 
 async def _retrieve_impl(

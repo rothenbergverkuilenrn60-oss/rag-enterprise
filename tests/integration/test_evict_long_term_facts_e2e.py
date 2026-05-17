@@ -265,7 +265,7 @@ async def test_eviction_tiebreak_correctness(
     )
     assert a_remaining == 0, (
         "tie-break victim must be the oldest among lowest-importance rows; "
-        f"row A (importance=0.2, oldest) still present"
+        "row A (importance=0.2, oldest) still present"
     )
 
     # Row B (same importance as A but newer) must survive.

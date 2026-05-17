@@ -28,7 +28,9 @@ from slowapi.middleware import SlowAPIMiddleware
 from config.settings import settings
 from controllers.api import limiter as _route_limiter
 from controllers.api import router
-from controllers.memory import router as memory_router  # Phase 25 / T2 — GDPR forget API
+from controllers.memory import (
+    router as memory_router,  # Phase 25 / T2 — GDPR forget API
+)
 from utils.logger import setup_logger
 from utils.metrics import (
     active_requests_gauge,

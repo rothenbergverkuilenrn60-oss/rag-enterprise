@@ -75,11 +75,11 @@ async def test_create_tables_idempotent() -> None:
 async def test_hnsw_index_uses_settings_embedding_dim(monkeypatch) -> None:
     """Test 2 — embedding column dim tracks settings.embedding_dim (monkeypatched to 2048)."""
     import services.memory.memory_service as mod
-    from services.memory.memory_service import LongTermMemory
 
     # Patch at consumer path. settings module is lazy-imported inside _create_tables;
     # patch the underlying settings instance so the lazy import sees 2048.
     from config.settings import settings as real_settings
+    from services.memory.memory_service import LongTermMemory
     monkeypatch.setattr(real_settings, "embedding_dim", 2048, raising=False)
     # Also patch at consumer path in case the module hoists the import in the future.
     monkeypatch.setattr(mod, "settings", real_settings, raising=False)

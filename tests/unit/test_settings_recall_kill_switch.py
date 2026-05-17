@@ -78,9 +78,8 @@ def _reset_registry_and_reimport(monkeypatch, enabled: bool):  # type: ignore[no
     trivially because the registry was just reset to empty, NOT because the
     kill-switch actually fired.
     """
-    from config.settings import settings as _settings  # noqa: PLC0415
-
     import services.agent.tools.registry as reg_mod  # noqa: PLC0415
+    from config.settings import settings as _settings  # noqa: PLC0415
 
     # 1. Reset registry singleton so we start with a fresh, empty registry.
     monkeypatch.setattr(reg_mod, "_registry", None, raising=False)

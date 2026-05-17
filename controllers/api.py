@@ -11,7 +11,15 @@ import openai
 import redis
 import tenacity
 from arq.jobs import Job, JobStatus
-from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Request, UploadFile
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    HTTPException,
+    Request,
+    UploadFile,
+)
 from fastapi.responses import StreamingResponse
 from loguru import logger
 from slowapi import Limiter

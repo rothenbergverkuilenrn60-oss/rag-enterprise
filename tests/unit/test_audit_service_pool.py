@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import asyncio
 import os
-import time
 from unittest.mock import AsyncMock, MagicMock
 
 os.environ.setdefault("APP_MODEL_DIR", "/tmp")
@@ -87,7 +86,7 @@ async def test_get_pool_no_register_vector_init(monkeypatch) -> None:
 
 @pytest.mark.asyncio
 async def test_close_drains_buffer_first(monkeypatch) -> None:
-    from services.audit.audit_service import AuditEvent, AuditService
+    from services.audit.audit_service import AuditEvent
 
     svc, fake_pool, _ = _build_audit_service(monkeypatch)
     monkeypatch.setattr(svc, "_create_tables", AsyncMock())

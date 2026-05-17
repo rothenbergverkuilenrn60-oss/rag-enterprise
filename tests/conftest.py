@@ -142,9 +142,8 @@ def embedder_or_mock(monkeypatch):
     inside ``save_fact``). The lazy import means ``monkeypatch.setattr`` on
     the ``embedder`` module is the correct injection point.
     """
-    from unittest.mock import AsyncMock, MagicMock
-
     import os as _os
+    from unittest.mock import AsyncMock, MagicMock
 
     model_dir = _os.environ.get("MODEL_DIR") or _os.environ.get("APP_MODEL_DIR")
     # Plan 26-02 / TD-07: delegate to the multi-layout resolver so the fixture

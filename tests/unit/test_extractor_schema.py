@@ -20,7 +20,6 @@ from pydantic import ValidationError
 
 from utils.models import ExtractedFact
 
-
 # -----------------------------------------------------------------------------
 # Test 1 — frozen immutability
 # -----------------------------------------------------------------------------

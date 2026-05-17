@@ -33,7 +33,6 @@ from loguru import logger
 
 from services.auth.oidc_auth import AuthenticatedUser
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -41,7 +40,9 @@ from services.auth.oidc_auth import AuthenticatedUser
 @pytest.fixture
 def client() -> TestClient:
     """TestClient bound to the real `main.app` (verifies T2 mount)."""
-    from main import app  # noqa: PLC0415 — deferred so test collection works pre-controller
+    from main import (
+        app,  # noqa: PLC0415 — deferred so test collection works pre-controller
+    )
     return TestClient(app)
 
 

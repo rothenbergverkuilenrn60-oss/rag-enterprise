@@ -61,6 +61,7 @@ async def test_lifespan_shutdown_order_audit_before_memory(pg_pool, monkeypatch)
     monkeypatch.setattr("services.audit.audit_service.settings.audit_db_enabled", True, raising=False)
 
     import time
+
     import services.audit.audit_service as audit_mod
     import services.memory.memory_service as mem_mod
     audit_mod._audit_service = None

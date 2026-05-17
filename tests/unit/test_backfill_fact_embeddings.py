@@ -22,11 +22,10 @@ os.environ.setdefault("APP_MODEL_DIR", "/tmp")
 os.environ.setdefault("SECRET_KEY", "a-very-secure-key-for-testing-that-is-long-32c")
 
 import uuid
-from unittest.mock import AsyncMock, MagicMock, call
+from unittest.mock import AsyncMock, MagicMock
 
 import asyncpg
 import pytest
-
 
 # ---------------------------------------------------------------------------
 # Fake-pool harness (extended from test_memory_save_fact.py analog 9/11)
@@ -103,6 +102,7 @@ def _make_100_rows() -> list[dict]:
 def loguru_caplog(caplog):
     """Propagate loguru output into pytest's caplog."""
     import logging
+
     from loguru import logger
 
     class _PropagateHandler(logging.Handler):
@@ -447,7 +447,6 @@ async def test_batch_size_parameter_respected(monkeypatch):
 # ---------------------------------------------------------------------------
 def test_reuses_long_term_memory_pool():
     """Pitfall 1 mitigation: script uses LongTermMemory._get_pool, not create_pool."""
-    import importlib
     import inspect
 
     # Import the script module
