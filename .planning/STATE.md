@@ -2,16 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Memory Tech-Debt Burn-Down
-status: planning
-stopped_at: v1.7 opened — defining requirements
-last_updated: "2026-05-17T04:00:00.000Z"
-last_activity: "2026-05-17 — v1.7 Memory Tech-Debt Burn-Down milestone opened; PROJECT.md updated; requirements + roadmap pending"
+status: Defining requirements
+stopped_at: Phase 26 context gathered
+last_updated: "2026-05-17T03:48:46.535Z"
+last_activity: 2026-05-17 — Milestone v1.7 started
 progress:
   total_phases: 3
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
-  percent: 0
 ---
 
 # STATE — EnterpriseRAG (v1.7 planning)
@@ -25,10 +24,10 @@ See: .planning/PROJECT.md (updated 2026-05-17 — v1.7 opened)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-05-17 — Milestone v1.7 started
+Phase: 26 — Memory Infra Hygiene
+Plan: — (CONTEXT.md captured; awaiting `/gsd-plan-phase 26`)
+Status: Phase 26 context gathered
+Last activity: 2026-05-17 — Phase 26 CONTEXT.md + DISCUSSION-LOG.md written; 4 implementation themes locked (asyncpg_helper API, AuditService pool migration, lazy `_create_tables` trigger, bge-m3 resolver)
 
 ## Phase Overview
 
@@ -92,8 +91,8 @@ The following v1.7 candidates were promoted out of "todos" into requirements (se
 
 ## Session Continuity
 
-**Last updated:** 2026-05-17 — v1.7 milestone opened via `/gsd-new-milestone`. PROJECT.md updated (Current Milestone → v1.7, v1.6 → Previous Milestone Archived). STATE.md reset to v1.7 frontmatter. REQUIREMENTS.md + ROADMAP.md pending in this same session.
-**Stopped at:** v1.7 opened — defining requirements
-**Next action:** Continue `/gsd-new-milestone` flow → REQUIREMENTS.md → ROADMAP.md (inline, since GSD subagents not installed).
+**Last updated:** 2026-05-17 — `/gsd-discuss-phase 26` completed. 4 gray-area themes locked: (1) `prepare_dsn(dsn) -> (str, dict)` pure helper for TD-03; (2) `AuditService` migrates to singleton pool (`min_size=1, max_size=4`) mirroring `LongTermMemory._get_pool`; (3) `_create_tables` fires lazily on first pool acquire — INSERT-ONLY invariant preserved; (4) `resolve_embedding_model_path(name)` searches env override → HF flat → legacy → HF hub cache, falls back to legacy on miss; reranker in scope.
+**Stopped at:** Phase 26 context gathered
+**Next action:** `/gsd-plan-phase 26` to generate PLAN.md. Researcher not installed → planning will be inline.
 
-**Planned Phase:** Phase 26 (first v1.7 phase — name TBD by roadmap step).
+**Planned Phase:** Phase 26 — Memory Infra Hygiene (TD-01 + TD-03 + TD-07).
