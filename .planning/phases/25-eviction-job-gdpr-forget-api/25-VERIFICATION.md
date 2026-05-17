@@ -1,14 +1,15 @@
 ---
 phase: 25-eviction-job-gdpr-forget-api
-verified: 2026-05-16
-status: marginal
+verified: 2026-05-17
+status: pass
 commit: 5e89a4f
 plans_complete: 7
 amendments_applied: 9
-score: 6/6 must-haves verified (code-level); 4/5 SCs MARGINAL pending real-PG manual integration
-sc_pass: 1
-sc_marginal: 4
+score: 6/6 must-haves verified (code-level); 5/5 SCs PASS on real PG (8/8 integration tests green on 2026-05-17 after conftest pg_pool function-scope fix + memory_service/audit_service ?ssl=disable URL-param fix + test-level singleton-reset autouse fixture + audit_log table created)
+sc_pass: 5
+sc_marginal: 0
 sc_fail: 0
+real_pg_verified: 2026-05-17  # 4 eviction (SC-1, SC-2) + 4 forget API (SC-3, SC-4) tests green
 overrides_applied: 1
 overrides:
   - must_have: "Anti-pattern scan flags `except Exception as audit_exc  # noqa: BLE001` in controllers/memory.py:115 and scripts/evict_long_term_facts.py:148, 227"
