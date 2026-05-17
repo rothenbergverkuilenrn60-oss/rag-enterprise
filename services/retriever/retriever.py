@@ -9,7 +9,7 @@ import asyncio
 import time
 from collections import defaultdict
 
-import asyncpg
+import asyncpg  # type: ignore[import-untyped]  # why: asyncpg has no py.typed marker as of 2026-05
 import httpx
 from loguru import logger
 

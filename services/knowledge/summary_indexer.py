@@ -8,7 +8,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass, field
 
-import asyncpg
+import asyncpg  # type: ignore[import-untyped]  # why: asyncpg has no py.typed marker as of 2026-05
 import openai
 from loguru import logger
 from tenacity import retry, stop_after_attempt, wait_random_exponential

@@ -9,10 +9,10 @@ import json
 import time
 from dataclasses import asdict, dataclass, field
 
-import asyncpg
+import asyncpg  # type: ignore[import-untyped]  # why: asyncpg has no py.typed marker as of 2026-05
 import redis.asyncio
 from loguru import logger
-from pgvector.asyncpg import register_vector
+from pgvector.asyncpg import register_vector  # type: ignore[import-untyped]  # why: pgvector.asyncpg lacks stubs as of 2026-05
 
 from utils.asyncpg_helper import prepare_dsn
 

@@ -17,7 +17,7 @@ import uuid
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 
-import asyncpg
+import asyncpg  # type: ignore[import-untyped]  # why: asyncpg has no py.typed marker as of 2026-05
 from loguru import logger
 
 from config.settings import settings

@@ -91,7 +91,7 @@ def detect_language(text: str) -> str:
     """
     sample = text[:500]
     try:
-        from langdetect import detect
+        from langdetect import detect  # type: ignore[import-untyped]  # why: langdetect has no stubs as of 2026-05
         lang = detect(sample)
         return lang
     except Exception:

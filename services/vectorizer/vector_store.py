@@ -132,8 +132,8 @@ class PgVectorStore(BaseVectorStore):
 
     async def _get_pool(self):
         if self._pool is None:
-            import asyncpg as _asyncpg
-            from pgvector.asyncpg import register_vector
+            import asyncpg as _asyncpg  # type: ignore[import-untyped]  # why: asyncpg has no py.typed marker as of 2026-05
+            from pgvector.asyncpg import register_vector  # type: ignore[import-untyped]  # why: pgvector.asyncpg lacks stubs as of 2026-05
 
             async def _init_conn(conn: _asyncpg.Connection) -> None:
                 await register_vector(conn)
@@ -434,7 +434,7 @@ class PgVectorStore(BaseVectorStore):
 class ChromaVectorStore(BaseVectorStore):
 
     def __init__(self) -> None:
-        import chromadb
+        import chromadb  # type: ignore[import-not-found]  # why: chromadb has no stubs as of 2026-05
         self._client = chromadb.PersistentClient(
             path=str(settings.index_dir / "chroma")
         )
