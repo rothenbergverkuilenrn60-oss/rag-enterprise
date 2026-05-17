@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Memory Tech-Debt Burn-Down
-status: Ready for /gsd-execute-phase 28 (plan-checker 0 BLOCKER; 4 warnings patched inline — MILESTONES placeholder gate, STATE.md total_plans, RUNBOOK symlink-word constraint, TD→SUMMARY pre-write mapping check)
-stopped_at: "Phase 28 Plan 28-01 complete (README+ARCHITECTURE+memory-eviction+CHANGELOG v1.7 surgical patches)"
-last_updated: "2026-05-17T00:00:00Z"
-last_activity: "2026-05-17 — /gsd-execute-phase 27 complete. Wave 0 (27-00 test infra: tests/factories/app.py + redis_mock fixture + 34-entry _SINGLETON_INVENTORY + fakeredis dev dep). Wave 1 parallel (27-01 _configure_app(app) extraction from main.py + parallel-contamination tests + audit-suite SC-1; 27-02 ShortTermMemory._get_client delegate to utils.cache.get_redis bonus + uses_redis marker rollout to 4 files + 27-02-DIAGNOSTIC.md). Wave 2 sequential (27-03 save_fact cosine precheck D-09 audit-mode-only + MEMORY_NEAR_DUPLICATE_SKIPPED enum + memory_near_duplicate_threshold setting; 27-04 save_facts batch C1+C2+D-09+D-12+D-17 + 27-BENCHMARK.md SC-5 latency capture + memory-suite factory-migrated integration test). ROADMAP SC-3 wording fixed (INSERT still runs per D-09). 8 v1.8+ items deferred (silent-skip enforcement, TOCTOU mitigation, openai-SDK drift cleanup, +14 newly-exposed event-loop singleton leaks)."
+status: v1.7 shipped — Phase 28 complete; v1.8 not yet opened
+stopped_at: Phase 28 28-04-SUMMARY committed; v1.7 archived to .planning/milestones/v1.7-*; CHANGELOG + release-notes + RUNBOOK + REQUIREMENTS-v1.8 scaffold all committed; ready for /gsd-new-milestone for v1.8 open
+last_updated: "2026-05-17T23:30:00.000Z"
+last_activity: "2026-05-17 — /gsd-execute-phase 28 complete. 5 plans across 2 waves: Wave 1 parallel (28-00 docs/RUNBOOK.md three-section ops runbook; 28-01 README + ARCHITECTURE + memory-eviction surgical patches + CHANGELOG v1.7.0 entry; 28-02 docs/release-notes-v1.7.md + .planning/milestones/v1.7-release-tag.md; 28-03 .planning/REQUIREMENTS-v1.8.md scaffold with 7 pre-seeded items SK/TOC/OAI/EVT/MYPY/TEST-INFRA). Wave 2 sequential (28-04 v1.7 milestone archive — ROADMAP+REQUIREMENTS snapshots, git mv Phase 26/27/28 → milestones/v1.7-phases/, ROADMAP v1.7 section collapsed into <details>, MILESTONES.md created at repo root with 8 v1.* backfill entries, STATE.md updated). v1.7 Memory Tech-Debt Burn-Down SHIPPED — 3 phases / 15 plans / 8 requirements (TD-01..07 + DOC-01) / 0 carry-forward blockers."
 progress:
   total_phases: 3
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 15
-  completed_plans: 12
-  percent: 80
+  completed_plans: 15
+  percent: 100
 ---
 
 # STATE — EnterpriseRAG (v1.7 planning)
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-05-17 — v1.7 opened)
 
 ## Current Position
 
-Phase: 28 — Doc Sweep + v1.7 Release (planned)
-Plan: 5 PLAN.md files (28-00 runbook / 28-01 docs+CHANGELOG / 28-02 release-notes+tag / 28-03 REQUIREMENTS-v1.8 scaffold / 28-04 archive); Wave 1 = 28-00..03 parallel, Wave 2 = 28-04 sequential
-Status: Ready for /gsd-execute-phase 28 (plan-checker 0 BLOCKER; 4 warnings patched inline — MILESTONES placeholder gate, STATE.md total_plans, RUNBOOK symlink-word constraint, TD→SUMMARY pre-write mapping check)
-Last activity: 2026-05-17 — /gsd-execute-phase 27 complete. Wave 0 (27-00 test infra: tests/factories/app.py + redis_mock fixture + 34-entry _SINGLETON_INVENTORY + fakeredis dev dep). Wave 1 parallel (27-01 _configure_app(app) extraction from main.py + parallel-contamination tests + audit-suite SC-1; 27-02 ShortTermMemory._get_client delegate to utils.cache.get_redis bonus + uses_redis marker rollout to 4 files + 27-02-DIAGNOSTIC.md). Wave 2 sequential (27-03 save_fact cosine precheck D-09 audit-mode-only + MEMORY_NEAR_DUPLICATE_SKIPPED enum + memory_near_duplicate_threshold setting; 27-04 save_facts batch C1+C2+D-09+D-12+D-17 + 27-BENCHMARK.md SC-5 latency capture + memory-suite factory-migrated integration test). ROADMAP SC-3 wording fixed (INSERT still runs per D-09). 8 v1.8+ items deferred (silent-skip enforcement, TOCTOU mitigation, openai-SDK drift cleanup, +14 newly-exposed event-loop singleton leaks).
+Phase: v1.8 (not yet opened — run /gsd-new-milestone)
+Plan: n/a
+Status: v1.7 milestone shipped 2026-05-17 — all 3 phases (26, 27, 28) complete; 15/15 plans; 8/8 requirements; archived to .planning/milestones/v1.7-*
+Last activity: 2026-05-17 — /gsd-execute-phase 28 complete. 5 plans across 2 waves; doc sweep + release artifacts (RUNBOOK / CHANGELOG / release-notes / REQUIREMENTS-v1.8 scaffold) + v1.7 milestone archive (snapshot + git mv phase dirs + ROADMAP collapse + MILESTONES.md backfill + STATE.md ship marker).
 
 ## Phase Overview
 
@@ -36,7 +36,7 @@ Last activity: 2026-05-17 — /gsd-execute-phase 27 complete. Wave 0 (27-00 test
 |-------|------|---------|--------|
 | 26 | Memory Infra Hygiene | TD-01, TD-03, TD-07 | ✅ Shipped 2026-05-17 (5 plans, 34 new tests) |
 | 27 | Test Isolation + Memory Reliability | TD-02, TD-04, TD-05, TD-06 | ✅ Shipped 2026-05-17 (5 plans, 28+33 unit + 4 integration + 1 benchmark) |
-| 28 | Doc Sweep + v1.7 Release | DOC-01 | Planning |
+| 28 | Doc Sweep + v1.7 Release | DOC-01 | ✅ Shipped 2026-05-17 (5 plans, doc sweep + v1.7 release artifacts) |
 
 ## Accumulated Context
 
@@ -60,7 +60,7 @@ Last activity: 2026-05-17 — /gsd-execute-phase 27 complete. Wave 0 (27-00 test
 
 None — v1.7 opens clean.
 
-### Open Blockers Carried Into v1.7
+### Open Blockers Carried Into v1.8
 
 None.
 
@@ -96,8 +96,8 @@ The following v1.7 candidates were promoted out of "todos" into requirements (se
 
 ## Session Continuity
 
-**Last updated:** 2026-05-17 — `/gsd-ship` opened PR #9 (https://github.com/rothenbergverkuilenrn60-oss/rag-enterprise/pull/9) on branch `gsd/phase-26-memory-infra-hygiene`. PR base = `master`. 22 commits + 3522 insertions / 113 deletions across 30 files. Local master is ahead of origin/master by the same 22 commits (will reconcile via `git pull --rebase` after PR merges).
-**Stopped at:** Phase 26 PR #9 awaiting CI + merge
-**Next action:** Wait for CI + reviewer; after merge → `git checkout master && git pull --rebase` to sync local master. Then `/gsd-discuss-phase 27` (Test Isolation + Memory Reliability — TD-02 + TD-04 + TD-05 + TD-06). Phase 27 will also close the 16 pre-existing unit-test failures via Redis-mock fixture rollout.
+**Last updated:** 2026-05-17 — `/gsd-execute-phase 28` complete. v1.7 Memory Tech-Debt Burn-Down SHIPPED — 3 phases / 15 plans / 8 requirements / 0 carry-forward blockers. Archived to `.planning/milestones/v1.7-{ROADMAP,REQUIREMENTS}.md` + `.planning/milestones/v1.7-phases/{26,27,28}-*/`. MILESTONES.md created at repo root with v1.0..v1.7 backfill.
+**Stopped at:** Phase 28 28-04-SUMMARY committed; v1.7 archive complete.
+**Next action:** Run `/gsd-new-milestone` to open v1.8 (pre-seeded items in `.planning/REQUIREMENTS-v1.8.md`: SK-01, TOC-01, OAI-01, EVT-01, MYPY-01, TEST-INFRA-01, TEST-INFRA-02). Optional pre-v1.8: cut the v1.7.0 annotated tag per `.planning/milestones/v1.7-release-tag.md`.
 
-**Planned Phase:** Phase 27 — Test Isolation + Memory Reliability.
+**Planned Phase:** v1.8 not yet opened.
