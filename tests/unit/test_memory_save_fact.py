@@ -58,11 +58,23 @@ class _AcquireCtx:
         return False
 
 
-def _make_fake_pool(execute_mock: AsyncMock) -> tuple[MagicMock, MagicMock]:
+def _make_fake_pool(
+    execute_mock: AsyncMock,
+    fetchrow_mock: AsyncMock | None = None,
+) -> tuple[MagicMock, MagicMock]:
     """Return (pool, conn) where pool.acquire() yields a conn with the given
     execute mock. conn is returned for awaited-count assertions.
+
+    Plan 27-03 / TD-04 — save_fact now runs a cosine precheck before INSERT,
+    so the conn mock needs ``fetchrow`` (the precheck SELECT) and
+    ``transaction()`` (an async-CM wrapper around the SET LOCAL pair). Default
+    fetchrow → ``None`` (empty table = no near-dup), transaction → re-yields
+    the same conn so SET LOCAL execute calls hit the same mock.
     """
-    conn = MagicMock(execute=execute_mock)
+    if fetchrow_mock is None:
+        fetchrow_mock = AsyncMock(return_value=None)
+    conn = MagicMock(execute=execute_mock, fetchrow=fetchrow_mock)
+    conn.transaction = MagicMock(return_value=_AcquireCtx(conn))
     pool = MagicMock()
     pool.acquire = MagicMock(return_value=_AcquireCtx(conn))
     return pool, conn
@@ -109,17 +121,24 @@ async def test_save_fact_embeds_one_row_with_1024_dim_embedding(monkeypatch):
     # Embedder called exactly once with the fact text.
     embed_one.assert_awaited_once_with("user prefers React")
 
-    # INSERT awaited exactly once.
-    assert conn.execute.await_count == 1
-    call_args = conn.execute.call_args
-    sql = call_args.args[0]
+    # Plan 27-03 / TD-04: save_fact now runs 2 SET LOCAL execute calls (inside
+    # the precheck transaction) + 1 INSERT execute. The INSERT is the LAST
+    # execute call. Precheck SELECT goes through fetchrow (counted separately).
+    assert conn.execute.await_count == 3, (
+        f"Expected 2 SET LOCAL + 1 INSERT execute calls, got {conn.execute.await_count}"
+    )
+    insert_call = conn.execute.call_args_list[-1]
+    sql = insert_call.args[0]
     assert "INSERT INTO long_term_facts" in sql
     assert "embedding" in sql
     assert "$6::vector" in sql
 
     # Positional params: user_id, tenant_id, fact, source_doc, importance, embedding
-    positional = call_args.args[1:]
+    positional = insert_call.args[1:]
     assert positional == ("u1", "t1", "user prefers React", "", 0.8, [0.1] * 1024)
+
+    # Precheck SELECT was issued exactly once (empty-table mock → no audit row).
+    assert conn.fetchrow.await_count == 1
 
 
 # -----------------------------------------------------------------------------

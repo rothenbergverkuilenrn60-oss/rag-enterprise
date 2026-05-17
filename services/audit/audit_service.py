@@ -24,6 +24,13 @@ from config.settings import settings
 from utils.asyncpg_helper import prepare_dsn
 
 
+# Phase 27 / TD-04 (CQ3) — project-wide truncation constant for audit_log.detail
+# user-controlled string fields. Established by Phase 25 RULE_BLOCKED convention
+# (audit_service.py:311 — `message[:200]`). Centralized here so the limit can be
+# tuned in one place.
+AUDIT_DETAIL_TRUNCATE_LEN = 200
+
+
 class AuditAction(str, Enum):
     QUERY             = "QUERY"
     INGEST            = "INGEST"
@@ -40,6 +47,8 @@ class AuditAction(str, Enum):
     # Phase 25 — D-2.1 — GDPR forget API + eviction job
     MEMORY_FORGET     = "MEMORY_FORGET"   # forget_user() API call
     MEMORY_EVICT      = "MEMORY_EVICT"    # eviction sweep (one row per bucket)
+    # Phase 27 — TD-04 — near-duplicate audit-mode-only metric (D-09: save NOT skipped in v1.7)
+    MEMORY_NEAR_DUPLICATE_SKIPPED = "MEMORY_NEAR_DUPLICATE_SKIPPED"
 
 
 class AuditResult(str, Enum):
@@ -308,7 +317,7 @@ class AuditService:
             action=AuditAction.RULE_BLOCKED,
             resource_id=stage,
             result=AuditResult.BLOCKED,
-            detail={"stage": stage, "message": message[:200]},
+            detail={"stage": stage, "message": message[:AUDIT_DETAIL_TRUNCATE_LEN]},
             trace_id=trace_id,
         ))
 
