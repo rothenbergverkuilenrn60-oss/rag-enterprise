@@ -10,6 +10,7 @@
 - ✅ **v1.5 Web Search + Multi-Agent Debate + Coverage Lift** — Phases 20–22 (shipped 2026-05-11) — [archive](milestones/v1.5-ROADMAP.md)
 - ✅ **v1.6 Memory Tool — Agent-Authored Long-Term Facts** — Phases 23–25 (shipped 2026-05-17) — [archive](milestones/v1.6-ROADMAP.md)
 - ✅ **v1.7 Memory Tech-Debt Burn-Down** — Phases 26–28 (shipped 2026-05-17) — [archive](milestones/v1.7-ROADMAP.md)
+- 🚧 **v1.8 Production Hardening Round 2** — Phases 29–30 (in planning, opened 2026-05-17)
 
 <details>
 <summary>✅ v1.7 Memory Tech-Debt Burn-Down (Phases 26–28) — SHIPPED 2026-05-17</summary>
@@ -21,6 +22,35 @@
 See [milestones/v1.7-ROADMAP.md](milestones/v1.7-ROADMAP.md) for full phase details.
 
 </details>
+
+## v1.8 Production Hardening Round 2 (Phases 29–30) — IN PLANNING
+
+**Milestone goal:** Close v1.7-deferred hardening items — promote near-duplicate audit-mode to silent-skip (after closing TOCTOU race), clean up 32 pre-existing openai SDK drift test failures, fix +14 event-loop singleton leaks exposed by the Phase 27 `uses_redis` marker rollout, resolve mypy --strict accumulation, rewrite save_facts precheck tests against bulk-SELECT shape. Zero new user-facing capabilities — pure reliability + test infra polish.
+
+**Carry-forward gates** (inherited from v1.7): `diff-cover ≥ 80%` on touched files; combined coverage `--fail-under=70`; INSERT-ONLY `audit_log` invariant; audit-mode-before-enforce (SK-01 promotes audit-mode→enforce per this discipline, post-TOC-01); audit-write failure must NOT block destructive action.
+
+### Phase 29: TOCTOU + Silent-Skip Enforcement
+
+**Goal:** Close the precheck/INSERT race on `LongTermMemory.save_facts`, then promote v1.7 near-duplicate audit-mode (D-09) to silent-skip enforcement. Rewrite precheck unit tests against the bulk-SELECT shape (same code paths).
+
+**Requirements:** TOC-01, SK-01, TEST-INFRA-02
+
+**Success criteria:**
+1. Two parallel `save_facts` writers with the same `(user_id, tenant_id)` + fact text produce exactly 1 row in `long_term_facts` (TOC-01 acceptance). TOCTOU mitigation choice (ON CONFLICT vs advisory-lock vs WITH ... RETURNING) locked at v1.8 discussion + documented in plan.
+2. When `_is_near_duplicate` returns `True` for a candidate, the candidate is NOT included in `rows_to_insert`; `executemany` inserts only non-duplicate rows; `MEMORY_NEAR_DUPLICATE_SKIPPED` audit row still emitted. v1.7 pin test `test_dedupe_in_batch_fires_audit_AND_executemany_inserts_all_rows` flipped to `..._inserts_non_dup_rows_only` form. `save_fact` wrapper (D-12) inherits via delegation.
+3. `save_facts` precheck unit tests rewritten against bulk-SELECT mock shape; `nearest_distance=None` branch covered explicitly; assertions match C1 SQL shape (`unnest($1::text[]) WITH ORDINALITY` + `vec_txt::vector` cast). Per-file LOC delta ≤ +150; no production-code changes from TEST-INFRA-02 alone.
+
+### Phase 30: Test Infra + mypy Hardening
+
+**Goal:** Clean up the test surface that's been masking real failures + finish the mypy --strict sweep. Fixes 32 openai-SDK-drift failures + 14 event-loop singleton leaks + 1 known-flaky extractor_e2e test + parametric-type annotations.
+
+**Requirements:** OAI-01, EVT-01, TEST-INFRA-01, MYPY-01
+
+**Success criteria:**
+1. All 32 enumerated openai-SDK-drift unit tests pass with the new `APIError(request=...)` construction shape. `pytest tests/unit/ -m 'not benchmark'` on master post-fix shows green. No production-code changes (test-only) unless the test mirrors a production codepath (OAI-01).
+2. Each of the +14 event-loop leak sites (enumerated via `pytest tests/integration/ -v 2>&1 | grep "no current event loop" | sort -u`) either migrates to the `create_app()` factory pattern or adds an explicit per-test loop fixture. Marker rollout (`@pytest.mark.uses_redis`) introduces zero regressions in integration suite. Curated `_SINGLETON_INVENTORY` in `tests/factories/app.py` grows from 34 to cover the +14 (EVT-01).
+3. `uv run pytest tests/integration/test_extractor_e2e.py -v` passes on a clean checkout. Fix path documented in plan SUMMARY: either (a) earlier `embedder_or_mock` patching, (b) CI pre-download of bge-m3, or (c) direct mock of `HuggingFaceEmbedder.__init__` (TEST-INFRA-01).
+4. `uv run mypy --strict config/settings.py` returns "Success: no issues found in 1 source file". Full-repo `uv run mypy --strict` scan: surfaced violations either fixed or explicitly silenced with `# type: ignore[error-code]` + comment justifying the silence (MYPY-01).
 
 ## Phases
 
@@ -250,3 +280,5 @@ Plans:
 | 26. Memory Infra Hygiene | v1.7 | 5/5 | Complete ✓ | 2026-05-17 |
 | 27. Test Isolation + Memory Reliability | v1.7 | 5/5 | Complete ✓ | 2026-05-17 |
 | 28. Doc Sweep + v1.7 Release | v1.7 | 5/5 | Complete ✓ | 2026-05-17 |
+| 29. TOCTOU + Silent-Skip Enforcement | v1.8 | 0/? | Planning | — |
+| 30. Test Infra + mypy Hardening | v1.8 | 0/? | Planning | — |
