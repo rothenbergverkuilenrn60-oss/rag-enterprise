@@ -38,7 +38,7 @@
 **Success criteria:**
 1. A `create_app()` factory exists; at least the audit + memory integration suites construct an isolated app per test through this factory. Two tests running in parallel against `create_app()` do not observe each other's state (verified by a deliberate cross-contamination test). The Phase 23/24/25 monkeypatch-on-singletons pattern is removed from those suites.
 2. A reusable `redis_mock` fixture lives in `tests/conftest.py` (or `tests/fixtures/redis_mock.py`). Unit suite passes without a live Redis; the 32 pre-existing Redis-dependent baseline failures from v1.6 Phase 24 → 0. No integration test that genuinely needs Redis is force-mocked.
-3. `LongTermMemory.save_fact` runs a `<embedding> <=> $vec < 0.05` cosine precheck before insert. When the precheck hits, the save is skipped and a `memory.save_fact.near_duplicate_skipped` audit-mode metric is recorded (audit-mode-before-enforce per v1.6 EVICT-02 discipline — v1.7 emits metric only; silent-skip enforcement deferred to v1.8). The precheck adds ≤1 extra PG round-trip on the hot path; existing save unit tests still green.
+3. `LongTermMemory.save_fact` runs a `<embedding> <=> $vec < 0.05` cosine precheck before insert. When the precheck hits, a `MEMORY_NEAR_DUPLICATE_SKIPPED` audit row is emitted **and the INSERT still runs** (audit-mode-before-enforce per v1.6 EVICT-02 discipline — v1.7 emits the audit metric only; silent-skip enforcement deferred to v1.8 — see D-09). The precheck adds ≤1 extra PG round-trip on the hot path; existing save unit tests still green.
 4. `LongTermMemory.save_facts(list[ExtractedFact])` batch path uses 1× `embed_batch` + 1× `executemany`; a 5-fact turn issues exactly 1 embed call + 1 PG round-trip (verified by mock-based unit test). `ExtractorAgent` dispatch migrated to call the batch API; near-duplicate guard from SC-3 honored inside the batch.
 5. Per-turn ExtractorAgent latency ≤ v1.6 baseline minus measured embed-RTT × (N−1); benchmark captured in the phase summary.
 
@@ -280,5 +280,5 @@ Plans:
 | 24. pgvector RecallTool + semantic recall rewrite | v1.6 | 7/7 | Complete ✓ | 2026-05-16 |
 | 25. Eviction job + GDPR forget API | v1.6 | 7/7 | Complete ✓ | 2026-05-17 |
 | 26. Memory Infra Hygiene | v1.7 | 5/5 | Complete ✓ | 2026-05-17 |
-| 27. Test Isolation + Memory Reliability | v1.7 | 0/? | Planning | — |
+| 27. Test Isolation + Memory Reliability | v1.7 | 5/5 | Complete ✓ | 2026-05-17 |
 | 28. Doc Sweep + v1.7 Release | v1.7 | 0/? | Planning | — |

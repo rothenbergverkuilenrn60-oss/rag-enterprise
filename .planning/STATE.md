@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Memory Tech-Debt Burn-Down
-status: Phase 27 planned (5 plans, 13 tasks, plan-check PASS)
-stopped_at: Phase 27 PLAN.md set written + plan-checker verdict READY_FOR_EXECUTION; ready for /gsd-execute-phase 27
-last_updated: "2026-05-17T18:30:00.000Z"
-last_activity: "2026-05-17 — /gsd-plan-phase 27: researcher caught 3 critical corrections (D-13 pgvector.asyncpg codec quirk — bulk dedupe needs unnest(text[]) WITH ORDINALITY + inline ::vector cast NOT $1::vector[]; D-16 embed_batch is fail-fast not per-item-None — needs gather(return_exceptions=True) fallback; SC-3 vs D-09 contradiction — D-09 audit-mode-only WINS, v1.7 INSERT still runs and metric fires, silent-skip deferred to v1.8). Plans: 27-00 test-infra-prep (Wave 0), 27-01 create-app-factory (Wave 1 TD-02), 27-02 redis-mock-rollout (Wave 1 TD-06), 27-03 save-fact-cosine-precheck (Wave 2 TD-04), 27-04 save-facts-batch (Wave 2 TD-05+TD-02). Plan-checker: PASS with 2 HIGH fixes applied inline (27-03 depends_on adds 27-02 for memory_service.py file ordering; 27-04 SC-5 benchmark gating policy clarified — assertion stays hard but pytest -m 'not benchmark' is default CI gate). All 13 Wave-0 test files mapped. v1.8 follow-up: silent-skip enforcement on near-dup save."
+status: Phase 27 shipped (5 plans, verifier PASS 5/5 SC, 0 gaps)
+stopped_at: Phase 27 merged into master via 5 worktree merges; ready for /gsd-discuss-phase 28 (Doc Sweep + v1.7 Release)
+last_updated: "2026-05-17T20:30:00.000Z"
+last_activity: "2026-05-17 — /gsd-execute-phase 27 complete. 5 plans across 3 waves (27-00 Wave 0 test infra, 27-01+27-02 Wave 1 parallel, 27-03→27-04 Wave 2 sequential). Verifier PASSED 5/5 SC: SC-1 create_app factory + parallel-contamination + 34-entry singleton inventory + 2 factory-migrated integration tests; SC-2 redis_mock fixture + ShortTermMemory._get_client delegate (TD-06 bonus) + D-22 diagnostic captured; SC-3 save_fact cosine precheck D-09 audit-mode-only (INSERT still runs, MEMORY_NEAR_DUPLICATE_SKIPPED enum + memory_near_duplicate_threshold setting); SC-4 save_facts batch (C1 unnest($1::text[]) WITH ORDINALITY + ::vector cast verified, C2 gather(return_exceptions=True) fallback verified, D-12 wrapper retention verified, D-17 ExtractorAgent migration); SC-5 latency benchmark captured (p50 25.31→5.51ms, speedup 19.80ms with MagicMock; ~123ms expected with real bge-m3) — pytest -m 'not benchmark' is default CI gate. ROADMAP SC-3 wording corrected to match D-09 (INSERT still runs). 8 v1.8+ follow-ups documented: silent-skip enforcement, TOCTOU mitigation, openai-SDK signature drift cleanup (+14 newly-exposed TD-02-style event-loop singleton leaks from marker rollout)."
 progress:
   total_phases: 3
-  completed_phases: 1
-  total_plans: 5
-  completed_plans: 5
-  percent: 33
+  completed_phases: 2
+  total_plans: 10
+  completed_plans: 10
+  percent: 67
 ---
 
 # STATE — EnterpriseRAG (v1.7 planning)
@@ -25,17 +25,17 @@ See: .planning/PROJECT.md (updated 2026-05-17 — v1.7 opened)
 
 ## Current Position
 
-Phase: 27 — Test Isolation + Memory Reliability (planned)
-Plan: 5 PLAN.md files (27-00..27-04), 13 tasks across 3 waves; plan-checker READY_FOR_EXECUTION
-Status: Ready for /gsd-execute-phase 27
-Last activity: 2026-05-17 — /gsd-plan-phase 27 complete. 3 critical RESEARCH corrections threaded (C1 pgvector.asyncpg unnest(text[]) quirk; C2 embed_batch fail-fast fallback; C3 D-09 audit-mode-only — INSERT still happens). Plan-checker PASS, 2 HIGH fixes applied inline (cross-plan dep + SC-5 gating).
+Phase: 27 — Test Isolation + Memory Reliability ✅ shipped 2026-05-17
+Plan: 5/5 plans executed across 3 waves; verifier PASS 5/5 SC, 0 gaps; merged via 5 worktrees
+Status: Ready for /gsd-discuss-phase 28 (Doc Sweep + v1.7 Release)
+Last activity: 2026-05-17 — /gsd-execute-phase 27 complete. Wave 0 (27-00 test infra: tests/factories/app.py + redis_mock fixture + 34-entry _SINGLETON_INVENTORY + fakeredis dev dep). Wave 1 parallel (27-01 _configure_app(app) extraction from main.py + parallel-contamination tests + audit-suite SC-1; 27-02 ShortTermMemory._get_client delegate to utils.cache.get_redis bonus + uses_redis marker rollout to 4 files + 27-02-DIAGNOSTIC.md). Wave 2 sequential (27-03 save_fact cosine precheck D-09 audit-mode-only + MEMORY_NEAR_DUPLICATE_SKIPPED enum + memory_near_duplicate_threshold setting; 27-04 save_facts batch C1+C2+D-09+D-12+D-17 + 27-BENCHMARK.md SC-5 latency capture + memory-suite factory-migrated integration test). ROADMAP SC-3 wording fixed (INSERT still runs per D-09). 8 v1.8+ items deferred (silent-skip enforcement, TOCTOU mitigation, openai-SDK drift cleanup, +14 newly-exposed event-loop singleton leaks).
 
 ## Phase Overview
 
 | Phase | Name | REQ-IDs | Status |
 |-------|------|---------|--------|
 | 26 | Memory Infra Hygiene | TD-01, TD-03, TD-07 | ✅ Shipped 2026-05-17 (5 plans, 34 new tests) |
-| 27 | Test Isolation + Memory Reliability | TD-02, TD-04, TD-05, TD-06 | Context gathered; awaiting plan |
+| 27 | Test Isolation + Memory Reliability | TD-02, TD-04, TD-05, TD-06 | ✅ Shipped 2026-05-17 (5 plans, 28+33 unit + 4 integration + 1 benchmark) |
 | 28 | Doc Sweep + v1.7 Release | DOC-01 | Planning |
 
 ## Accumulated Context
