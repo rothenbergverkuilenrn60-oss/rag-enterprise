@@ -135,13 +135,27 @@ Every query returns a grounded, auditable answer — no hallucinations, no silen
 - ✓ SSE planner trace event stream at `POST /api/v1/agent/v1/run/stream`: `planner.plan`, `tool.span.start/end/error`, `executor.parallel`, `synthesizer.final`; schemas documented in `docs/agent-architecture.md` (AGENT-04) — v1.4 Phase 18
 - ✓ Agent-first README rewrite + `docs/agent-architecture.md` (planner/executor model + tool authoring + SSE event schema) + `make demo-agent` target + recorded `docs/demo.cast` (AGENT-08) — v1.4 Phase 19
 
+**v1.6 Memory Tool — Agent-Authored Long-Term Facts**
+- ✓ `long_term_facts` table + `embedding vector(1024)` column + HNSW cosine index (MEM-01) — v1.6 Phase 23
+- ✓ `LongTermMemory.save_fact` embedding-on-write + narrow `asyncpg.PostgresError` + typed `MemoryFactWriteError` (MEM-02) — v1.6 Phase 23
+- ✓ Extractor sub-agent prompt + JSON-mode + adversarial refusal (MEM-03 + MEM-05) — v1.6 Phase 23
+- ✓ Post-turn dispatch via `asyncio.create_task` non-blocking (MEM-04) — v1.6 Phase 23
+- ✓ `LongTermMemory.get_relevant_facts()` semantic cosine query + `hnsw.iterative_scan = strict_order` + raised `ef_search` (MEM-06) — v1.6 Phase 24
+- ✓ `scripts/backfill_fact_embeddings.py` idempotent backfill (MEM-07) — v1.6 Phase 24
+- ✓ `services/agent/tools/recall.py::RecallTool` registered + `AGENT_TOOL_ALLOWLIST` grows 3→4 (MEM-08 + MEM-09) — v1.6 Phase 24
+- ✓ `load_context` semantic-shift documented + regression-tested at 4 call sites (MEM-10) — v1.6 Phase 24
+- ✓ `scripts/evict_long_term_facts.py` chunked importance-ASC eviction CLI (EVICT-01) — v1.6 Phase 25
+- ✓ Audit-mode-before-enforce discipline + `--mode={audit,enforce}` (EVICT-02) — v1.6 Phase 25
+- ✓ `docs/memory-eviction.md` 49→178 LOC: CronJob YAML + cap tuning + audit→enforce + backfill ref + forget-API curl (EVICT-03) — v1.6 Phase 25
+- ✓ `LongTermMemory.forget_user` chunked DELETE @ 1000/txn + typed `MemoryForgetError` (GDPR-01) — v1.6 Phase 25
+- ✓ Admin `DELETE /api/v1/memory/forget` endpoint + admin-or-self auth + `X-Confirm-Delete` header (GDPR-02) — v1.6 Phase 25
+- ✓ Audit-log entry per forget — actor + target + row count + timestamp; audit-write failure does NOT block GDPR action (GDPR-03 + T1) — v1.6 Phase 25
+
 ### Active
 
-**v1.6 Memory Tool — Agent-Authored Long-Term Facts** (requirements scoped during this milestone open — REQ-IDs assigned in REQUIREMENTS.md)
+(No active milestone — v1.6 shipped 2026-05-17; awaiting v1.7 open)
 
-- [ ] Background extractor sub-agent (post-turn fact extraction with adversarial-input refusal; writes to `long_term_facts` with embedding)
-- [ ] pgvector RecallTool in `AGENT_TOOL_ALLOWLIST` + semantic recall rewrite of `get_relevant_facts` (affects 4 existing `load_context` call sites)
-- [ ] Per-user capacity-cap eviction + GDPR forget API (admin endpoint + `forget_user`)
+**v1.6 Memory Tool — Agent-Authored Long-Term Facts (now validated, see below)**
 
 **v1.5 Web Search + Multi-Agent Debate + Coverage Lift (validated, moved below)**
 

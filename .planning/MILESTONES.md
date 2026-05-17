@@ -129,3 +129,33 @@
 **In-flight CI fixes during ship:** ruff I001/E402/F841 (commit `0e49bc4`); `actions/upload-artifact@v4` `include-hidden-files: true` for `.coverage*` dotfiles (commit `d41425e`); `.coverage` → `.coverage.unit/integration` rename fallback (`d6cc54c`).
 
 **Archive:** [milestones/v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md) · [milestones/v1.5-REQUIREMENTS.md](milestones/v1.5-REQUIREMENTS.md)
+
+## v1.6 Memory Tool — Agent-Authored Long-Term Facts — 2026-05-17
+
+**Shipped:** 2026-05-17
+**Phases:** 23, 24, 25 | **Plans:** 20 | **Commits:** 3 squash (PRs #5, #7, #8); ~105 individual commits before squash
+**Timeline:** 2026-05-15 → 2026-05-17 (3 days; intense same-day Phase 25 + integration burn-down)
+**Audit:** none (skipped — three phases each individually verified; real-PG integration verified at ship)
+
+**Delivered:** Closed 10x roadmap #1 (Memory Tool). Added a third memory store distinct from pgvector chunks (static KB) and `memory_service.py` (session turns): agent-authored long-term facts written by a background extractor sub-agent, read semantically via planner-callable `RecallTool`, bounded by per-`(user_id, tenant_id)` capacity-cap eviction, and made GDPR-erasable via admin `DELETE /api/v1/memory/forget`.
+
+**Key accomplishments:**
+1. **Background extractor + schema** (Phase 23, MEM-01..05) — `long_term_facts` table with `embedding vector(1024)` + HNSW cosine index (m=16, ef_construction=64); `register_vector` codec on every connection (Pitfall #1); `services/agent/extractor.py` Extractor sub-agent runs post-turn via `asyncio.create_task` (non-blocking); `LongTermMemory.save_fact` writes typed facts behind narrow `asyncpg.PostgresError` + `MemoryFactWriteError`; 27 unit + 7 PG-gated integration tests.
+2. **Semantic RecallTool + load_context shift** (Phase 24, MEM-06..10) — `LongTermMemory.get_relevant_facts()` rewritten from `ORDER BY importance DESC` (popularity) to query-embedding + pgvector cosine with `SET LOCAL hnsw.iterative_scan = strict_order` + raised `ef_search` (v1.1 Phase 8 pattern); `services/agent/tools/recall.py::RecallTool` registered via `BaseTool` ABC; `AGENT_TOOL_ALLOWLIST` 3→4. Semantic shift documented + regression-tested at all 4 `load_context` call sites. SQL-only HNSW p95 latency <50ms @ 10k rows. `scripts/backfill_fact_embeddings.py` for existing-row backfill.
+3. **Capacity-cap eviction CLI** (Phase 25, EVICT-01..03) — `scripts/evict_long_term_facts.py` with `--mode={audit,enforce}`, chunked DELETE @ 1000 rows/txn, `ORDER BY importance ASC, created_at ASC` tie-break, re-COUNT post-DELETE for accurate audit (T8), audit-fail-continues-sweep (T1). Audit-mode-before-enforce discipline mandatory for first prod run.
+4. **GDPR forget API** (Phase 25, GDPR-01..03) — `LongTermMemory.forget_user(user_id, tenant_id) -> int` chunked DELETE (T7) wrapped in typed `MemoryForgetError`; `DELETE /api/v1/memory/forget?user_id=…` controller with JWT-resolved tenant, admin-or-self auth, `X-Confirm-Delete` header guard; audit-log entry per call (actor + target + row count + timestamp), audit-write failure does NOT block GDPR action (T1); body order role-403 first, header-400 second, 404 third (T9).
+5. **Real-PG integration verified at ship** — 8/8 Phase 25 PG-gated tests + 3/3 Phase 23 schema tests green on local pgvector after three same-day surgical fixes: conftest `pg_pool` fixture → function-scope (PR #7); `services/memory/memory_service` + `services/audit/audit_service` strip `?ssl=disable` URL-param (asyncpg URL parser misroutes as server_settings); per-test singleton-graph reset autouse fixture for FastAPI app singletons.
+
+**Known deferred items (v1.7 candidates):**
+- `audit_log` table never auto-created by `audit_service` — DDL only in docstring. Add `_create_tables` matching `LongTermMemory._create_tables` pattern.
+- Module-level singleton graph + FastAPI app singleton makes per-test isolation expensive — consider per-test `create_app()` factory.
+- `?ssl=disable` strip pattern duplicated in `memory_service` + `audit_service` — centralize as `utils/asyncpg_helper.py`.
+- `save_fact` near-duplicate guard (`<embedding> <=> $vec < 0.05` precheck) — per eng-review A3 (Phase 23).
+- `save_facts(list[ExtractedFact])` batch path — 1× embed_batch + executemany vs current 3× round-trips per turn.
+- Pre-existing Redis-dependent unit-test failures (32 in baseline) — Phase 24 documented; need Redis-mock fixture rollout.
+- bge-m3 model dir layout asymmetry — code expects files at `{MODEL_DIR}/embedding_models/bge-m3/`, HF cache puts them at `.../BAAI/bge-m3/`; resolved locally via symlinks.
+
+**Bonus delivered (not in roadmap, surfaced during ship):**
+- `tests/conftest.py::pg_pool` fixture flipped to function-scope (PR #7) — unblocks ALL PG-gated integration suites across Phases 23/24/25; was a latent pytest-asyncio 1.x scope bug nobody hit until v1.6 ship.
+
+**Archive:** [milestones/v1.6-ROADMAP.md](milestones/v1.6-ROADMAP.md) · [milestones/v1.6-REQUIREMENTS.md](milestones/v1.6-REQUIREMENTS.md)
