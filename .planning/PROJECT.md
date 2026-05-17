@@ -12,6 +12,8 @@ v1.2 Agentic Layer + Swarm shipped: `agent_mode=True` now executes the real tool
 
 v1.5 Web Search + Multi-Agent Debate + Coverage Lift shipped: replaced the v1.4 `WebSearchTool` placeholder with a real Tavily-backed implementation behind the same `BaseTool` ABC; introduced AGENT-05 verifier sub-agent that runs after `SwarmQueryPipeline`'s peer fan-out when `req.debate=True` and surfaces evidence-supported divergence; raised five high-traffic modules above per-module ≥70% line coverage and wired CI to enforce a per-module floor on combined coverage data.
 
+v1.8 Production Hardening Round 2 shipped: closed the v1.7-deferred backlog — TOCTOU race in `LongTermMemory.save_facts` closed via per-(user_id, tenant_id) advisory lock; near-duplicate audit-mode promoted to silent-skip enforcement (duplicates no longer INSERT; audit row still fires); `extractor_e2e` flakiness fixed via autouse embedder + reranker mock; mypy `--strict` baseline cut 32 → 7 errors with disciplined `# type: ignore[code]  # why:` silence convention; `make_api_error()` helper landed for future openai SDK drift. Zero new user-facing capabilities — pure reliability + test infra polish.
+
 ## Current State
 
 - ✅ **v1.0 Hardening** shipped 2026-04-27 — [archive](milestones/v1.0-ROADMAP.md)
@@ -22,38 +24,41 @@ v1.5 Web Search + Multi-Agent Debate + Coverage Lift shipped: replaced the v1.4 
 - ✅ **v1.5 Web Search + Multi-Agent Debate + Coverage Lift** shipped 2026-05-11 — [archive](milestones/v1.5-ROADMAP.md)
 - ✅ **v1.6 Memory Tool — Agent-Authored Long-Term Facts** shipped 2026-05-17 — [archive](milestones/v1.6-ROADMAP.md)
 - ✅ **v1.7 Memory Tech-Debt Burn-Down** shipped 2026-05-17 — [archive](milestones/v1.7-ROADMAP.md)
+- ✅ **v1.8 Production Hardening Round 2** shipped 2026-05-17 — [archive](milestones/v1.8-ROADMAP.md) · [audit](milestones/v1.8-MILESTONE-AUDIT.md)
 
-## Current Milestone: v1.8 Production Hardening Round 2
+## Current Milestone: (none — planning v1.9)
+
+v1.8 shipped 2026-05-17. Next: run `/gsd-new-milestone` to scaffold v1.9 (questioning → research → requirements → roadmap).
+
+**v1.9 candidate items (pre-seeded from v1.8 close — not yet promoted to active scope):**
+- EVT-01 residual (~10 event-loop singleton leak sites; `_SINGLETON_INVENTORY` to grow 34→48; PG host enumeration)
+- MYPY-01 overflow (7 violations in `.planning/phases/30-test-infra-mypy-hardening/deferred-items.md`; bare ignore at `services/nlu/nlu_service.py:538`; asyncpg imports in `tests/integration/memory/test_save_facts_toctou.py`)
+- `tests/integration/conftest.py` autouse mock opt-out — `@pytest.mark.real_embedder` marker pattern
+- 7 pre-existing order-dependent unit-test failures (registry-singleton pollution + `embed_one`/`embed_batch` mismatch)
+- `test_pipeline_load_context_audit::test_no_v1_5_regression` — `q=` vs `query=` GenerationRequest schema drift
+- `test_ui_static::test_ui_static_serves_html` — `<title>` sentinel drift since v1.4
+- Nyquist `*-VALIDATION.md` backfill for Phases 29 + 30
+- MILESTONES.md missing v1.7 entry (v1.7-close oversight; backfill)
+- Older v1.9+ follow-ups carried forward: Code-acting / SQLTool sandbox; RLS `app.current_tenant` production verification; SSE memory events; per-tenant capacity overrides; UI-03 React/Vue migration; TEST-07 mutation; UI-02 browser smoke; per-module coverage floor raise; PyMuPDF AGPL licensing; Docker Build CI paddle ABI fix; Phase 26-04 P1 backport to `LongTermMemory._get_pool`; close-then-reuse `_closed: bool` guard; AuditService pool `application_name=audit_service`
+
+## Previous Milestone (Archived): v1.8 Production Hardening Round 2
+
+**Shipped:** 2026-05-17 (2 phases / 6 plans + 1 superseded / 7 requirements / 7 tech-debt items routed to v1.9).
+
+<details>
+<summary>v1.8 milestone scope (collapsed — see <a href="milestones/v1.8-ROADMAP.md">archive</a> for full snapshot + <a href="milestones/v1.8-MILESTONE-AUDIT.md">audit</a>)</summary>
 
 **Goal:** Close v1.7-deferred hardening items — promote near-duplicate audit-mode to silent-skip (after closing TOCTOU race), clean up 32 pre-existing openai SDK drift test failures, fix +14 event-loop singleton leaks exposed by the Phase 27 `uses_redis` marker rollout, resolve mypy --strict accumulation, rewrite save_facts precheck tests against bulk-SELECT shape. Zero new user-facing capabilities — pure reliability + test infra polish.
 
-**Target features:**
-- Silent-skip near-duplicate enforcement for `save_fact` + `save_facts` (SK-01) — promotes v1.7 audit-mode (D-09) to silent skip
-- TOCTOU mitigation between precheck SELECT and INSERT in `LongTermMemory.save_facts` (TOC-01) — unblocks SK-01
-- openai SDK signature drift cleanup — 32 pre-existing unit-test failures (`APIError(request=...)`) (OAI-01)
-- +14 event-loop singleton leaks newly exposed by Phase 27 `uses_redis` marker rollout (EVT-01) — pattern source: TD-02 `create_app()` factory
-- mypy --strict sweep — `config/settings.py:154` parametric annotation + repo-wide scan (MYPY-01)
-- Test infra fixes: `extractor_e2e` embedder fixture ordering (TEST-INFRA-01) + `save_facts` precheck test rewrite against bulk-SELECT shape (TEST-INFRA-02)
+**Delivered:**
+- **Phase 29 — TOCTOU + Silent-Skip Enforcement (TOC-01, SK-01, TEST-INFRA-02):** `pg_advisory_xact_lock(hashtext($1 || '|' || $2))` wraps `save_facts` precheck + INSERT inside outer txn; concurrent integration test confirmed COUNT(*)==1 on live PG. SK-01 silent-skip filter excludes dup zero-indices from `rows_to_insert` before `executemany`; `MEMORY_NEAR_DUPLICATE_SKIPPED` audit row still fires. Precheck unit tests rewritten against C1 bulk-SELECT shape; `nearest_distance=None` branch covered.
+- **Phase 30 — Test Infra + mypy Hardening (OAI-01, TEST-INFRA-01, MYPY-01 + EVT-01 partial/accepted override):** `make_api_error()` helper landed for future SDK drift (32 callsite count was stale; executor pivoted to fix ~4 event-loop sites instead — 1200 unit tests green). `tests/integration/conftest.py` autouse mocks `HuggingFaceEmbedder.__init__` + `CrossEncoderReranker.__init__` (extractor_e2e passes on clean checkout). `config/settings.py:154` typed `list[dict[str, Any]]`; full repo mypy --strict: 32 → 7 errors (NET -25; 1 fix + 25 silences with `# type: ignore[code]  # why:` convention; 7 overflow deferred). Plan 30-01 (EVT-01 +14 sites) superseded by orchestrator decision — ~10 sites deferred to v1.9.
 
-**Key context (locked):**
-- All 7 items originate from v1.7 deferred list (pre-seeded via Phase 28 plan 28-03 scaffold — no scope creep)
-- Continues phase numbering: v1.8 starts at **Phase 29** (no `--reset-phase-numbers`)
-- Carry-forward gates still apply: `diff-cover ≥ 80%` on touched files, combined coverage `--fail-under=70`, INSERT-ONLY audit_log invariant, audit-mode-before-enforce discipline (SK-01 promotes audit-mode→enforce, post-TOC-01)
-- Phase structure: **2 phases** — Phase 29 (TOC-01 + SK-01 + TEST-INFRA-02, same code paths) + Phase 30 (OAI-01 + EVT-01 + TEST-INFRA-01 + MYPY-01, test surface + type-check sweep)
-- Zero new user-facing capabilities — every change must preserve existing API + DB contracts
+**Bonus delivered (not in roadmap, surfaced during v1.8 close):** Stale D-09 integration test (`test_save_facts_with_near_duplicate_emits_audit_and_still_inserts_real_pg`) rewritten to SK-01 contract (`..._and_skips_silently_real_pg`) in commit e940280 — Plan 29-01 SUMMARY had updated only `tests/unit/memory/` tests and missed this integration test.
 
-**Carried forward (NOT v1.8 scope — tracked for v1.9+):**
-- Code-acting / SQLTool (10x roadmap #4) — sandbox selection still unresolved
-- RLS on `long_term_facts` + asyncpg pool `app.current_tenant` production verification
-- SSE memory events (memory.extracted, memory.recalled)
-- Per-tenant capacity overrides / importance decay
-- UI-03 React/Vue full migration; TEST-07 mutation testing; UI-02 first-deploy browser smoke
-- Per-module coverage floor raise (>70%) or branch-coverage activation
-- PyMuPDF AGPL commercial licensing
-- Docker Build CI fix (paddleocr / paddlex / paddlepaddle ABI churn — currently `continue-on-error: true`)
-- Backport Phase 26 Plan 26-04 P1 fix to `LongTermMemory._get_pool` (same partial-init bug exists in v1.6-shipped MEM-* path)
-- Graceful-shutdown close-then-reuse discipline — project-wide `_closed: bool` guard pattern
-- AuditService pool `application_name=audit_service` for `pg_stat_activity` dashboard visibility
+**Known deferred (now scoped into v1.9 candidates):** See "Current Milestone" section above for the pre-seeded v1.9 backlog.
+
+</details>
 
 ## Previous Milestone (Archived): v1.7 Memory Tech-Debt Burn-Down
 
@@ -181,16 +186,18 @@ Every query returns a grounded, auditable answer — no hallucinations, no silen
 - ✓ `redis_mock` fixture in `tests/conftest.py` + `@pytest.mark.uses_redis` marker rollout (closes 32 v1.6 Redis-dependent baseline failures) (TD-06) — v1.7 Phase 27
 - ✓ `docs/RUNBOOK.md` (3 sections) + README/ARCHITECTURE/memory-eviction surgical v1.7 patches + CHANGELOG `[1.7.0]` keep-a-changelog entry + `docs/release-notes-v1.7.md` + `.planning/milestones/v1.7-release-tag.md` + `.planning/REQUIREMENTS-v1.8.md` scaffold + v1.7 archive + `MILESTONES.md` (DOC-01) — v1.7 Phase 28
 
+**v1.8 Production Hardening Round 2 — shipped 2026-05-17**
+- ✓ `pg_advisory_xact_lock(hashtext($1 || '|' || $2))` closes TOCTOU race in `LongTermMemory.save_facts` precheck+INSERT; concurrent integration test confirmed COUNT(*)==1 (TOC-01) — v1.8 Phase 29
+- ✓ Silent-skip filter excludes near-duplicate zero-indices from `rows_to_insert` before `executemany`; `MEMORY_NEAR_DUPLICATE_SKIPPED` audit row still fires; integration contract confirmed live (SK-01) — v1.8 Phase 29
+- ✓ `save_facts` precheck unit tests rewritten against C1 bulk-SELECT shape (`unnest($1::text[]) WITH ORDINALITY` + `vec_txt::vector` cast); `nearest_distance=None` branch covered; per-file LOC delta ≤ +150 (TEST-INFRA-02) — v1.8 Phase 29
+- ✓ `make_api_error()` helper landed for future openai SDK drift guard; 32 callsite count was stale on master, executor pivoted to fix ~4 event-loop fixture leak sites; 1200 unit tests green (OAI-01) — v1.8 Phase 30
+- ✓ `tests/integration/conftest.py` autouse fixture mocks both `HuggingFaceEmbedder.__init__` and `CrossEncoderReranker.__init__`; `extractor_e2e` passes on clean checkout with `-m integration`; no bge-m3 pre-download (TEST-INFRA-01) — v1.8 Phase 30
+- ✓ `config/settings.py:154` typed `list[dict[str, Any]]`; full repo `mypy --strict`: 32 → 7 errors (NET -25); 1 fix + 25 silences with `# type: ignore[code]  # why:` convention; 7 overflow → `deferred-items.md` (MYPY-01) — v1.8 Phase 30
+- ⚠ **EVT-01 partial** (accepted override): ~4 of 14 event-loop singleton leak sites fixed via 30-00 pivot; Plan 30-01 superseded by orchestrator decision; remaining ~10 sites + `_SINGLETON_INVENTORY` growth (34→48) deferred to v1.9 — v1.8 Phase 30
+
 ### Active
 
-**v1.8 Production Hardening Round 2 (Phase 29 + 30 — 7 requirements):**
-- [ ] **SK-01** (Phase 29): Silent-skip near-duplicate enforcement for `save_fact` + `save_facts` — promotes v1.7 audit-mode (D-09) to silent skip; depends on TOC-01.
-- [ ] **TOC-01** (Phase 29): Close TOCTOU race between precheck SELECT and INSERT in `save_facts` — choice locked at v1.8 discussion (ON CONFLICT vs advisory-lock vs WITH ... RETURNING).
-- [ ] **TEST-INFRA-02** (Phase 29): Rewrite `save_facts` precheck unit tests against bulk-SELECT shape with `nearest_distance=None` branch.
-- [ ] **OAI-01** (Phase 30): Fix 32 pre-existing unit-test failures from openai SDK `APIError(request=...)` signature drift.
-- [ ] **EVT-01** (Phase 30): Fix +14 event-loop singleton leaks exposed by Phase 27 `@pytest.mark.uses_redis` marker rollout — extend TD-02 `create_app()` pattern.
-- [ ] **TEST-INFRA-01** (Phase 30): Fix `tests/integration/test_extractor_e2e.py` embedder fixture ordering (`FileNotFoundError: bge-m3` before test body).
-- [ ] **MYPY-01** (Phase 30): Resolve `config/settings.py:154` parametric annotation + full-repo mypy --strict sweep.
+(none — between milestones; v1.9 candidates pre-seeded in "Current Milestone" section above. Promote via `/gsd-new-milestone`.)
 
 **v1.7 Memory Tech-Debt Burn-Down (validated, see archive):** TD-01..07 + DOC-01 all shipped 2026-05-17.
 
@@ -309,4 +316,4 @@ Every query returns a grounded, auditable answer — no hallucinations, no silen
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-17 — v1.7 Memory Tech-Debt Burn-Down milestone opened*
+*Last updated: 2026-05-17 — v1.8 Production Hardening Round 2 shipped (via /gsd-complete-milestone)*

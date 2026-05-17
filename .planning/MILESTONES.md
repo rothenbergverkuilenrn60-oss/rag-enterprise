@@ -159,3 +159,37 @@
 - `tests/conftest.py::pg_pool` fixture flipped to function-scope (PR #7) — unblocks ALL PG-gated integration suites across Phases 23/24/25; was a latent pytest-asyncio 1.x scope bug nobody hit until v1.6 ship.
 
 **Archive:** [milestones/v1.6-ROADMAP.md](milestones/v1.6-ROADMAP.md) · [milestones/v1.6-REQUIREMENTS.md](milestones/v1.6-REQUIREMENTS.md)
+
+---
+
+## v1.8 Production Hardening Round 2 — 2026-05-17
+
+**Shipped:** 2026-05-17
+**Phases:** 29–30 | **Plans:** 6 shipped + 1 superseded (accepted override on Plan 30-01)
+**Timeline:** 2026-05-17 → 2026-05-17 (1 day)
+
+**Delivered:** Closed the v1.7-deferred hardening backlog — TOCTOU race in `LongTermMemory.save_facts` closed via per-(user_id, tenant_id) advisory lock; near-duplicate audit-mode promoted to silent-skip enforcement; `extractor_e2e` flakiness fixed via autouse embedder + reranker mock; mypy `--strict` baseline cut 32 → 7 errors with disciplined silence convention; `make_api_error()` helper landed for future openai SDK drift. Zero new user-facing capabilities — pure reliability + test infra polish.
+
+**Key accomplishments:**
+1. **TOC-01 (Phase 29-00):** `pg_advisory_xact_lock(hashtext($1 || '|' || $2))` wraps `save_facts` precheck + INSERT inside the outer transaction; concurrent integration test confirmed COUNT(*)==1 under two parallel writers with identical fact text on live PG (docker rag-postgres pgvector/pgvector:pg16)
+2. **SK-01 (Phase 29-01):** Silent-skip filter excludes dup zero-indices from `rows_to_insert` before `executemany`; audit row `MEMORY_NEAR_DUPLICATE_SKIPPED` still fires; integration contract confirmed live (stale D-09 integration test rewritten to SK-01 contract in commit e940280)
+3. **TEST-INFRA-02 (Phase 29-02):** `save_facts` precheck unit tests rewritten against C1 bulk-SELECT shape (`unnest($1::text[]) WITH ORDINALITY` + `vec_txt::vector` cast); `nearest_distance=None` branch covered; per-file LOC delta within +150
+4. **TEST-INFRA-01 (Phase 30-02):** `tests/integration/conftest.py` autouse fixture mocks both `HuggingFaceEmbedder.__init__` and `CrossEncoderReranker.__init__`; `extractor_e2e` passes on clean checkout with `-m integration`; no bge-m3 pre-download required
+5. **MYPY-01 (Phase 30-03):** `config/settings.py:154` typed as `list[dict[str, Any]]`; repo-wide `--strict` sweep cut 32 → 7 errors (NET -25) via 1 fix + 25 silences with `# type: ignore[code]  # why:` convention; 7 overflow captured in `deferred-items.md`
+6. **OAI-01 (Phase 30-00):** `make_api_error()` helper landed in `tests/factories/openai_errors.py` (vacuous on payload — 32 callsite count was stale; executor pivoted to fix ~4 event-loop / Redis fixture leaks instead; 1200 unit tests green)
+
+**Known deferred items (v1.9 candidates):**
+- **EVT-01 residual** — ~10 remaining event-loop singleton leak sites; `_SINGLETON_INVENTORY` to grow from 34 toward 48 (Plan 30-01 superseded; orchestrator override accepted; enumeration needs PG-enabled host)
+- **MYPY-01 overflow** — 7 violations captured in `.planning/phases/30-test-infra-mypy-hardening/deferred-items.md` (cap=25 exhausted)
+- **`tests/integration/memory/test_save_facts_toctou.py:32, 57`** asyncpg + pgvector.asyncpg `import-untyped` not silenced (Phase 29 surface missed in Phase 30 sweep)
+- **`services/nlu/nlu_service.py:538`** bare `# type: ignore` without error code + `# why:` (pre-existing since v1.3/v1.6)
+- **`tests/integration/conftest.py` autouse mock has no opt-out** — add `@pytest.mark.real_embedder` marker in v1.9
+- **7 pre-existing order-dependent unit-test failures** (registry-singleton pollution + `embed_one` vs `embed_batch` mock mismatch) — all pass in isolation
+- **`test_pipeline_load_context_audit::test_no_v1_5_regression`** — `q=` vs required `query=` GenerationRequest schema drift
+- **`test_ui_static::test_ui_static_serves_html`** — `<title>RAG 查询</title>` sentinel drift since v1.4 UI title change
+- **Nyquist VALIDATION.md missing for both v1.8 phases** — flagged in audit as process polish
+
+**Bonus delivered (not in roadmap, surfaced during ship):**
+- Stale D-09 integration test (`test_save_facts_with_near_duplicate_emits_audit_and_still_inserts_real_pg`) discovered during v1.8 close on PG host; rewritten to SK-01 contract (`..._and_skips_silently_real_pg`) in commit e940280 — Plan 29-01 SUMMARY had only updated `tests/unit/memory/` tests and missed this integration test.
+
+**Archive:** [milestones/v1.8-ROADMAP.md](milestones/v1.8-ROADMAP.md) · [milestones/v1.8-REQUIREMENTS.md](milestones/v1.8-REQUIREMENTS.md) · [milestones/v1.8-MILESTONE-AUDIT.md](milestones/v1.8-MILESTONE-AUDIT.md)

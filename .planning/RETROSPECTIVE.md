@@ -142,14 +142,69 @@
 
 ---
 
+## Milestone: v1.8 — Production Hardening Round 2
+
+**Shipped:** 2026-05-17
+**Phases:** 2 (29, 30) | **Plans:** 6 shipped + 1 superseded (orchestrator-accepted override on 30-01)
+**Audit:** [.planning/milestones/v1.8-MILESTONE-AUDIT.md](milestones/v1.8-MILESTONE-AUDIT.md) — `passed` (7/7 reqs, 1 accepted override)
+
+### What Was Built
+
+1. **TOC-01 advisory lock (Phase 29-00)** — `pg_advisory_xact_lock(hashtext($1 || '|' || $2))` wraps `save_facts` precheck SELECT + `executemany` INSERT inside the outer transaction. `|` separator chosen explicitly to prevent prefix collision in the hashtext. Lock acquired AFTER `embed_batch` so the slow embed step does not serialize across writers. Concurrent integration test on live PG (docker rag-postgres pgvector/pgvector:pg16) confirmed COUNT(*)==1 under two parallel writers with identical fact text.
+2. **SK-01 silent-skip filter (Phase 29-01)** — `_bulk_near_duplicate_check_raw` returns `dup_zero_idxs`; comprehension filter at `memory_service.py:745-748` excludes those indices from `rows_to_insert` before `executemany`. `MEMORY_NEAR_DUPLICATE_SKIPPED` audit row still fires. `save_fact` (D-12 wrapper) inherits via delegation.
+3. **TEST-INFRA-02 (Phase 29-02)** — Precheck unit tests rewritten against C1 bulk-SELECT shape (`unnest($1::text[]) WITH ORDINALITY` + `vec_txt::vector` cast); `nearest_distance=None` branch covered explicitly; per-file LOC delta +127 + +94 (both ≤ 150). Zero `services/` edits — test-only change confirmed.
+4. **OAI-01 helper (Phase 30-00)** — `make_api_error()` factory in `tests/factories/openai_errors.py` landed for future SDK drift guard. 32 stale-callsite count from Phase 26 CI snapshot was vacuous on current master; executor pivoted to fix ~4 event-loop / Redis fixture leaks instead. 1200 unit tests green.
+5. **TEST-INFRA-01 autouse mock (Phase 30-02)** — `tests/integration/conftest.py` adds `autouse=True` fixture `_mock_local_model_inits` that patches both `HuggingFaceEmbedder.__init__` (with fixed `[0.1]*1024` vector) and `CrossEncoderReranker.__init__` (with `[0.5]` predict). Rule-2 deviation: reranker also raises `FileNotFoundError` on `bge-m3-rerank` — both mocked in one fixture. `extractor_e2e` passes on clean checkout with `-m integration`.
+6. **MYPY-01 bounded sweep (Phase 30-03)** — `config/settings.py:154` typed `list[dict[str, Any]]`. Full repo `uv run mypy --strict` baseline: 32 → 7 errors (NET -25). 1 fix + 25 silences applied with the `# type: ignore[error-code]  # why:` convention; 7 overflow violations captured in `.planning/phases/30-test-infra-mypy-hardening/deferred-items.md`.
+
+### What Worked
+
+- **PG-host re-verification flipped both phases from `human_needed` to `passed`** — initial verification on the WSL2 unit-only host correctly deferred PG-gated assertions; re-running on docker rag-postgres (pgvector/pgvector:pg16) closed the gap cleanly with no new code changes.
+- **Advisory lock chosen over `INSERT ... ON CONFLICT`** — schema-migration-free; works inside the existing outer transaction; minimal API surface.
+- **Bounded mypy sweep cap=25** — forced discipline on silence rationales (each requires `# why:` per convention); overflow captured in `deferred-items.md` rather than silently growing.
+- **Bonus stale-test discovery during PG host run** — `test_save_facts_with_near_duplicate_emits_audit_and_still_inserts_real_pg` was a Phase 29 scope-leak (Plan 29-01 SUMMARY only listed `tests/unit/memory/` rewrites). Rewritten inline in `chore(29-01)` commit e940280, verified live. The PG-host re-run was the only mechanism that could have surfaced this — integration test was skip-gated on the WSL host.
+- **Integration-checker subagent confirmed 6/6 wired connections + 0 orphans** — independent validation surfaced the 7 tech-debt items grouped by phase.
+
+### What Was Inefficient
+
+- **OAI-01 callsite count was stale at planning time** — Phase 26 CI snapshot showed 32 failures; current master had 0 to fix. Executor pivot to event-loop leaks was the correct response but ate Plan 30-01's slot. Future intake should re-query CI right before plan close.
+- **Plan 30-01 superseded without a SUMMARY** — orchestrator-skipped after the 30-00 pivot. Acceptable under "accepted override" discipline, but the audit had to derive the rationale from VERIFICATION.md frontmatter rather than a dedicated SUMMARY. v1.9 process polish: write a one-paragraph "superseded" SUMMARY when this happens.
+- **Phase 29 surface left 2 asyncpg `import-untyped` errors** — the Phase 30 mypy sweep correctly treated them as "out of phase boundary." Mechanically a 2-line fix. Should be done in v1.9 MYPY-01 continuation.
+- **`tests/integration/conftest.py` autouse mock has no opt-out** — fires for ALL integration tests including ones that would legitimately benefit from a real embedder. The current behavior masks zero new failures (per triage), but adds a future-test foot-gun. v1.9: add `@pytest.mark.real_embedder` marker.
+- **Nyquist `*-VALIDATION.md` artifacts missing for both phases** — the v1.8 work was inherently test-surface focused, so the absence is acceptable for this milestone but warrants a v1.9 retroactive `/gsd:validate-phase 29` and `/gsd:validate-phase 30` for process consistency.
+
+### Patterns Established
+
+- **Per-(user_id, tenant_id) advisory lock with explicit `|` separator** — `pg_advisory_xact_lock(hashtext($1 || '|' || $2))` pattern for closing TOCTOU races on a logical key inside an outer transaction; documented in `memory_service.py` docstring with D-TOC-01 + 29-CONTEXT references.
+- **Bulk-dedupe SELECT shape** — `unnest($1::text[]) WITH ORDINALITY` + `vec_txt::vector` cast as the canonical pattern for batch precheck against a vector column.
+- **Disciplined `# type: ignore[code]  # why:` silence convention with bounded sweeps** — cap forces overflow into `deferred-items.md` rather than silent accumulation.
+- **Autouse fixture for expensive singleton init in integration scope** — `tests/integration/conftest.py` shows the pattern; works for embedder + reranker; opt-out marker needed for v1.9.
+
+### Key Lessons
+
+1. **Re-verify on the target host, not just any host.** Phase 29 + 30 initial verification correctly returned `human_needed` on a host without PG. The PG-host re-run was the only way to surface the stale D-09 integration test. Future closes: never accept `human_needed` as "ship-ready" without the re-run on the correct host.
+2. **Stale baseline counts decay fast.** OAI-01's 32-failure baseline was already vacuous when Plan 30-00 started. Re-query CI / re-run the failing test set immediately before plan close, not at plan open.
+3. **Orchestrator-accepted overrides need explicit documentation footprints.** The EVT-01 override is properly recorded in `30-VERIFICATION.md` frontmatter + ROADMAP `[~]` + audit override block — and the audit took ~minutes to assemble because of that documentation. Worth the discipline.
+4. **Audit-mode-before-enforce inheritance worked.** SK-01 promoting v1.7's D-09 audit-mode to silent skip required only that the v1.7 audit row keep firing — which it does. The discipline (v1.6 EVICT-02) paid forward cleanly.
+
+### Cost Observations
+
+- Model mix: opus 4.7 (orchestration + audit + retrospective) + sonnet (integration checker subagent). All execution agents inherited from gsd-config (`balanced` profile).
+- Sessions: 1 working session (TDD across Phases 29-30 + verification re-run + audit + close).
+- Notable: PG host was already running (docker rag-postgres up 12h from prior session) — re-verification could begin immediately without environment setup overhead.
+
+---
+
 ## Cross-Milestone Trends
 
-| Metric | v1.0 | v1.1 | v1.2 |
-|--------|------|------|------|
-| Phases | 6 | 4 | 1 |
-| Plans | 20 | 9 | 4 |
-| Commits | 100 | (stacked) | (stacked) |
-| Duration | 7 days | 1 day | 1 day |
-| Deferred items at close | 1 (TEST-02) | 0 | 0 |
-| Verification score | 3/3 (1 accepted deviation) | 4/4 | 4/4 |
-| Security threats closed | 14/14 | n/a | n/a |
+| Metric | v1.0 | v1.1 | v1.2 | v1.8 |
+|--------|------|------|------|------|
+| Phases | 6 | 4 | 1 | 2 |
+| Plans | 20 | 9 | 4 | 6 + 1 superseded |
+| Commits | 100 | (stacked) | (stacked) | ~30 (Phase 29-30 execution + verify + audit + close) |
+| Duration | 7 days | 1 day | 1 day | 1 day |
+| Deferred items at close | 1 (TEST-02) | 0 | 0 | 9 (7 tech debt + Nyquist + v1.7 MILESTONES backfill) |
+| Verification score | 3/3 (1 accepted deviation) | 4/4 | 4/4 | 7/7 (1 accepted override) |
+| Security threats closed | 14/14 | n/a | n/a | n/a |
+| Accepted overrides | 1 | 0 | 0 | 1 (EVT-01) |
+| Re-verification cycles | 0 | 0 | 0 | 1 (PG host re-run flipped both phases from human_needed → passed) |
