@@ -88,21 +88,21 @@ class MemoryContext:
 #
 # Returned by ``LongTermMemory.save_facts`` so callers (ExtractorAgent + the
 # D-12 ``save_fact`` wrapper) can observe how many facts were persisted vs.
-# skipped because of embed failures, AND how many were flagged as near-duplicates
-# under D-09 audit-mode-only (note: ``skipped_near_duplicates`` is *semantic*
-# intent — v1.7 still INSERTs duplicates and emits an audit row per item;
-# v1.8 promotes to actual silent-skip).
+# skipped because of embed failures or SK-01 silent-skip near-duplicate
+# enforcement (v1.8 -- duplicates are filtered from rows_to_insert; audit row
+# still emitted per dup for ops dashboard visibility).
 # ══════════════════════════════════════════════════════════════════════════════
 @dataclass(frozen=True)
 class SaveFactsResult:
     """Per-call summary from ``LongTermMemory.save_facts``.
 
     Fields:
-        saved_count: rows actually executemany-INSERTed (v1.7 = N - embed_failures).
-        skipped_near_duplicates: how many facts in this batch were close enough to
-            an existing row to trigger ``MEMORY_NEAR_DUPLICATE_SKIPPED`` audit
-            emit. v1.7 INSERTs them anyway (D-09 audit-mode-only); the name is
-            future-proofed for v1.8 silent-skip enforcement.
+        saved_count: rows actually executemany-INSERTed (= batch size
+            minus embed failures minus near-duplicate skips).
+        skipped_near_duplicates: how many facts in this batch were filtered
+            from ``rows_to_insert`` by SK-01 silent-skip enforcement (v1.8).
+            ``MEMORY_NEAR_DUPLICATE_SKIPPED`` audit row still emitted per skip
+            for ops dashboard visibility (D-09 carry-forward).
         skipped_embed_failures: how many facts dropped because either embed_batch
             raised AND the per-item gather fallback also raised for that item
             (C2 fail-fast handling).
@@ -481,14 +481,15 @@ class LongTermMemory:
     async def _fire_near_duplicate_audit(
         user_id: str, tenant_id: str, fact: str, dist: float | None,
     ) -> None:
-        """Best-effort audit emit for near-duplicate detections (D-09 audit-mode).
+        """Best-effort audit emit for near-duplicate detections (SK-01 v1.8).
 
-        v1.7 emits ``MEMORY_NEAR_DUPLICATE_SKIPPED`` for ops visibility BUT the
-        INSERT in ``save_fact`` still runs (audit-mode-before-enforce per v1.6
-        Phase 25 EVICT-02). v1.8 promotes to actual silent-skip.
+        v1.8 SK-01 enforcement live: caller ``save_facts`` filters the duplicate
+        from ``rows_to_insert``; this audit emit is now the sole DB-visible
+        artifact of a skipped duplicate. Carry-forward from v1.6 Phase 25
+        EVICT-02 audit-mode-before-enforce lifecycle.
 
         Audit-write failure is non-fatal (v1.6 GDPR T1 Pattern D): logged at
-        warning level, swallowed so the caller's save can proceed.
+        warning level, swallowed so the caller's skip-INSERT can proceed.
         """
         from services.audit.audit_service import (
             AUDIT_DETAIL_TRUNCATE_LEN,
@@ -504,7 +505,7 @@ class LongTermMemory:
                 tenant_id=tenant_id,
                 action=AuditAction.MEMORY_NEAR_DUPLICATE_SKIPPED,
                 resource_id="",
-                result=AuditResult.SKIPPED,  # semantic intent — INSERT NOT skipped in v1.7
+                result=AuditResult.SKIPPED,  # SK-01 v1.8 -- INSERT IS skipped by caller
                 detail={
                     "fact_truncated": fact[:AUDIT_DETAIL_TRUNCATE_LEN],
                     "nearest_distance": dist,
@@ -615,8 +616,9 @@ class LongTermMemory:
                                          because asyncpg.executemany is atomic
                                          per-statement (whole batch fails together).
 
-        D-09 audit-mode-only (C3): duplicates inside the batch fire audit rows
-        AND are still INSERTed. v1.7 = metric-only; v1.8 promotes to silent-skip.
+        SK-01 v1.8 silent-skip enforcement: duplicates are filtered from
+        rows_to_insert before executemany; audit row still emitted per dup
+        for ops dashboard visibility (D-09 audit emit preserved per D-SK-01).
         """
         # Early return — keep the contract observable from the test harness
         # (embedder NOT called, executemany NOT called).
@@ -722,7 +724,8 @@ class LongTermMemory:
                     )
                     dup_zero_idxs = set()
 
-                # Step 4 — fire audit rows for each duplicate (D-09 audit-mode-only).
+                # Step 4 — fire audit rows for each duplicate (D-09 audit emit,
+                # preserved by SK-01 for ops dashboard visibility).
                 # Best-effort, parallel via gather(return_exceptions=True). dist=None
                 # on the bulk path because the bulk SELECT doesn't return per-row
                 # distance (out of scope per RESEARCH; v1.8 follow-up).
@@ -735,14 +738,24 @@ class LongTermMemory:
                     ]
                     await asyncio.gather(*audit_tasks, return_exceptions=True)
 
-                # Step 5 — executemany INSERT (C3 — INSERT ALL rows including
-                # duplicates per D-09 audit-mode-only). INSERT SQL kept verbatim
-                # from the singular save_fact path so a single bulk-cast precedent
-                # exists in the codebase.
+                # Step 5 — SK-01 silent-skip: filter duplicates from rows_to_insert
+                # before executemany. Only non-duplicate rows are INSERTed.
+                # INSERT SQL kept verbatim from the singular save_fact path so a
+                # single bulk-cast precedent exists in the codebase.
                 rows_to_insert = [
                     (user_id, tenant_id, f.fact, source_doc, f.importance, e)
-                    for _, f, e in indexed
+                    for local_i, (_, f, e) in enumerate(indexed)
+                    if local_i not in dup_zero_idxs
                 ]
+                if not rows_to_insert:
+                    # Entire batch was duplicates -- skip executemany entirely.
+                    # asyncpg behavior on empty executemany is implementation-defined;
+                    # explicit short-circuit is safer + saves 1 RTT.
+                    return SaveFactsResult(
+                        saved_count=0,
+                        skipped_near_duplicates=len(dup_zero_idxs),
+                        skipped_embed_failures=embed_failures,
+                    )
                 try:
                     await conn.executemany(
                         """INSERT INTO long_term_facts

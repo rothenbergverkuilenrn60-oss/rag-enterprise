@@ -140,16 +140,17 @@ def _patch_audit(monkeypatch) -> MagicMock:
 # -----------------------------------------------------------------------------
 @pytest.mark.asyncio
 async def test_precheck_emits_audit_when_near_duplicate_and_still_inserts(monkeypatch):
-    """D-09 contract: near-dup hit emits MEMORY_NEAR_DUPLICATE_SKIPPED AND INSERT runs.
+    """SK-01 v1.8 contract: near-dup hit emits MEMORY_NEAR_DUPLICATE_SKIPPED; INSERT skipped.
 
-    NOT asserting 'save was skipped' — v1.7 is OPPOSITE of ROADMAP SC-3 wording.
-    v1.8 will promote to actual silent-skip; this test pins v1.7 audit-mode
-    semantics so a future change can't quietly regress without flipping the
-    explicit "INSERT-still-ran" assertion below.
+    v1.8 promotes D-09 audit-mode-only to silent-skip enforcement. When the
+    bulk dedupe SELECT returns index 0 as a duplicate:
+      * MEMORY_NEAR_DUPLICATE_SKIPPED audit row is emitted (D-09 preserved).
+      * executemany is NOT called -- duplicate filtered from rows_to_insert.
+      * save_fact returns normally (no MemoryFactWriteError).
 
     Phase 27 / TD-05: dedupe now happens via bulk SELECT (returning the set of
     duplicate zero-based indices). For the singular wrapper, the only candidate
-    is index 0 — return ``[{"zero_idx": 0}]`` to trigger the audit-mode branch.
+    is index 0 -- return ``[{"zero_idx": 0}]`` to trigger the audit+skip branch.
     """
     _patch_embedder(monkeypatch)
     audit = _patch_audit(monkeypatch)
@@ -171,12 +172,12 @@ async def test_precheck_emits_audit_when_near_duplicate_and_still_inserts(monkey
     assert event.action == AuditAction.MEMORY_NEAR_DUPLICATE_SKIPPED
     assert event.detail["fact_truncated"] == "user prefers React"
     # Phase 27 / TD-05 batch path: nearest_distance is not surfaced from the
-    # bulk SELECT (out-of-scope; v1.8 follow-up — see SUMMARY).
+    # bulk SELECT (out-of-scope; v1.8 follow-up -- see SUMMARY).
     assert event.detail["nearest_distance"] is None
 
-    # CRITICAL D-09 — INSERT STILL RAN even though precheck hit.
-    assert conn.executemany.await_count == 1, (
-        "D-09: INSERT must run even on near-dup hit (audit-mode-only). "
+    # CRITICAL SK-01 v1.8 -- INSERT must NOT run for near-dup (silent-skip).
+    assert conn.executemany.await_count == 0, (
+        "SK-01: INSERT must be skipped for near-dup (silent-skip enforcement). "
         f"Got {conn.executemany.await_count} executemany calls."
     )
 
