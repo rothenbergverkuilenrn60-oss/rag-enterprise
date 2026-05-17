@@ -21,6 +21,10 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+# Plan 27-02 / TD-06 — auto-attach redis_mock fixture for every test in this
+# module (tests/conftest.py:pytest_collection_modifyitems hook).
+pytestmark = pytest.mark.uses_redis
+
 # ─── Shared helpers ─────────────────────────────────────────────────────────
 
 
