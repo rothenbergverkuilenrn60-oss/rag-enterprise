@@ -156,10 +156,14 @@ async def test_precheck_postgres_error_is_fail_open(monkeypatch, exc_cls):
 # -----------------------------------------------------------------------------
 @pytest.mark.asyncio
 async def test_audit_log_failure_is_non_fatal(monkeypatch):
-    """get_audit_service().log raising RuntimeError must NOT prevent INSERT.
+    """get_audit_service().log raising RuntimeError must NOT cause save_fact to raise.
 
     Pattern D (v1.6 GDPR T1): audit-write boundary swallows failures and
     logs a warning so the business operation (save_fact) is unaffected.
+
+    SK-01 v1.8: when index 0 is a near-dup, the skip-INSERT short-circuits
+    (rows_to_insert is empty -- no executemany call). Audit-write failure must
+    still not propagate. executemany.await_count == 0 (dup filtered, not error).
 
     Phase 27 / TD-05 also wraps the audit emits in
     ``gather(return_exceptions=True)`` inside save_facts, so a raise from
@@ -177,8 +181,10 @@ async def test_audit_log_failure_is_non_fatal(monkeypatch):
     # Must NOT raise even though audit.log raises.
     await mem.save_fact(user_id="u1", tenant_id="t1", fact="dup fact")
 
-    assert conn.executemany.await_count == 1, (
-        "Audit-write failure must be non-fatal — INSERT must still run."
+    # SK-01: dup filtered => executemany skipped (not 1); audit failure non-fatal.
+    assert conn.executemany.await_count == 0, (
+        "SK-01: near-dup row must be silently skipped; audit-write failure must not raise. "
+        f"Got {conn.executemany.await_count} executemany calls."
     )
 
 
