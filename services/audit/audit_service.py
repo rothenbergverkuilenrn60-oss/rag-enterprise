@@ -17,9 +17,11 @@ import uuid
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 
+import asyncpg
 from loguru import logger
 
 from config.settings import settings
+from utils.asyncpg_helper import prepare_dsn
 
 
 class AuditAction(str, Enum):
@@ -72,7 +74,7 @@ class AuditService:
          仅当 settings.audit_db_enabled = True 时启用
       3. 内存缓冲区批写（积累 BUFFER_SIZE 条或超时后统一写 DB）
 
-    PostgreSQL 表结构（应用首次部署时执行）：
+    PostgreSQL 表结构（由 _get_pool() 首次调用时自动执行 — Plan 26-04 / TD-01）：
       CREATE TABLE IF NOT EXISTS audit_log (
           event_id    VARCHAR(32)  PRIMARY KEY,
           timestamp   DOUBLE PRECISION NOT NULL,
@@ -97,7 +99,69 @@ class AuditService:
         self._buffer: list[AuditEvent] = []
         self._last_flush = time.time()
         self._lock = asyncio.Lock()
+        # Plan 26-04 / TD-01: singleton asyncpg pool; lazy first-acquire builds + runs _create_tables
+        self._pool: asyncpg.Pool | None = None
         self._setup_audit_logger()
+
+    async def _get_pool(self) -> asyncpg.Pool:
+        """Lazy singleton pool. First call builds the pool + runs _create_tables.
+
+        Plan 26-04 / TD-01. Mirrors ``LongTermMemory._get_pool`` pattern from
+        v1.6 Phase 23 with P1 (eng-review) fix: if ``_create_tables`` raises
+        after pool construction, close the pool and reset ``self._pool`` to
+        ``None`` so the next call retries clean instead of returning a
+        permanently-broken cached pool.
+
+        INSERT-ONLY invariant preserved in ``_create_tables`` body.
+        """
+        if self._pool is None:
+            dsn, ssl_kwarg = prepare_dsn(settings.pg_dsn)
+            pool = await asyncpg.create_pool(
+                dsn, min_size=1, max_size=4, **ssl_kwarg,
+            )
+            try:
+                self._pool = pool
+                await self._create_tables()
+            except Exception:
+                # P1 (eng-review): tear down + reset on partial init
+                self._pool = None
+                try:
+                    await pool.close()
+                except Exception:
+                    pass
+                raise
+        return self._pool
+
+    async def _create_tables(self) -> None:
+        """Auto-create audit_log table + INSERT-ONLY grants. Idempotent.
+
+        Plan 26-04 / TD-01. DDL ported verbatim from the class docstring above.
+        INSERT-ONLY invariant: v1.0 Phase 2 carry-forward — REVOKE UPDATE, DELETE
+        must stay in this body.
+        """
+        pool = self._pool
+        assert pool is not None, "_create_tables called before pool construction"
+        async with pool.acquire() as conn:
+            await conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS audit_log (
+                    event_id    VARCHAR(32)  PRIMARY KEY,
+                    timestamp   DOUBLE PRECISION NOT NULL,
+                    user_id     VARCHAR(128),
+                    tenant_id   VARCHAR(128),
+                    action      VARCHAR(64)  NOT NULL,
+                    resource_id VARCHAR(256),
+                    ip_address  VARCHAR(64),
+                    result      VARCHAR(32)  NOT NULL,
+                    detail      JSONB,
+                    trace_id    VARCHAR(32),
+                    created_at  TIMESTAMPTZ  DEFAULT NOW()
+                );
+                """
+            )
+            await conn.execute(
+                "REVOKE UPDATE, DELETE ON audit_log FROM PUBLIC;"
+            )
 
     def _setup_audit_logger(self) -> None:
         """配置专用 audit 日志（独立文件，不与应用日志混合）。"""
@@ -249,7 +313,12 @@ class AuditService:
         ))
 
     async def _flush_to_db(self) -> None:
-        """将缓冲区批量写入 PostgreSQL（INSERT-ONLY）。"""
+        """将缓冲区批量写入 PostgreSQL（INSERT-ONLY）。
+
+        Plan 26-04 / TD-03: uses the lazy singleton pool from ``_get_pool``
+        instead of per-flush ``asyncpg.connect``. DSN normalization is handled
+        by ``utils.asyncpg_helper.prepare_dsn`` inside ``_get_pool``.
+        """
         if not self._buffer:
             return
         batch = self._buffer.copy()
@@ -257,18 +326,8 @@ class AuditService:
         self._last_flush = time.time()
 
         try:
-            import asyncpg
-            dsn = settings.pg_dsn.replace("+asyncpg", "")
-            # SQLAlchemy-style ?ssl=disable is mishandled by asyncpg's URL parser
-            # (treated as server_settings → CantChangeRuntimeParamError); strip
-            # and pass as ssl= kwarg instead. Mirrors memory_service._get_pool fix.
-            ssl_kwarg: dict[str, str] = {}
-            for token in ("?ssl=disable", "&ssl=disable"):
-                if token in dsn:
-                    dsn = dsn.replace(token, "")
-                    ssl_kwarg["ssl"] = "disable"
-            conn = await asyncpg.connect(dsn, **ssl_kwarg)
-            try:
+            pool = await self._get_pool()
+            async with pool.acquire() as conn:
                 await conn.executemany(
                     """
                     INSERT INTO audit_log
@@ -286,13 +345,14 @@ class AuditService:
                         for e in batch
                     ],
                 )
-            finally:
-                await conn.close()
             logger.debug(f"[Audit] Flushed {len(batch)} events to DB")
-        except Exception as exc:
-            # DB 写入失败不影响主流程（文件日志已有记录）
+        except asyncpg.PostgresError as exc:
+            # Narrow PostgresError catch per v1.0 ERR-01; broad fallback follows.
             logger.warning(f"[Audit] DB flush failed (file log intact): {exc}")
-            # 失败的事件重新入队（最多保留 200 条，防止内存溢出）
+            self._buffer = (batch + self._buffer)[:200]
+        except Exception as exc:
+            # Pool acquisition / _create_tables failures — same recovery as DB error.
+            logger.warning(f"[Audit] DB flush failed (file log intact): {exc}")
             self._buffer = (batch + self._buffer)[:200]
 
     async def flush(self) -> None:
@@ -300,6 +360,27 @@ class AuditService:
         if getattr(settings, "audit_db_enabled", False):
             async with self._lock:
                 await self._flush_to_db()
+
+    async def close(self) -> None:
+        """Drain buffer + close pool. Idempotent.
+
+        Plan 26-04. Called from main.py lifespan shutdown (Plan 26-05).
+        Order matters: flush first so buffered events land before pool teardown.
+
+        A2 (eng-review): the drain acquires ``self._lock`` symmetrically with
+        ``flush()`` above. Without the lock, a concurrent buffer-overflow flush
+        firing from ``log()`` during shutdown can race with close()'s drain on
+        ``self._buffer`` (copy + clear is not atomic across awaits).
+        """
+        if getattr(settings, "audit_db_enabled", False) and self._buffer:
+            try:
+                async with self._lock:
+                    await self._flush_to_db()
+            except Exception as exc:
+                logger.warning(f"[Audit] close-time flush failed: {exc}")
+        if self._pool is not None:
+            await self._pool.close()
+            self._pool = None
 
 
 _audit_service: AuditService | None = None

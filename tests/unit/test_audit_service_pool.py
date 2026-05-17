@@ -131,26 +131,34 @@ async def test_audit_db_disabled_no_pool_built(monkeypatch) -> None:
 # ------ A2 (eng-review): close() acquires self._lock ------
 @pytest.mark.asyncio
 async def test_close_acquires_lock_during_drain(monkeypatch) -> None:
+    """A2: close() must serialize with the buffer-overflow flush path via
+    self._lock. Strategy: hold the lock before calling close(); close() must
+    block waiting for it (cannot drain). If we then release the lock, close()
+    completes. This proves close()'s drain is gated by the lock.
+    """
     from services.audit.audit_service import AuditEvent
 
     svc, fake_pool, _ = _build_audit_service(monkeypatch)
     monkeypatch.setattr("services.audit.audit_service.settings.audit_db_enabled", True, raising=False)
-    monkeypatch.setattr(svc, "_flush_to_db", AsyncMock())
+    flush_mock = AsyncMock()
+    monkeypatch.setattr(svc, "_flush_to_db", flush_mock)
     svc._buffer.append(AuditEvent(action="TEST"))
     svc._pool = fake_pool
 
-    # Spy on lock acquisition
-    original_aenter = svc._lock.__aenter__
-    aenter_calls = []
+    # Acquire the lock first — close() must block on it
+    await svc._lock.acquire()
+    try:
+        close_task = asyncio.create_task(svc.close())
+        await asyncio.sleep(0.05)
+        # close() should be blocked — _flush_to_db not yet called
+        assert flush_mock.await_count == 0, (
+            "close() drained without acquiring self._lock — A2 fix missing"
+        )
+    finally:
+        svc._lock.release()
 
-    async def spy_aenter():
-        aenter_calls.append(time.monotonic())
-        return await original_aenter()
-
-    monkeypatch.setattr(svc._lock, "__aenter__", spy_aenter)
-
-    await svc.close()
-    assert len(aenter_calls) >= 1, "close() must acquire self._lock before draining"
+    await close_task
+    assert flush_mock.await_count == 1, "after lock release, close() must drain"
 
 
 # ------ P1 (eng-review): _create_tables failure resets _pool ------
