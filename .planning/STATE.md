@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Memory Tech-Debt Burn-Down
-status: Phase 26 MERGED — squash commit 4956190 (PR #9)
-stopped_at: Phase 26 merged into master; awaiting Phase 27
-last_updated: "2026-05-17T15:00:00.000Z"
-last_activity: "2026-05-17 — PR #9 merged via --admin (squash) 05:09:10Z. Merge commit 4956190. Lint job NOW passes on master (chore commit fixed 35 ruff E/F/W/I errors). 32 pre-existing unit-test failures (openai SDK signature drift; v1.4/v1.5 test files) remain on master — surfaced for the first time because lint was previously gating them out. Tracked as v1.8+ todo."
+status: Awaiting Phase 27 (Test Isolation + Memory Reliability — TD-02, TD-04, TD-05, TD-06)
+stopped_at: "Completed 28-00: docs/RUNBOOK.md three-section ops runbook created"
+last_updated: "2026-05-17T09:20:29.397Z"
+last_activity: "2026-05-17 — Phase 26 execute + verify complete. New code: `utils/asyncpg_helper.py` (NEW), `config/settings.py::resolve_embedding_model_path`, `LongTermMemory.close()`, `MemoryService.close()`, `AuditService._get_pool` + `_create_tables` + `close()`, `main.py` lifespan shutdown wiring"
 progress:
   total_phases: 3
   completed_phases: 1
   total_plans: 5
   completed_plans: 5
-  percent: 33
+  percent: 100
 ---
 
 # STATE — EnterpriseRAG (v1.7 planning)
@@ -97,7 +97,7 @@ The following v1.7 candidates were promoted out of "todos" into requirements (se
 ## Session Continuity
 
 **Last updated:** 2026-05-17 — `/gsd-ship` opened PR #9 (https://github.com/rothenbergverkuilenrn60-oss/rag-enterprise/pull/9) on branch `gsd/phase-26-memory-infra-hygiene`. PR base = `master`. 22 commits + 3522 insertions / 113 deletions across 30 files. Local master is ahead of origin/master by the same 22 commits (will reconcile via `git pull --rebase` after PR merges).
-**Stopped at:** Phase 26 PR #9 awaiting CI + merge
+**Stopped at:** Completed 28-00: docs/RUNBOOK.md three-section ops runbook created
 **Next action:** Wait for CI + reviewer; after merge → `git checkout master && git pull --rebase` to sync local master. Then `/gsd-discuss-phase 27` (Test Isolation + Memory Reliability — TD-02 + TD-04 + TD-05 + TD-06). Phase 27 will also close the 16 pre-existing unit-test failures via Redis-mock fixture rollout.
 
 **Planned Phase:** Phase 27 — Test Isolation + Memory Reliability.
