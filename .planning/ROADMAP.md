@@ -54,6 +54,14 @@
 3. `CHANGELOG.md` v1.7 entry added in keep-a-changelog format: one item per TD requirement, plus a "near-duplicate guard is audit-mode in v1.7, will enforce in v1.8" call-out so future readers can trace the audit-mode-before-enforce path.
 4. `docs/release-notes-v1.7.md` drafted with shipped-items list + ops impact + upgrade notes; `release-tag-commands.md` updated for the v1.7 tag ceremony.
 
+**Plans:** 5 plans (Wave 1 → Wave 2; Plans 28-00 + 28-01 + 28-02 + 28-03 parallel on Wave 1; Plan 28-04 sequential on Wave 2 — the archive plan moves Phase 26/27/28 dirs into `.planning/milestones/v1.7-phases/`)
+Plans:
+- [ ] 28-00-PLAN.md — Wave 1 (execute): docs/RUNBOOK.md (new mixed-audience runbook — Local dev / Ops procedures / Troubleshooting per D-01..D-04) (DOC-01)
+- [ ] 28-01-PLAN.md — Wave 1 (execute): surgical patches to README.md + ARCHITECTURE.md + docs/memory-eviction.md + CHANGELOG.md v1.7 entry per Claude's-discretion defaults + audit-mode call-out (DOC-01 / ROADMAP SC-1..SC-3)
+- [ ] 28-02-PLAN.md — Wave 1 (execute): docs/release-notes-v1.7.md (5-section template per D-07) + .planning/milestones/v1.7-release-tag.md (annotated tag ceremony + checklist + rollback) (DOC-01 / ROADMAP SC-4)
+- [ ] 28-03-PLAN.md — Wave 1 (execute): .planning/REQUIREMENTS-v1.8.md scaffold — 6 category sections (SK / TOC / OAI / EVT / MYPY / TEST-INFRA) + 7 pre-seeded items with full acceptance bullets per D-06 (DOC-01)
+- [ ] 28-04-PLAN.md — Wave 2 (execute, sequential): v1.7 milestone archive — snapshot ROADMAP/REQ → milestones/v1.7-*; git mv phase 26/27/28 → milestones/v1.7-phases/; collapse ROADMAP <details> + Phase 28 progress row → Complete ✓; create + backfill MILESTONES.md v1.0..v1.7; update STATE.md to v1.7 shipped (DOC-01 / D-05)
+
 ## Phases
 
 <details>

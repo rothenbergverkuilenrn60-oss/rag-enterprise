@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Memory Tech-Debt Burn-Down
-status: Phase 28 context gathered (5 plans projected, all decisions locked)
-stopped_at: Phase 28 28-CONTEXT.md written + 28-DISCUSSION-LOG.md committed; ready for /gsd-plan-phase 28
-last_updated: "2026-05-17T21:00:00.000Z"
+status: Phase 28 planned (5 plans, 2 waves, plan-checker 0 BLOCKER + 4 WARNING fixed inline)
+stopped_at: Phase 28 PLAN.md set written + plan-checker verdict (0 blockers; 4 warnings patched in plans 28-00/28-01/28-02/28-04); ready for /gsd-execute-phase 28
+last_updated: "2026-05-17T22:00:00.000Z"
 last_activity: "2026-05-17 — /gsd-execute-phase 27 complete. 5 plans across 3 waves (27-00 Wave 0 test infra, 27-01+27-02 Wave 1 parallel, 27-03→27-04 Wave 2 sequential). Verifier PASSED 5/5 SC: SC-1 create_app factory + parallel-contamination + 34-entry singleton inventory + 2 factory-migrated integration tests; SC-2 redis_mock fixture + ShortTermMemory._get_client delegate (TD-06 bonus) + D-22 diagnostic captured; SC-3 save_fact cosine precheck D-09 audit-mode-only (INSERT still runs, MEMORY_NEAR_DUPLICATE_SKIPPED enum + memory_near_duplicate_threshold setting); SC-4 save_facts batch (C1 unnest($1::text[]) WITH ORDINALITY + ::vector cast verified, C2 gather(return_exceptions=True) fallback verified, D-12 wrapper retention verified, D-17 ExtractorAgent migration); SC-5 latency benchmark captured (p50 25.31→5.51ms, speedup 19.80ms with MagicMock; ~123ms expected with real bge-m3) — pytest -m 'not benchmark' is default CI gate. ROADMAP SC-3 wording corrected to match D-09 (INSERT still runs). 8 v1.8+ follow-ups documented: silent-skip enforcement, TOCTOU mitigation, openai-SDK signature drift cleanup (+14 newly-exposed TD-02-style event-loop singleton leaks from marker rollout)."
 progress:
   total_phases: 3
@@ -25,9 +25,9 @@ See: .planning/PROJECT.md (updated 2026-05-17 — v1.7 opened)
 
 ## Current Position
 
-Phase: 28 — Doc Sweep + v1.7 Release (context gathered)
-Plan: 5 projected plans (28-00 runbook / 28-01 docs refresh + CHANGELOG / 28-02 release artifacts / 28-03 v1.8 scaffold / 28-04 archive) — 28-00..03 parallel; 28-04 sequential last
-Status: Ready for /gsd-plan-phase 28
+Phase: 28 — Doc Sweep + v1.7 Release (planned)
+Plan: 5 PLAN.md files (28-00 runbook / 28-01 docs+CHANGELOG / 28-02 release-notes+tag / 28-03 REQUIREMENTS-v1.8 scaffold / 28-04 archive); Wave 1 = 28-00..03 parallel, Wave 2 = 28-04 sequential
+Status: Ready for /gsd-execute-phase 28 (plan-checker 0 BLOCKER; 4 warnings patched inline — MILESTONES placeholder gate, STATE.md total_plans, RUNBOOK symlink-word constraint, TD→SUMMARY pre-write mapping check)
 Last activity: 2026-05-17 — /gsd-execute-phase 27 complete. Wave 0 (27-00 test infra: tests/factories/app.py + redis_mock fixture + 34-entry _SINGLETON_INVENTORY + fakeredis dev dep). Wave 1 parallel (27-01 _configure_app(app) extraction from main.py + parallel-contamination tests + audit-suite SC-1; 27-02 ShortTermMemory._get_client delegate to utils.cache.get_redis bonus + uses_redis marker rollout to 4 files + 27-02-DIAGNOSTIC.md). Wave 2 sequential (27-03 save_fact cosine precheck D-09 audit-mode-only + MEMORY_NEAR_DUPLICATE_SKIPPED enum + memory_near_duplicate_threshold setting; 27-04 save_facts batch C1+C2+D-09+D-12+D-17 + 27-BENCHMARK.md SC-5 latency capture + memory-suite factory-migrated integration test). ROADMAP SC-3 wording fixed (INSERT still runs per D-09). 8 v1.8+ items deferred (silent-skip enforcement, TOCTOU mitigation, openai-SDK drift cleanup, +14 newly-exposed event-loop singleton leaks).
 
 ## Phase Overview
