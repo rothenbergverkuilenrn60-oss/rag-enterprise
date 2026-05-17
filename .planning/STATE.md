@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Memory Tool — Agent-Authored Long-Term Facts
-status: Phase 25 EXECUTION COMPLETE — all 7 plans + 9 eng-review amendments T1-T9 landed across 4 waves. docs/memory-eviction.md 49→178 LOC. Coverage: memory_service 94.3% / controllers/memory 96.8% / evict_long_term_facts 82.1% (all ≥70%). diff-cover 90% ≥80%. 34/34 unit tests GREEN; 8 integration tests committed (PG-gated SKIP on this env). EVICT-03 re-marked [x]. Awaiting `/gsd-verify-work 25` then `/gsd-ship`.
-stopped_at: Phase 25 Wave 4 merged at master ffd9489; ready for phase verification + ship
-last_updated: "2026-05-16T15:20:00.000Z"
-last_activity: 2026-05-16 — Wave 4 executed 1 worktree agent (a320238); 25-07 docs extension + coverage gates GREEN + EVICT-03 re-marked [x]. Phase 25 execution complete.
+status: Phase 25 SHIPPED — PR #6 opened (gsd/v1.6-phase-25-eviction-gdpr → gsd/v1.6-phases-23-24 / PR #5). Verdict ⚠ MARGINAL pending PG-host integration run (pre-existing pytest-asyncio scope bug in conftest.py blocks PG-gated tests; out of Phase 25 scope, filed as v1.7 candidate). Unit/coverage/diff-cover gates all GREEN. After PR #5 merges → retarget PR #6 base → master.
+stopped_at: PR #6 opened at branch HEAD 8bb3961; awaiting PR review / merge of PR #5 first
+last_updated: "2026-05-17T02:30:00.000Z"
+last_activity: 2026-05-17 — /gsd-ship opened PR #6 (Phase 25, stacked on PR #5). MARGINAL verdict documented in PR body; PG-host integration deferred to v1.7 conftest infra fix.
 progress:
   total_phases: 3
   completed_phases: 2
