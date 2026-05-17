@@ -7,7 +7,7 @@ stopped_at: v1.7 opened — defining requirements
 last_updated: "2026-05-17T04:00:00.000Z"
 last_activity: "2026-05-17 — v1.7 Memory Tech-Debt Burn-Down milestone opened; PROJECT.md updated; requirements + roadmap pending"
 progress:
-  total_phases: 0
+  total_phases: 3
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -32,7 +32,11 @@ Last activity: 2026-05-17 — Milestone v1.7 started
 
 ## Phase Overview
 
-(Phases will be derived from REQUIREMENTS.md during roadmap step.)
+| Phase | Name | REQ-IDs | Status |
+|-------|------|---------|--------|
+| 26 | Memory Infra Hygiene | TD-01, TD-03, TD-07 | Planning |
+| 27 | Test Isolation + Memory Reliability | TD-02, TD-04, TD-05, TD-06 | Planning |
+| 28 | Doc Sweep + v1.7 Release | DOC-01 | Planning |
 
 ## Accumulated Context
 

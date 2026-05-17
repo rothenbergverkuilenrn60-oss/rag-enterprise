@@ -62,14 +62,16 @@ All requirements are scoped to this milestone. Traceability to phases is filled 
 
 | REQ-ID | Title | Phase |
 |--------|-------|-------|
-| TD-01  | `audit_log` auto-create | TBD (roadmap step) |
-| TD-02  | Per-test `create_app()` factory | TBD |
-| TD-03  | `utils/asyncpg_helper.py` centralization | TBD |
-| TD-04  | `save_fact` near-duplicate guard | TBD |
-| TD-05  | `save_facts` batch path | TBD |
-| TD-06  | Redis-mock fixture rollout | TBD |
-| TD-07  | bge-m3 model dir layout fix | TBD |
-| DOC-01 | Doc + CHANGELOG sweep | TBD |
+| TD-01  | `audit_log` auto-create | Phase 26 — Memory Infra Hygiene |
+| TD-02  | Per-test `create_app()` factory | Phase 27 — Test Isolation + Memory Reliability |
+| TD-03  | `utils/asyncpg_helper.py` centralization | Phase 26 — Memory Infra Hygiene |
+| TD-04  | `save_fact` near-duplicate guard | Phase 27 — Test Isolation + Memory Reliability |
+| TD-05  | `save_facts` batch path | Phase 27 — Test Isolation + Memory Reliability |
+| TD-06  | Redis-mock fixture rollout | Phase 27 — Test Isolation + Memory Reliability |
+| TD-07  | bge-m3 model dir layout fix | Phase 26 — Memory Infra Hygiene |
+| DOC-01 | Doc + CHANGELOG sweep | Phase 28 — Doc Sweep + v1.7 Release |
+
+**Coverage check:** 8/8 requirements mapped to 3 phases. No phase without a requirement; no requirement without a phase.
 
 ---
-*Last updated: 2026-05-17 — v1.7 opened; phases pending roadmap step.*
+*Last updated: 2026-05-17 — v1.7 roadmap drafted (Phases 26–28).*

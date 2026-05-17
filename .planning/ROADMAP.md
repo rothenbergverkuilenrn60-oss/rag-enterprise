@@ -9,6 +9,50 @@
 - ✅ **v1.4 Agent-First Architecture Inversion** — Phases 16–19 (shipped 2026-05-10) — [archive](milestones/v1.4-ROADMAP.md)
 - ✅ **v1.5 Web Search + Multi-Agent Debate + Coverage Lift** — Phases 20–22 (shipped 2026-05-11) — [archive](milestones/v1.5-ROADMAP.md)
 - ✅ **v1.6 Memory Tool — Agent-Authored Long-Term Facts** — Phases 23–25 (shipped 2026-05-17) — [archive](milestones/v1.6-ROADMAP.md)
+- 🚧 **v1.7 Memory Tech-Debt Burn-Down** — Phases 26–28 (in planning, opened 2026-05-17)
+
+## v1.7 Memory Tech-Debt Burn-Down (Phases 26–28) — IN PLANNING
+
+**Milestone goal:** Knock out all 7 deferred items surfaced at v1.6 ship — production-clean the memory subsystem before adding more features. Pure refactor + reliability; no new user-facing capabilities.
+
+**Carry-forward gates:** `diff-cover ≥ 80%` on touched files; combined coverage `--fail-under=70`; INSERT-ONLY `audit_log` invariant; audit-mode-before-enforce for any new destructive default; audit-write failure must NOT block destructive action.
+
+### Phase 26: Memory Infra Hygiene
+
+**Goal:** Production-clean memory subsystem startup — `audit_log` self-bootstraps, asyncpg URL handling lives in one place, bge-m3 loads with HF cache layout out of the box.
+
+**Requirements:** TD-01, TD-03, TD-07
+
+**Success criteria:**
+1. Cold-start a fresh PostgreSQL database; the first call into `services/audit/audit_service.py` creates the `audit_log` table with INSERT-ONLY grants (REVOKE UPDATE/DELETE preserved) without any manual DDL step. Real-PG integration test covers this path.
+2. `rg "ssl=disable" services/` returns zero hits. Both `services/memory/memory_service.py` and `services/audit/audit_service.py` connect via `utils/asyncpg_helper.py`; the helper is unit-tested for the `?ssl=disable` URL-param strip (asyncpg URL parser misreads the literal otherwise).
+3. Fresh-machine setup loads bge-m3 from the vanilla Hugging Face cache (`{MODEL_DIR}/BAAI/bge-m3/`) without symlinks. Backwards-compat for the legacy `{MODEL_DIR}/embedding_models/bge-m3/` layout maintained or migration helper documented.
+4. v1.6 real-PG integration suites for audit + memory (8 Phase 25 PG-gated + 3 Phase 23 schema tests) remain green post-refactor.
+
+### Phase 27: Test Isolation + Memory Reliability
+
+**Goal:** Make per-test isolation cheap (kill module-level singletons + roll out Redis-mock); make memory writes deduplicated and batched (cosine-precheck near-duplicate guard + `executemany` batch path).
+
+**Requirements:** TD-02, TD-04, TD-05, TD-06
+
+**Success criteria:**
+1. A `create_app()` factory exists; at least the audit + memory integration suites construct an isolated app per test through this factory. Two tests running in parallel against `create_app()` do not observe each other's state (verified by a deliberate cross-contamination test). The Phase 23/24/25 monkeypatch-on-singletons pattern is removed from those suites.
+2. A reusable `redis_mock` fixture lives in `tests/conftest.py` (or `tests/fixtures/redis_mock.py`). Unit suite passes without a live Redis; the 32 pre-existing Redis-dependent baseline failures from v1.6 Phase 24 → 0. No integration test that genuinely needs Redis is force-mocked.
+3. `LongTermMemory.save_fact` runs a `<embedding> <=> $vec < 0.05` cosine precheck before insert. When the precheck hits, the save is skipped and a `memory.save_fact.near_duplicate_skipped` audit-mode metric is recorded (audit-mode-before-enforce per v1.6 EVICT-02 discipline — v1.7 emits metric only; silent-skip enforcement deferred to v1.8). The precheck adds ≤1 extra PG round-trip on the hot path; existing save unit tests still green.
+4. `LongTermMemory.save_facts(list[ExtractedFact])` batch path uses 1× `embed_batch` + 1× `executemany`; a 5-fact turn issues exactly 1 embed call + 1 PG round-trip (verified by mock-based unit test). `ExtractorAgent` dispatch migrated to call the batch API; near-duplicate guard from SC-3 honored inside the batch.
+5. Per-turn ExtractorAgent latency ≤ v1.6 baseline minus measured embed-RTT × (N−1); benchmark captured in the phase summary.
+
+### Phase 28: Doc Sweep + v1.7 Release
+
+**Goal:** Documentation matches the post-v1.7 codebase; v1.7 release artifacts drafted.
+
+**Requirements:** DOC-01
+
+**Success criteria:**
+1. `README.md`, `ARCHITECTURE.md`, and the dev runbook reference all v1.7 changes accurately — no stale references to manual `audit_log` DDL (TD-01), to per-module `?ssl=disable` strip logic (TD-03), or to bge-m3 symlink workarounds (TD-07). Reviewer can walk every changed module from the docs without `grep`.
+2. `docs/memory-eviction.md` reviewed; updated where v1.7 changes touch eviction or near-duplicate behavior; left untouched where v1.6 docs remain accurate.
+3. `CHANGELOG.md` v1.7 entry added in keep-a-changelog format: one item per TD requirement, plus a "near-duplicate guard is audit-mode in v1.7, will enforce in v1.8" call-out so future readers can trace the audit-mode-before-enforce path.
+4. `docs/release-notes-v1.7.md` drafted with shipped-items list + ops impact + upgrade notes; `release-tag-commands.md` updated for the v1.7 tag ceremony.
 
 ## Phases
 
@@ -235,3 +279,6 @@ Plans:
 | 23. Background Extractor + schema migration | v1.6 | 6/6 | Complete ✓ | 2026-05-16 |
 | 24. pgvector RecallTool + semantic recall rewrite | v1.6 | 7/7 | Complete ✓ | 2026-05-16 |
 | 25. Eviction job + GDPR forget API | v1.6 | 7/7 | Complete ✓ | 2026-05-17 |
+| 26. Memory Infra Hygiene | v1.7 | 0/? | Planning | — |
+| 27. Test Isolation + Memory Reliability | v1.7 | 0/? | Planning | — |
+| 28. Doc Sweep + v1.7 Release | v1.7 | 0/? | Planning | — |
