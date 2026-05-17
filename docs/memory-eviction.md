@@ -176,3 +176,15 @@ curl -X DELETE "https://api.example.com/api/v1/memory/forget?user_id=alice" \
 | 403 | Non-admin deleting another user — checked first (T9) |
 | 404 | Empty `user_id` query param |
 | 500 | DB failure (`asyncpg.PostgresError`) |
+
+## v1.7 deltas
+
+The sections above cover the v1.6 eviction / backfill / GDPR surface. v1.7 (Phases 26–28) added two adjacent concerns to the memory write path.
+
+### Near-duplicate guard (audit-mode)
+
+v1.7 adds `LongTermMemory._is_near_duplicate(text, threshold=0.05)` — a cosine distance precheck before every `save_fact` / `save_facts` call. When a near-duplicate is detected (cosine distance `<=> $vec < MEMORY_NEAR_DUPLICATE_THRESHOLD`), a `MEMORY_NEAR_DUPLICATE_SKIPPED` audit row is emitted but the INSERT still executes. This is **audit-mode** behaviour (D-09 in Phase 27): the guard surfaces near-duplicate saves in the audit log without blocking them. v1.8 will promote this to silent-skip enforcement once the TOCTOU window is mitigated — see [SK-01](.planning/REQUIREMENTS-v1.8.md) and [TOC-01](.planning/REQUIREMENTS-v1.8.md). Full implementation detail: [27-03-SUMMARY.md](.planning/phases/27-test-isolation-memory-reliability/27-03-SUMMARY.md).
+
+### Batch save path
+
+v1.7 adds `LongTermMemory.save_facts(list[ExtractedFact])` — a batch write path that collapses N round-trips to 1× `embed_batch` + 1× bulk dedupe SELECT (`unnest($1::text[]) WITH ORDINALITY`) + 1× `executemany`. The existing `save_fact` is retained as a thin D-12 wrapper that delegates to `save_facts([...])`. Benchmark: p50 25.31ms → 5.51ms (speedup ~19.8ms with MagicMock embedder; see [CHANGELOG v1.7](../CHANGELOG.md) + [27-04-SUMMARY.md](.planning/phases/27-test-isolation-memory-reliability/27-04-SUMMARY.md)).

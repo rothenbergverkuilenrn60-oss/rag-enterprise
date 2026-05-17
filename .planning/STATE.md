@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Memory Tech-Debt Burn-Down
-status: Phase 28 planned (5 plans, 2 waves, plan-checker 0 BLOCKER + 4 WARNING fixed inline)
-stopped_at: Phase 28 PLAN.md set written + plan-checker verdict (0 blockers; 4 warnings patched in plans 28-00/28-01/28-02/28-04); ready for /gsd-execute-phase 28
-last_updated: "2026-05-17T22:00:00.000Z"
-last_activity: "2026-05-17 — /gsd-execute-phase 27 complete. 5 plans across 3 waves (27-00 Wave 0 test infra, 27-01+27-02 Wave 1 parallel, 27-03→27-04 Wave 2 sequential). Verifier PASSED 5/5 SC: SC-1 create_app factory + parallel-contamination + 34-entry singleton inventory + 2 factory-migrated integration tests; SC-2 redis_mock fixture + ShortTermMemory._get_client delegate (TD-06 bonus) + D-22 diagnostic captured; SC-3 save_fact cosine precheck D-09 audit-mode-only (INSERT still runs, MEMORY_NEAR_DUPLICATE_SKIPPED enum + memory_near_duplicate_threshold setting); SC-4 save_facts batch (C1 unnest($1::text[]) WITH ORDINALITY + ::vector cast verified, C2 gather(return_exceptions=True) fallback verified, D-12 wrapper retention verified, D-17 ExtractorAgent migration); SC-5 latency benchmark captured (p50 25.31→5.51ms, speedup 19.80ms with MagicMock; ~123ms expected with real bge-m3) — pytest -m 'not benchmark' is default CI gate. ROADMAP SC-3 wording corrected to match D-09 (INSERT still runs). 8 v1.8+ follow-ups documented: silent-skip enforcement, TOCTOU mitigation, openai-SDK signature drift cleanup (+14 newly-exposed TD-02-style event-loop singleton leaks from marker rollout)."
+status: Ready for /gsd-execute-phase 28 (plan-checker 0 BLOCKER; 4 warnings patched inline — MILESTONES placeholder gate, STATE.md total_plans, RUNBOOK symlink-word constraint, TD→SUMMARY pre-write mapping check)
+stopped_at: "Phase 28 Plan 28-01 complete (README+ARCHITECTURE+memory-eviction+CHANGELOG v1.7 surgical patches)"
+last_updated: "2026-05-17T00:00:00Z"
+last_activity: "2026-05-17 — /gsd-execute-phase 27 complete. Wave 0 (27-00 test infra: tests/factories/app.py + redis_mock fixture + 34-entry _SINGLETON_INVENTORY + fakeredis dev dep). Wave 1 parallel (27-01 _configure_app(app) extraction from main.py + parallel-contamination tests + audit-suite SC-1; 27-02 ShortTermMemory._get_client delegate to utils.cache.get_redis bonus + uses_redis marker rollout to 4 files + 27-02-DIAGNOSTIC.md). Wave 2 sequential (27-03 save_fact cosine precheck D-09 audit-mode-only + MEMORY_NEAR_DUPLICATE_SKIPPED enum + memory_near_duplicate_threshold setting; 27-04 save_facts batch C1+C2+D-09+D-12+D-17 + 27-BENCHMARK.md SC-5 latency capture + memory-suite factory-migrated integration test). ROADMAP SC-3 wording fixed (INSERT still runs per D-09). 8 v1.8+ items deferred (silent-skip enforcement, TOCTOU mitigation, openai-SDK drift cleanup, +14 newly-exposed event-loop singleton leaks)."
 progress:
   total_phases: 3
   completed_phases: 2
-  total_plans: 10
-  completed_plans: 10
-  percent: 67
+  total_plans: 15
+  completed_plans: 12
+  percent: 80
 ---
 
 # STATE — EnterpriseRAG (v1.7 planning)
