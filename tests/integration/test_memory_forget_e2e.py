@@ -45,6 +45,48 @@ pytestmark = [
     pytest.mark.skipif(not PG_AVAILABLE, reason="PostgreSQL + pgvector not available — skipping GDPR forget e2e tests"),
 ]
 
+
+@pytest.fixture(autouse=True)
+def _reset_app_singletons():
+    """Reset all module-level singletons that cache asyncpg pools / event-loop
+    resources. FastAPI TestClient creates a fresh anyio portal loop per test;
+    reusing a singleton bound to a prior loop raises
+    ``InterfaceError: cannot perform operation: another operation is in progress``.
+
+    Lifespan touches the full singleton graph (vectorizer, vector_store,
+    embedder, event_bus, audit_service, knowledge_service, ingest_pipeline,
+    llm_client, executor, planner, memory_service) — each must be cleared
+    before the next test re-enters the lifespan on a new loop.
+    """
+    import services.agent.executor as exec_mod
+    import services.agent.planner as plan_mod
+    import services.audit.audit_service as audit_mod
+    import services.events.event_bus as bus_mod
+    import services.generator.llm_client as llm_mod
+    import services.knowledge.knowledge_service as ks_mod
+    import services.memory.memory_service as mem_mod
+    import services.pipeline as pipe_mod
+    import services.vectorizer.embedder as emb_mod
+    import services.vectorizer.indexer as idx_mod
+    import services.vectorizer.vector_store as vs_mod
+
+    def _reset() -> None:
+        exec_mod._executor_instance = None
+        plan_mod._planner_instance = None
+        audit_mod._audit_service = None
+        bus_mod._event_bus = None
+        llm_mod._llm_instance = None
+        ks_mod._knowledge_service = None
+        mem_mod._memory_service = None
+        pipe_mod._ingest_pipeline = None
+        emb_mod._embedder_instance = None
+        idx_mod._vectorizer = None
+        vs_mod._store_instance = None
+
+    _reset()
+    yield
+    _reset()
+
 # Stable test-identity constants — scoped DELETE in clean_long_term_facts.
 _USER_ID = "test-gdpr25-alice"
 _OTHER_USER = "test-gdpr25-bob"

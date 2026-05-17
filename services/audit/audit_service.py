@@ -259,7 +259,15 @@ class AuditService:
         try:
             import asyncpg
             dsn = settings.pg_dsn.replace("+asyncpg", "")
-            conn = await asyncpg.connect(dsn)
+            # SQLAlchemy-style ?ssl=disable is mishandled by asyncpg's URL parser
+            # (treated as server_settings → CantChangeRuntimeParamError); strip
+            # and pass as ssl= kwarg instead. Mirrors memory_service._get_pool fix.
+            ssl_kwarg: dict[str, str] = {}
+            for token in ("?ssl=disable", "&ssl=disable"):
+                if token in dsn:
+                    dsn = dsn.replace(token, "")
+                    ssl_kwarg["ssl"] = "disable"
+            conn = await asyncpg.connect(dsn, **ssl_kwarg)
             try:
                 await conn.executemany(
                     """
