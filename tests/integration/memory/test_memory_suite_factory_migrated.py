@@ -123,24 +123,25 @@ async def test_save_facts_5_via_factory_real_pg_round_trip(
 
 
 # -----------------------------------------------------------------------------
-# Test 2 — C3 D-09 at integration layer: near-dup audit + INSERT
+# Test 2 — SK-01 at integration layer: near-dup audit + silent-skip
 # -----------------------------------------------------------------------------
 @pytest.mark.asyncio
-async def test_save_facts_with_near_duplicate_emits_audit_and_still_inserts_real_pg(
+async def test_save_facts_with_near_duplicate_emits_audit_and_skips_silently_real_pg(
     pg_pool: Any,
     app_factory: Callable[..., Any],
     clean_long_term_facts: None,  # noqa: ARG001 — truncates LTF before test
     embedder_or_mock: Any,  # noqa: ARG001 — provides real or mock embedder
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """C3 D-09 audit-mode-only at the integration layer.
+    """SK-01 silent-skip + audit at the integration layer.
 
     Insert one fact, then call save_facts with the SAME text. The embedder
     produces identical vectors (mock returns the same 1024-dim vector; real
     embedder produces cosine distance ~0 for identical strings) → dist 0 <
     0.05 threshold → MEMORY_NEAR_DUPLICATE_SKIPPED audit row emitted AND the
-    INSERT still runs (D-09 audit-mode-only). Final long_term_facts count
-    must equal 2 (BOTH inserted).
+    duplicate is filtered out of rows_to_insert before executemany (SK-01,
+    Plan 29-01). Final long_term_facts count must equal 1 (seed only;
+    duplicate skipped).
 
     Requires audit_db_enabled=True so the audit_log row actually lands in PG.
     """
@@ -197,22 +198,26 @@ async def test_save_facts_with_near_duplicate_emits_audit_and_still_inserts_real
     svc = audit_mod.get_audit_service()
     await svc.flush()
 
-    # Assert: long_term_facts has 2 rows (D-09 — both inserted).
+    # Assert: long_term_facts has 1 row (SK-01 — duplicate skipped silently).
     async with pg_pool.acquire() as conn:
         ltf_count = await conn.fetchval(
             """SELECT COUNT(*) FROM long_term_facts
                WHERE user_id = $1 AND tenant_id = $2""",
             "u_d9_test", "t_d9_test",
         )
-    assert ltf_count == 2, (
-        f"D-09 audit-mode-only at integration layer: both rows must be inserted. "
-        f"Got {ltf_count} rows."
+    assert ltf_count == 1, (
+        f"SK-01 silent-skip at integration layer: duplicate must be filtered "
+        f"out of rows_to_insert. Got {ltf_count} rows."
     )
 
-    # Assert: SaveFactsResult flagged the duplicate.
-    assert result.saved_count == 1, "Second save_facts inserted 1 row"
+    # Assert: SaveFactsResult flagged the duplicate (saved_count==0 for the
+    # second call — only the duplicate was submitted and it was skipped).
+    assert result.saved_count == 0, (
+        f"SK-01: second save_facts inserted 0 rows (only the duplicate was "
+        f"submitted, and it was filtered). Got {result.saved_count}."
+    )
     assert result.skipped_near_duplicates == 1, (
-        f"D-09 metric: expected 1 near-dup flag, got {result.skipped_near_duplicates}"
+        f"SK-01 metric: expected 1 near-dup flag, got {result.skipped_near_duplicates}"
     )
 
     # Assert: audit_log has at least 1 MEMORY_NEAR_DUPLICATE_SKIPPED row.
@@ -224,6 +229,6 @@ async def test_save_facts_with_near_duplicate_emits_audit_and_still_inserts_real
             "u_d9_test", "t_d9_test", "MEMORY_NEAR_DUPLICATE_SKIPPED",
         )
     assert len(audit_rows) >= 1, (
-        f"D-09 audit-mode-only: expected ≥1 MEMORY_NEAR_DUPLICATE_SKIPPED row "
+        f"SK-01: expected ≥1 MEMORY_NEAR_DUPLICATE_SKIPPED row "
         f"for u_d9_test/t_d9_test, got {len(audit_rows)}."
     )
