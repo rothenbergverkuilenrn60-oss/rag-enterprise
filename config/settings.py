@@ -497,6 +497,11 @@ class Settings(BaseSettings):
     # prevent ConfigMap typo from wiping every long_term_facts row.
     memory_facts_cap_per_user: int = Field(default=500, ge=1)
 
+    # Phase 27 / TD-04 — cosine near-duplicate guard threshold.
+    # v1.7 audit-mode-only (D-09): save still happens; row emitted for ops visibility.
+    # Override via env APP_MEMORY_NEAR_DUPLICATE_THRESHOLD=<float>.
+    memory_near_duplicate_threshold: float = Field(default=0.05, ge=0.0, le=1.0)
+
     @field_validator("data_dir", "processed_dir", "index_dir", "log_dir", "cache_dir", mode="before")
     @classmethod
     def ensure_path(cls, v: str | Path) -> Path:
