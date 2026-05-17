@@ -41,9 +41,9 @@ See [milestones/v1.7-ROADMAP.md](milestones/v1.7-ROADMAP.md) for full phase deta
 3. `save_facts` precheck unit tests rewritten against bulk-SELECT mock shape; `nearest_distance=None` branch covered explicitly; assertions match C1 SQL shape (`unnest($1::text[]) WITH ORDINALITY` + `vec_txt::vector` cast). Per-file LOC delta ≤ +150; no production-code changes from TEST-INFRA-02 alone.
 
 **Plans:** 3 plans
-- [ ] 29-00-PLAN.md — TOC-01: advisory-lock wraps precheck+INSERT in `save_facts` (TDD, Wave 1)
-- [ ] 29-01-PLAN.md — SK-01: silent-skip filter excludes dups from `rows_to_insert` (TDD, Wave 2, depends on 29-00)
-- [ ] 29-02-PLAN.md — TEST-INFRA-02: rewrite precheck unit tests to C1 bulk-SELECT shape (execute, Wave 2, depends on 29-00)
+- [x] 29-00-PLAN.md — TOC-01: advisory-lock wraps precheck+INSERT in `save_facts` (TDD, Wave 1) ✓ shipped 2026-05-17 (commits bc9c523, 23b0d18, 9892b72, bb45835)
+- [x] 29-01-PLAN.md — SK-01: silent-skip filter excludes dups from `rows_to_insert` (TDD, Wave 2, depends on 29-00) ✓ shipped 2026-05-17 (commits 44278ab, cf916e2, 5bbae8f, c1d7bfe)
+- [x] 29-02-PLAN.md — TEST-INFRA-02: rewrite precheck unit tests to C1 bulk-SELECT shape (execute, Wave 3, depends on 29-00, 29-01) ✓ shipped 2026-05-17 (commits 12d6ed9, 0122b1e, ce14dea)
 
 ### Phase 30: Test Infra + mypy Hardening
 
