@@ -1,21 +1,29 @@
 ---
 phase: 29-toctou-silent-skip-enforcement
 verified: 2026-05-17T12:00:00Z
-status: human_needed
-score: 3/3 must-haves verified (unit-code-shape); TOC-01 integration deferred (no PG host)
+re_verified: 2026-05-17T22:05:00Z
+status: passed
+score: 3/3 must-haves verified (unit + integration on live PG host)
 overrides_applied: 0
-human_verification:
-  - test: "Run TOC-01 concurrent-writer integration test on a host with live PostgreSQL"
-    expected: "test_save_facts_toctou_concurrent_writers_produce_one_row PASSES — COUNT(*)==1 after two concurrent save_facts writers with same (user_id, tenant_id) and identical fact text"
-    why_human: "No PostgreSQL available on this WSL2 unit-only host. Integration test is skip-gated on PG_AVAILABLE. Advisory lock + SK-01 silent-skip are code-shape verified; COUNT assertion requires a live DB."
+re_verification:
+  host: "docker rag-postgres / pgvector/pgvector:pg16 / PG 16.13 / vector 0.8.2"
+  TOC-01_integration_run:
+    command: "uv run pytest tests/integration/memory/test_save_facts_toctou.py -v"
+    result: "2 passed in 0.63s"
+    confirms: "test_save_facts_toctou_concurrent_writers_produce_one_row PASSED (COUNT==1) + test_save_facts_guc_preserved_inside_outer_txn PASSED"
+  SK-01_integration_run:
+    command: "uv run pytest tests/integration/memory/test_memory_suite_factory_migrated.py::test_save_facts_with_near_duplicate_emits_audit_and_skips_silently_real_pg -v -m integration"
+    result: "1 passed in 1.03s"
+    note: "Stale D-09 test rewritten to SK-01 contract in commit e940280 (chore(29-01))"
 ---
 
 # Phase 29: TOCTOU + Silent-Skip Enforcement — Verification Report
 
 **Phase Goal:** Close the precheck/INSERT race on `LongTermMemory.save_facts`, promote v1.7 near-duplicate audit-mode (D-09) to silent-skip enforcement, and rewrite precheck unit tests against the bulk-SELECT shape.
 **Verified:** 2026-05-17T12:00:00Z
-**Status:** human_needed
-**Re-verification:** No — initial verification
+**Re-verified:** 2026-05-17T22:05:00Z (PG-host integration run)
+**Status:** passed
+**Re-verification:** Yes — initial verification deferred TOC-01 integration to a PG-enabled host. Re-run on docker `rag-postgres` (pgvector/pgvector:pg16) confirmed COUNT==1 under concurrent writers and SK-01 silent-skip at integration scope.
 
 ---
 
@@ -181,25 +189,37 @@ No conventional `scripts/*/tests/probe-*.sh` probes declared or found for this p
 
 ---
 
-### Human Verification Required
+### Human Verification — CLOSED 2026-05-17T22:05 (PG host re-run)
 
-#### 1. TOC-01 Concurrent-Writer Integration Test
+#### 1. TOC-01 Concurrent-Writer Integration Test — PASSED
 
-**Test:** On a host with live PostgreSQL, run:
+**Test:** On a host with live PostgreSQL, ran:
 ```bash
-uv run pytest tests/integration/memory/test_save_facts_toctou.py::test_save_facts_toctou_concurrent_writers_produce_one_row -v
+uv run pytest tests/integration/memory/test_save_facts_toctou.py -v
 ```
-**Expected:** 1 passed — `COUNT(*) == 1` after two concurrent `save_facts` writers with same `(user_id, tenant_id)` and identical fact text. Either 1 or 2 `MEMORY_NEAR_DUPLICATE_SKIPPED` audit rows acceptable (depending on race interleaving).
+**Result:** `2 passed in 0.63s` —
+- `test_save_facts_toctou_concurrent_writers_produce_one_row` PASSED (COUNT(*)==1 under concurrent writers)
+- `test_save_facts_guc_preserved_inside_outer_txn` PASSED
 
-**Why human:** No PostgreSQL available on this WSL2 environment. The `skipif(not PG_AVAILABLE)` gate (line 43 of the integration test) causes the test to skip unconditionally. Advisory lock presence is code-shape verified at `memory_service.py:692-702`; SK-01 filter is unit-mock verified. The COUNT assertion requires two real asyncpg connections from separate pools running concurrently against a real `long_term_facts` table.
+**Host:** docker `rag-postgres` container, image `pgvector/pgvector:pg16`, PG 16.13, `vector` 0.8.2.
 
-**Pre-run note from Plan 29-00 SUMMARY:** The TOCTOU test was initially failing (RED) even with the lock in place because D-09 audit-mode was still inserting all rows. After Plan 29-01 (SK-01), the silent-skip filter ensures writer B's duplicate does not reach `executemany`, so COUNT should land at 1. The resume command in Plan 29-00 captures this dependency explicitly.
+#### 2. SK-01 Integration (D-09 → silent-skip migration) — PASSED
+
+**Test:** Ran SK-01 integration test (renamed from stale D-09 variant):
+```bash
+uv run pytest tests/integration/memory/test_memory_suite_factory_migrated.py::test_save_facts_with_near_duplicate_emits_audit_and_skips_silently_real_pg -v -m integration
+```
+**Result:** `1 passed in 1.03s` — `ltf_count == 1` (duplicate filtered out before executemany); `result.saved_count == 0`; `MEMORY_NEAR_DUPLICATE_SKIPPED` audit row landed in PG.
+
+**Stale-test cleanup:** Plan 29-01 SUMMARY listed two `tests/unit/memory/` tests updated but missed this integration test. Rewritten in commit `e940280` (chore(29-01)) — assertions flipped from D-09 contract (`ltf_count == 2`, `saved_count == 1`) to SK-01 contract (`ltf_count == 1`, `saved_count == 0`).
 
 ---
 
-### Known Gap: TOC-01 Integration Deferred
+### Known Gap: TOC-01 Integration — RESOLVED 2026-05-17T22:05
 
-**Gap:** `test_save_facts_toctou_concurrent_writers_produce_one_row` cannot run on this host (no PostgreSQL). This is the acceptance criterion for TOC-01 per ROADMAP SC-1.
+**Original gap:** `test_save_facts_toctou_concurrent_writers_produce_one_row` could not run on the WSL2 unit-only host (no PostgreSQL). This is the acceptance criterion for TOC-01 per ROADMAP SC-1.
+
+**Resolution:** Re-ran on the docker `rag-postgres` pgvector host. Both PG-gated tests PASSED. TOC-01 acceptance criterion satisfied.
 
 **Code-shape evidence (no PG needed):**
 - Advisory lock SQL present at `memory_service.py:692-702`
