@@ -164,7 +164,17 @@ def embedder_or_mock(monkeypatch):
 
     mock_emb = MagicMock()
     mock_emb.embed_one = AsyncMock(return_value=[0.1] * 1024)
-    mock_emb.embed_batch = AsyncMock(return_value=[[0.1] * 1024])
+
+    # Phase 27 / TD-05 (plan 27-04): callers may invoke ``embed_batch`` with
+    # an arbitrary number of texts (e.g., ``save_facts([5 facts])``). The
+    # previous fixed ``return_value=[[0.1] * 1024]`` returned exactly 1 vector
+    # regardless of input length and tripped ``zip(facts, embeddings,
+    # strict=True)`` inside save_facts. Use ``side_effect`` so the mock
+    # returns a list whose length matches the input.
+    async def _mock_embed_batch(texts: list[str]) -> list[list[float]]:
+        return [[0.1] * 1024 for _ in texts]
+
+    mock_emb.embed_batch = AsyncMock(side_effect=_mock_embed_batch)
     monkeypatch.setattr(
         "services.vectorizer.embedder.get_embedder", lambda: mock_emb
     )
