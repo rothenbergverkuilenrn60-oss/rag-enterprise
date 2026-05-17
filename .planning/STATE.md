@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Memory Tech-Debt Burn-Down
-status: Phase 26 planned
-stopped_at: Phase 26 plans drafted (5 plans, 3 waves)
-last_updated: "2026-05-17T04:30:00.000Z"
-last_activity: "2026-05-17 — Phase 26 plans written (26-01..26-05); ready for execute-phase"
+status: Phase 26 plans reviewed + fixes applied (ENG CLEARED)
+stopped_at: Phase 26 plan-check complete (4 findings, all fixed; 1 regression test added; 3 v1.8+ todos surfaced)
+last_updated: "2026-05-17T05:00:00.000Z"
+last_activity: "2026-05-17 — /plan-eng-review 26: A1 DSN scheme + C1 URL-strip fixes in 26-01; A2 close-lock + P1 partial-init fixes in 26-04; R1 regression test added; 26-PLAN-CHECK.md written"
 progress:
   total_phases: 3
   completed_phases: 0
@@ -75,6 +75,9 @@ None.
 - [ ] v1.8+ follow-up: Per-tenant capacity overrides / importance decay for `LongTermMemory`
 - [ ] v1.8+ follow-up: Per-module coverage floor raise (>70%) or branch-coverage activation (Phase 22 D-08 follow-up)
 - [ ] v1.8+ follow-up: Docker Build CI fix (paddleocr / paddlex / paddlepaddle ABI churn — currently `continue-on-error: true`)
+- [ ] v1.8+ follow-up: backport Phase 26 Plan 26-04 P1 fix (`_get_pool` resets `self._pool = None` on `_create_tables` failure) to `services/memory/memory_service.py::LongTermMemory._get_pool` — same partial-init bug exists in v1.6-shipped MEM-* path. Surfaced by `/plan-eng-review 26` Finding P1.
+- [ ] v1.8+ follow-up: graceful-shutdown close-then-reuse discipline — after `audit_service.close()` / `memory_service.close()`, in-flight background tasks may lazily re-build the pool. Needs project-wide `_closed: bool` guard pattern. Surfaced by `/plan-eng-review 26` architecture notes.
+- [ ] v1.8+ follow-up: AuditService pool `application_name=audit_service` for `pg_stat_activity` dashboard visibility. Surfaced by `/plan-eng-review 26` Claude's Discretion review.
 
 ### Promoted Into v1.7 Active Scope
 
@@ -91,11 +94,9 @@ The following v1.7 candidates were promoted out of "todos" into requirements (se
 
 ## Session Continuity
 
-**Last updated:** 2026-05-17 — `/gsd-plan-phase 26` completed (research + plan-check skipped — `agents_installed: false` + CONTEXT.md already concrete). 5 plans written, 3 waves:
-- Wave 1 (parallel, no deps): 26-01 `utils/asyncpg_helper.prepare_dsn` foundation; 26-02 `resolve_embedding_model_path` resolver + conftest update
-- Wave 2 (depends 26-01): 26-03 `memory_service.py` consumes `prepare_dsn` + `close()` on LongTermMemory + MemoryContext; 26-04 `AuditService` pool migration + `_create_tables` DDL port + `close()` + real-PG cold-start integration test
-- Wave 3 (depends 26-03, 26-04): 26-05 main.py lifespan shutdown wiring + 3-test integration suite
-**Stopped at:** Phase 26 plans drafted (5 plans, 3 waves)
-**Next action:** `/gsd-execute-phase 26` (or `/gsd-execute-plan 26-01` to step one plan at a time). main.py already uses `@asynccontextmanager lifespan` (modern pattern — no refactor needed in 26-05). `agents_installed: false` so execute will run inline.
+**Last updated:** 2026-05-17 — `/plan-eng-review 26` completed. 4 findings (A1 DSN scheme divergence, A2 close()-lock missing, C1 inherited URL-strip bug, P1 partial-init permanent breakage), all fixed in 26-01 + 26-04 plans. R1 regression test added per IRON RULE. 3 v1.8+ todos surfaced (see above). VERDICT: ENG CLEARED.
+**Prior:** `/gsd-plan-phase 26` wrote 5 plans across 3 waves: W1 26-01 + 26-02 (parallel) → W2 26-03 + 26-04 (parallel) → W3 26-05.
+**Stopped at:** Phase 26 plans reviewed + fixes applied (Plan-Check file written)
+**Next action:** `/gsd-execute-phase 26` (or `/gsd-execute-plan 26-01` to step one plan at a time). All plan fixes already committed; executor will see the post-review plans.
 
 **Planned Phase:** Phase 26 — Memory Infra Hygiene (TD-01 + TD-03 + TD-07).
