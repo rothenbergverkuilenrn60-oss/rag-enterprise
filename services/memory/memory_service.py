@@ -611,6 +611,16 @@ class MemoryService:
     ) -> list[dict[str, str]]:
         return await self._short.get_formatted_history(session_id, max_turns)
 
+    async def close(self) -> None:
+        """Close inner pool resources. Idempotent.
+
+        Plan 26-05 / TD-03. Called from main.py lifespan shutdown.
+        Cascades to LongTermMemory (asyncpg pool); ShortTermMemory (Redis)
+        owns its own client lifecycle and is not closed here.
+        """
+        if self._long is not None:
+            await self._long.close()
+
 
 _memory_service: MemoryService | None = None
 
