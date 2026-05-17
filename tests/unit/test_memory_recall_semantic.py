@@ -342,7 +342,6 @@ async def test_tie_break_sql_includes_importance_and_created_at(monkeypatch):
 @pytest.mark.asyncio
 async def test_load_context_drops_long_term_facts(monkeypatch):
     """After Decision-1, load_context must return long_term_facts=[]."""
-    import services.memory.memory_service as mod
 
     # Patch _short and _long on a fresh MemoryService
     svc = MemoryService.__new__(MemoryService)

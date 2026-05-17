@@ -142,15 +142,17 @@ def embedder_or_mock(monkeypatch):
     inside ``save_fact``). The lazy import means ``monkeypatch.setattr`` on
     the ``embedder`` module is the correct injection point.
     """
+    import os as _os
     from unittest.mock import AsyncMock, MagicMock
 
-    import os as _os
-
     model_dir = _os.environ.get("MODEL_DIR") or _os.environ.get("APP_MODEL_DIR")
-    real_bge = (
-        model_dir
-        and _os.path.isdir(_os.path.join(model_dir, "embedding_models", "bge-m3"))
-    )
+    # Plan 26-02 / TD-07: delegate to the multi-layout resolver so the fixture
+    # also honors `BAAI/bge-m3` (HF flat) + `models--BAAI--bge-m3/snapshots/*`
+    # (HF hub cache) layouts, not just legacy `embedding_models/bge-m3`.
+    real_bge = False
+    if model_dir:
+        from config.settings import resolve_embedding_model_path
+        real_bge = resolve_embedding_model_path("bge-m3").exists()
 
     if real_bge:
         # Real embedder path — return the singleton factory's result.

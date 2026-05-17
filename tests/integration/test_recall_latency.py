@@ -53,9 +53,9 @@ async def test_recall_sql_p95_under_50ms_at_10k_rows():
     T9 / Decision-6 scope: embed query ONCE outside the timed loop.
     Only pool-acquire + SET LOCAL GUCs + pgvector ORDER BY SELECT are timed.
     """
+    from config.settings import settings
     from services.memory.memory_service import LongTermMemory
     from services.vectorizer.embedder import get_embedder
-    from config.settings import settings
 
     mem = LongTermMemory()
     pool = await mem._get_pool()

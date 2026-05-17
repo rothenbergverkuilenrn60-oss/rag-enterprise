@@ -54,6 +54,7 @@ def _build_judge_llm(cfg: EvalSettings):
     避免 metric job 走回默认 api.openai.com 导致 401。
     """
     import os
+
     from ragas.llms import LangchainLLMWrapper
 
     base_url = os.environ.get("OPENAI_BASE_URL") or os.environ.get("OPENAI_API_BASE")

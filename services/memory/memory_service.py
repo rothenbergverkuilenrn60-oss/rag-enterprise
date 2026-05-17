@@ -14,6 +14,8 @@ import redis.asyncio
 from loguru import logger
 from pgvector.asyncpg import register_vector
 
+from utils.asyncpg_helper import prepare_dsn
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 类型化异常 / Typed exceptions
@@ -160,20 +162,22 @@ class LongTermMemory:
                 # so $N::vector bindings in save_fact (Plan 23-02) resolve correctly.
                 await register_vector(conn)
 
-            dsn = settings.pg_dsn.replace("postgresql+asyncpg://", "postgresql://")
-            # SQLAlchemy-style `?ssl=disable` in pg_dsn is mishandled by asyncpg's
-            # URL parser (treated as server_settings → CantChangeRuntimeParamError).
-            # Strip from URL and pass as ssl= kwarg instead.
-            ssl_kwarg: dict[str, str] = {}
-            for token in ("?ssl=disable", "&ssl=disable"):
-                if token in dsn:
-                    dsn = dsn.replace(token, "")
-                    ssl_kwarg["ssl"] = "disable"
+            # Plan 26-03 / TD-03: centralized DSN normalization (was 7-line inline strip).
+            dsn, ssl_kwarg = prepare_dsn(settings.pg_dsn)
             self._pool = await asyncpg.create_pool(
                 dsn, min_size=2, max_size=10, init=_init_conn, **ssl_kwarg,
             )
             await self._create_tables()
         return self._pool
+
+    async def close(self) -> None:
+        """Close the asyncpg pool. Idempotent — safe to call when pool was never built.
+
+        Plan 26-03 / TD-03. Called from main.py lifespan shutdown by Plan 26-05.
+        """
+        if self._pool is not None:
+            await self._pool.close()
+            self._pool = None
 
     async def _create_tables(self) -> None:
         from config.settings import settings
@@ -606,6 +610,16 @@ class MemoryService:
         self, session_id: str, max_turns: int = 6
     ) -> list[dict[str, str]]:
         return await self._short.get_formatted_history(session_id, max_turns)
+
+    async def close(self) -> None:
+        """Close inner pool resources. Idempotent.
+
+        Plan 26-05 / TD-03. Called from main.py lifespan shutdown.
+        Cascades to LongTermMemory (asyncpg pool); ShortTermMemory (Redis)
+        owns its own client lifecycle and is not closed here.
+        """
+        if self._long is not None:
+            await self._long.close()
 
 
 _memory_service: MemoryService | None = None

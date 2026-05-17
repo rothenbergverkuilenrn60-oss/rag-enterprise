@@ -20,50 +20,51 @@ v1.5 Web Search + Multi-Agent Debate + Coverage Lift shipped: replaced the v1.4 
 - ✅ **v1.3 Fork Swarm, NLU & Quality** shipped 2026-05-09 — [archive](milestones/v1.3-ROADMAP.md)
 - ✅ **v1.4 Agent-First Architecture Inversion** shipped 2026-05-10 — [archive](milestones/v1.4-ROADMAP.md)
 - ✅ **v1.5 Web Search + Multi-Agent Debate + Coverage Lift** shipped 2026-05-11 — [archive](milestones/v1.5-ROADMAP.md)
+- ✅ **v1.6 Memory Tool — Agent-Authored Long-Term Facts** shipped 2026-05-17 — [archive](milestones/v1.6-ROADMAP.md)
 
-## Current Milestone: v1.6 Memory Tool — Agent-Authored Long-Term Facts
+## Current Milestone: v1.7 Memory Tech-Debt Burn-Down
 
-**Goal:** Ship 10x roadmap #1 (Memory tool) as agent-callable durable facts — background extractor writes, pgvector RecallTool reads, capacity-cap eviction bounds growth. Differentiates from existing `services/memory/memory_service.py` (Redis short-term + PG long-term + user profile, auto-injected) by being a **third store** (agent-authored), not a wrapper.
+**Goal:** Knock out all 7 deferred items surfaced at v1.6 ship — keep the memory subsystem production-clean before adding more features. No new user-facing capabilities; pure refactor + reliability.
 
 **Target features:**
-- Background extractor sub-agent (post-turn `asyncio.create_task`, adversarial fixtures, importance buckets {0.2, 0.5, 0.8}, refusal clause for prompt-injection)
-- pgvector RecallTool joining `AGENT_TOOL_ALLOWLIST` (4th tool) + semantic recall rewrite of `LongTermMemory.get_relevant_facts` (popularity → query-relevant; affects all 4 `load_context` call sites in `services/pipeline.py`)
-- Per-user capacity-cap eviction (default 500 facts/user/tenant) + nightly importance-weighted cleanup + GDPR forget API
-
-**Design doc:** `~/.gstack/projects/rothenbergverkuilenrn60-oss-rag-enterprise/ubuntu-master-design-20260515-211345.md` (APPROVED, locked via /office-hours 2026-05-15)
+- `audit_log` table auto-create + `?ssl=disable` helper centralization + bge-m3 model dir layout fix (infra hygiene)
+- Per-test `create_app()` factory (kill module-level singleton graph + FastAPI app singleton; cheap test isolation)
+- `save_fact` near-duplicate guard (`<embedding> <=> $vec < 0.05` precheck) + `save_facts(list[ExtractedFact])` batch path (1× embed + executemany)
+- Redis-mock fixture rollout (kill 32 pre-existing Redis-dependent unit-test failures)
+- End-of-milestone doc + CHANGELOG sweep (README, ARCHITECTURE.md, dev runbook for touched modules)
 
 **Key context (locked):**
-- Schema reuse: `long_term_facts` table already exists; v1.6 only adds `embedding VECTOR(1024)` column (matches `settings.embedding_dim`)
-- Tenant scope: `(user_id, tenant_id)` composite filter; cross-user-within-tenant recall is OUT (deferred to v1.7+)
-- Phase count: 3 (P23/P24/P25) — matches v1.5 cadence
-- Extractor pattern: reuses `services/agent/verifier.py` provider-singleton + `call_agentic_turn` + Pydantic schema; differs by running background via `asyncio.create_task` + `utils/tasks.log_task_error` (not in-pipeline)
-- Forget API: GDPR-aligned, ships in P25
+- All 8 items originate from v1.6 known-deferred list (no scope creep)
+- Continues phase numbering: v1.7 starts at **Phase 26** (no `--reset-phase-numbers` flag)
+- Carry-forward gates still apply: `diff-cover ≥ 80%` on touched files, combined coverage `--fail-under=70`
+- Zero production behavior change required — every refactor must preserve existing API + DB contracts; verified via regression tests on each touched module
+- GSD subagents NOT installed → roadmap generated inline (per init JSON `agents_installed: false`)
 
-**Carried forward (NOT v1.6 scope — tracked for v1.7+):**
-- Code-acting / SQLTool (10x roadmap #4) — sandbox selection unresolved
-- RLS on `long_term_facts` (Phase-2 v1.0 carry-forward) + asyncpg pool `app.current_tenant` production verification
-- SSE memory events (memory.extracted, memory.recalled) — explicit-trace differentiation extension
+**Carried forward (NOT v1.7 scope — tracked for v1.8+):**
+- Code-acting / SQLTool (10x roadmap #4) — sandbox selection still unresolved
+- RLS on `long_term_facts` + asyncpg pool `app.current_tenant` production verification
+- SSE memory events (memory.extracted, memory.recalled)
 - Per-tenant capacity overrides / importance decay
 - UI-03 React/Vue full migration; TEST-07 mutation testing; UI-02 first-deploy browser smoke
-- Per-module floor raise (>70%) or branch-coverage activation (Phase 22 D-08 follow-up)
+- Per-module coverage floor raise (>70%) or branch-coverage activation
 - PyMuPDF AGPL commercial licensing
 - Docker Build CI fix (paddleocr / paddlex / paddlepaddle ABI churn — currently `continue-on-error: true`)
 
-## Previous Milestone (Archived): v1.5 Web Search + Multi-Agent Debate + Coverage Lift
+## Previous Milestone (Archived): v1.6 Memory Tool — Agent-Authored Long-Term Facts
 
-**Shipped:** 2026-05-11 (PR #4, squash `c410a45`).
+**Shipped:** 2026-05-17 (PRs #5 + #7 + #8 squash-merged).
 
 <details>
-<summary>v1.5 milestone scope (collapsed — see <a href="milestones/v1.5-ROADMAP.md">archive</a> for full snapshot)</summary>
+<summary>v1.6 milestone scope (collapsed — see <a href="milestones/v1.6-ROADMAP.md">archive</a> for full snapshot)</summary>
 
-**Goal:** Replace v1.4's WebSearchTool placeholder with a Tavily-backed real implementation; introduce AGENT-05 multi-agent debate / sub-agent verify (10x roadmap #2); lift 5 large modules above per-module ≥ 70% coverage.
+**Goal:** Ship 10x roadmap #1 (Memory tool) as agent-callable durable facts — background extractor writes, pgvector RecallTool reads, capacity-cap eviction bounds growth.
 
 **Delivered:**
-- **WebSearchTool real impl** — Tavily SDK behind the v1.4 `BaseTool` interface; promoted from placeholder into `AGENT_TOOL_ALLOWLIST`; planner picks it when KB returns < N chunks
-- **AGENT-05 verifier sub-agent** — extends v1.3 `SwarmQueryPipeline` with a verifier hop on `req.debate=True`; 3 new SSE event types extend v1.4 schema; latency bounded by `max(peer) + verifier`, not `sum`
-- **Per-module 70% coverage lift** — `services/pipeline.py` 42.7→81.0%, `services/generator/llm_client.py` 53.0→70.6%, `services/vectorizer/vector_store.py` 44.2→80.0%, `services/retriever/retriever.py` 34.5→85.0%, `services/extractor/extractor.py` 37.3→73.5%; CI hard-fail per-module gates with run-all-then-fail (D-02/D-08); zero production `.py` changes (CF-01)
+- **Background ExtractorAgent** — post-turn `asyncio.create_task` non-blocking dispatch; adversarial refusal for prompt-injection; importance buckets {0.2, 0.5, 0.8}; reuses `services/agent/verifier.py` provider-singleton pattern
+- **pgvector RecallTool** — 4th tool in `AGENT_TOOL_ALLOWLIST`; `LongTermMemory.get_relevant_facts()` rewritten from popularity-rank to semantic cosine; `hnsw.iterative_scan = strict_order` + `ef_search` pattern reused; 4 `load_context` call sites in `services/pipeline.py` regression-tested
+- **Eviction CLI + GDPR forget API** — `scripts/evict_long_term_facts.py` chunked importance-ASC eviction (audit-mode-before-enforce); `DELETE /api/v1/memory/forget` admin-or-self auth + `X-Confirm-Delete` header; audit-log entry per call (audit-write failure does NOT block GDPR action)
 
-Tavily key handling: stored in `.env` only (gitignored); `.env.docker` references via `${TAVILY_API_KEY:-}`; never written into planning docs or commits.
+**Known deferred (now scoped into v1.7):** audit_log auto-create; per-test create_app factory; asyncpg_helper.py centralization; save_fact dedupe guard; save_facts batch path; Redis-mock fixture; bge-m3 dir layout.
 
 </details>
 
@@ -153,15 +154,23 @@ Every query returns a grounded, auditable answer — no hallucinations, no silen
 
 ### Active
 
-(No active milestone — v1.6 shipped 2026-05-17; awaiting v1.7 open)
+**v1.7 Memory Tech-Debt Burn-Down (in planning — phases to be derived from these 8 requirements):**
+- [ ] **TD-01**: `audit_log` table auto-creates on `audit_service` startup (port `_create_tables` from `LongTermMemory`)
+- [ ] **TD-02**: Per-test `create_app()` factory eliminates module-level singleton graph + FastAPI app singleton; per-test isolation no longer requires monkeypatch
+- [ ] **TD-03**: `utils/asyncpg_helper.py` centralizes `?ssl=disable` URL-param strip; `memory_service` + `audit_service` consume the helper (no duplicated logic)
+- [ ] **TD-04**: `save_fact` near-duplicate guard via `<embedding> <=> $vec < 0.05` precheck (eng-review A3 from Phase 23)
+- [ ] **TD-05**: `save_facts(list[ExtractedFact])` batch path uses 1× `embed_batch` + `executemany` (replaces 3× round-trips per turn)
+- [ ] **TD-06**: Redis-mock fixture rollout closes the 32 pre-existing Redis-dependent unit-test failures
+- [ ] **TD-07**: bge-m3 model dir layout fix — code path matches HF cache layout natively (no symlink workaround)
+- [ ] **DOC-01**: Doc + CHANGELOG sweep — README, ARCHITECTURE.md, dev runbook refreshed for all touched modules; v1.7 CHANGELOG entry added
 
-**v1.6 Memory Tool — Agent-Authored Long-Term Facts (now validated, see below)**
+**v1.6 Memory Tool — Agent-Authored Long-Term Facts (validated, see above)**
 
 **v1.5 Web Search + Multi-Agent Debate + Coverage Lift (validated, moved below)**
 
 **v1.4 Agent-First Architecture Inversion (now validated, moved below)**
 
-**Carried over (not v1.5-scoped, still tracked):**
+**Carried over (not v1.7-scoped, still tracked):**
 - [ ] asyncpg pool + RLS: verify `app.current_tenant` per-connection in production pool
 - [ ] PyMuPDF AGPL license: resolve commercial licensing for on-premise deployments
 - [ ] Phase 9/14 visual diff vs v1.0 + Docker live build (deferred to first deploy)
@@ -265,4 +274,4 @@ Every query returns a grounded, auditable answer — no hallucinations, no silen
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-15 — v1.6 Memory Tool milestone opened (design doc locked via /office-hours)*
+*Last updated: 2026-05-17 — v1.7 Memory Tech-Debt Burn-Down milestone opened*

@@ -35,7 +35,6 @@ from services.agent.extractor import dispatch_extraction
 from services.memory.memory_service import ConversationTurn
 from utils.models import ExtractedFact
 
-
 # -----------------------------------------------------------------------------
 # Helpers + autouse reset
 # -----------------------------------------------------------------------------

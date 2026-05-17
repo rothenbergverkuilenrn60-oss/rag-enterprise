@@ -270,9 +270,8 @@ async def test_forget_api_audit_log_row(
     from fastapi.testclient import TestClient
 
     import services.audit.audit_service as audit_mod
-    from services.audit.audit_service import get_audit_service
-
     from main import app
+    from services.audit.audit_service import get_audit_service
 
     # Pitfall 3: enable DB writer for this test only.
     monkeypatch.setattr(audit_mod.settings, "audit_db_enabled", True)

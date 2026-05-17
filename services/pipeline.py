@@ -30,9 +30,6 @@ import openai  # noqa: F401 — referenced in narrow except in AgentQueryPipelin
 from loguru import logger
 
 from config.settings import settings
-from services.agent import get_executor, get_planner
-from services.agent.tools import get_tool_registry
-from services.agent.tools.retrieve import retrieve_impl as _shared_execute_tool_call
 
 # Phase 21 / Plan 21-05 — Verifier sub-agent (AGENT-05). Top-level import is safe
 # because services/agent/verifier.py guards `from services.pipeline import _SubAgentResult`
@@ -42,8 +39,12 @@ from services.ab_test.ab_test_service import (
     current_variant_config,
     get_ab_test_service,
 )
+from services.agent import get_executor, get_planner
+
 # Phase 23 / MEM-04 — extractor dispatch wrapper.
 from services.agent.extractor import dispatch_extraction  # noqa: E402
+from services.agent.tools import get_tool_registry
+from services.agent.tools.retrieve import retrieve_impl as _shared_execute_tool_call
 from services.agent.verifier import Verifier  # noqa: E402
 from services.audit.audit_service import (
     AuditAction,

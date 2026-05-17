@@ -9,7 +9,7 @@ import os
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, computed_field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # BASE_DIR 优先从环境变量读取，回退到文件所在目录的上一级（项目根目录）
@@ -25,6 +25,55 @@ if _model_dir_raw is None:
         "Server will not start."
     )
 MODEL_DIR: Path = Path(_model_dir_raw)
+
+
+# Plan 26-02 / TD-07 — bge-m3 directory layout resolver
+def resolve_embedding_model_path(name: str) -> Path:
+    """Locate a sentence-transformer model directory across HF + legacy layouts.
+
+    Search order (first existing path wins):
+      1. Env override: ``APP_EMBEDDING_MODEL_PATH`` for ``bge-m3``,
+         ``APP_RERANKER_MODEL_PATH`` for ``bge-m3-rerank``. Other names get no
+         env override (extend the env-key mapping below as new models land).
+      2. ``MODEL_DIR / "BAAI" / name`` — Hugging Face flat layout (default
+         on fresh installs that use ``snapshot_download``).
+      3. ``MODEL_DIR / "embedding_models" / name`` — legacy layout from v1.0.
+      4. ``MODEL_DIR / f"models--BAAI--{name}" / "snapshots" / <any-sha>`` —
+         HF hub cache structure.
+
+    When no candidate exists, returns the legacy path (option 3) so the
+    existing "crash at first model load" semantics are unchanged. Callers
+    that need fail-fast at startup should check ``.exists()`` themselves.
+
+    Reads ``APP_MODEL_DIR`` from the environment at call time so tests can
+    monkeypatch it without forcing a module reload across the whole settings
+    surface. Production behavior is unchanged because ``APP_MODEL_DIR`` does
+    not mutate after startup.
+    """
+    env_key_by_name = {
+        "bge-m3":        "APP_EMBEDDING_MODEL_PATH",
+        "bge-m3-rerank": "APP_RERANKER_MODEL_PATH",
+    }
+    env_key = env_key_by_name.get(name)
+    if env_key:
+        override = os.getenv(env_key)
+        if override:
+            return Path(override)
+
+    model_dir = Path(os.environ.get("APP_MODEL_DIR", str(MODEL_DIR)))
+
+    for candidate in (model_dir / "BAAI" / name, model_dir / "embedding_models" / name):
+        if candidate.exists():
+            return candidate
+
+    hub_cache_root = model_dir / f"models--BAAI--{name}" / "snapshots"
+    if hub_cache_root.exists():
+        for snapshot in hub_cache_root.iterdir():
+            if snapshot.is_dir():
+                return snapshot
+
+    # Legacy fallback — preserves crash-on-load semantics for callers
+    return model_dir / "embedding_models" / name
 
 # SEC-01: Known-weak JWT secrets that must be rejected at startup
 _JWT_DENYLIST: frozenset[str] = frozenset({
@@ -212,7 +261,15 @@ class Settings(BaseSettings):
     #   "openai"       → OpenAI API（需要 openai_api_key，有网络费用）
     embedding_provider:   Literal["ollama", "openai", "huggingface"] = "huggingface"
     embedding_model:      str  = "bge-m3"
-    embedding_model_path: Path = MODEL_DIR / "embedding_models" / "bge-m3"
+    # Plan 26-02 / TD-07: embedding_model_path delegates to the layout resolver
+    # so HF flat (`BAAI/bge-m3`), legacy (`embedding_models/bge-m3`), and HF
+    # hub cache (`models--BAAI--bge-m3/snapshots/*`) layouts all work without
+    # symlinks. Env override `APP_EMBEDDING_MODEL_PATH` takes precedence.
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def embedding_model_path(self) -> Path:
+        return resolve_embedding_model_path(self.embedding_model)
+
     embedding_dim:        int  = 1024    # BGE-M3 输出维度，换模型时必须同步修改
     embedding_batch_size: int  = 32      # 每次调用发送的文本条数
     embedding_normalize:  bool = True    # 归一化向量（余弦相似度必须为 True）
@@ -254,7 +311,13 @@ class Settings(BaseSettings):
 
     # Reranker：Cross-Encoder 精排（比 Bi-Encoder 向量相似度更精准，但更慢）
     reranker_enabled:    bool = True
-    reranker_model_path: Path = MODEL_DIR / "embedding_models" / "bge-m3-rerank"
+    # Plan 26-02 / TD-07: same resolver, name = "bge-m3-rerank".
+    # Env override `APP_RERANKER_MODEL_PATH` takes precedence.
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def reranker_model_path(self) -> Path:
+        return resolve_embedding_model_path("bge-m3-rerank")
+
     reranker_batch_size: int  = 32
 
     # ══════════════════════════════════════════════════════════════════════════

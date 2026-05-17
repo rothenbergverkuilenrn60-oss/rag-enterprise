@@ -123,14 +123,18 @@ async def test_positive_feedback_does_NOT_push_annotation(monkeypatch):
     import services.feedback.feedback_service as fb_mod
     import utils.cache as cache_mod
 
-    fb_svc = MagicMock(); fb_svc.submit = AsyncMock()
+    fb_svc = MagicMock()
+    fb_svc.submit = AsyncMock()
     monkeypatch.setattr(fb_mod, "get_feedback_service", lambda: fb_svc)
-    ab_svc = MagicMock(); ab_svc.record_feedback = AsyncMock()
+    ab_svc = MagicMock()
+    ab_svc.record_feedback = AsyncMock()
     monkeypatch.setattr(ab_mod, "get_ab_test_service", lambda: ab_svc)
-    ann_svc = MagicMock(); ann_svc.push_task_from_feedback = AsyncMock()
+    ann_svc = MagicMock()
+    ann_svc.push_task_from_feedback = AsyncMock()
     monkeypatch.setattr(ann_mod, "get_annotation_service", lambda: ann_svc)
 
-    fake_redis = MagicMock(); fake_redis.get = AsyncMock(return_value=None)
+    fake_redis = MagicMock()
+    fake_redis.get = AsyncMock(return_value=None)
     monkeypatch.setattr(cache_mod, "get_redis", AsyncMock(return_value=fake_redis))
 
     from controllers.api import submit_feedback

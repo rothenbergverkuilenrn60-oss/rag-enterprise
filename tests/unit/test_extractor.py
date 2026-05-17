@@ -26,8 +26,10 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from services.memory.memory_service import ConversationTurn
-from utils.models import AgenticTurn, ExtractedFact   # noqa: F401  # plan acceptance shape import
-
+from utils.models import (  # noqa: F401  # plan acceptance shape import
+    AgenticTurn,
+    ExtractedFact,
+)
 
 # -----------------------------------------------------------------------------
 # Helpers
@@ -66,7 +68,7 @@ def _reset_extractor_singleton(monkeypatch: pytest.MonkeyPatch) -> Any:
     doesn't exist yet, this no-ops, which is fine for the RED-gate phase).
     """
     try:
-        import services.agent.extractor as emod   # noqa: F401
+        import services.agent.extractor as emod  # noqa: F401
         monkeypatch.setattr(emod, "_extractor", None, raising=False)
     except ImportError:
         pass

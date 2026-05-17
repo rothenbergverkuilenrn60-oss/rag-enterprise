@@ -28,7 +28,9 @@ from slowapi.middleware import SlowAPIMiddleware
 from config.settings import settings
 from controllers.api import limiter as _route_limiter
 from controllers.api import router
-from controllers.memory import router as memory_router  # Phase 25 / T2 — GDPR forget API
+from controllers.memory import (
+    router as memory_router,  # Phase 25 / T2 — GDPR forget API
+)
 from utils.logger import setup_logger
 from utils.metrics import (
     active_requests_gauge,
@@ -124,12 +126,20 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:             # As
         await _get_bus().stop()
     except Exception:
         pass
-    # 应用关闭时 flush 审计日志缓冲区，确保所有审计记录写入 DB
+    # 应用关闭时关闭审计日志池（先 flush 缓冲区写入 DB，再 close pool）
+    # Plan 26-05 / TD-01 + TD-03 — close() upgrades flush() to also tear down the asyncpg pool.
     try:
         from services.audit.audit_service import get_audit_service as _get_audit
-        await _get_audit().flush()
-    except Exception:
-        pass
+        await _get_audit().close()
+    except Exception as exc:
+        logger.warning(f"[shutdown] audit close error={exc}")
+    # 应用关闭时关闭内存服务池（LongTermMemory asyncpg pool）
+    # Plan 26-05 / TD-03 — D-15 ordering: audit close first (drains to PG), then memory.
+    try:
+        from services.memory.memory_service import get_memory_service as _get_memory
+        await _get_memory().close()
+    except Exception as exc:
+        logger.warning(f"[shutdown] memory close error={exc}")
     # Flush observability buffers（确保 Langfuse 数据不丢失）
     try:
         from utils.observability import flush as obs_flush

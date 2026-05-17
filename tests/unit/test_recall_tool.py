@@ -36,7 +36,6 @@ import pytest
 
 from utils.models import GenerationRequest, ToolContext, ToolResult
 
-
 # ---------------------------------------------------------------------------
 # Reusable _ctx helper (PATTERNS analog 10 §Reusable ctx helper)
 # ---------------------------------------------------------------------------
@@ -153,7 +152,7 @@ async def test_happy_path_bullets(monkeypatch: pytest.MonkeyPatch) -> None:
 
 async def test_empty_marker(monkeypatch: pytest.MonkeyPatch) -> None:
     """Empty result: get_relevant_facts==[] -> empty marker, is_error=False (NOT error)."""
-    from services.agent.tools.recall import RecallTool, _EMPTY_MARKER
+    from services.agent.tools.recall import _EMPTY_MARKER, RecallTool
 
     fake = _fake_mem(return_value=[])
     monkeypatch.setattr("services.agent.tools.recall.get_memory_service", lambda: fake)
@@ -204,7 +203,7 @@ async def test_error_isolation_parametrized(
 
 async def test_missing_user_id_returns_empty(monkeypatch: pytest.MonkeyPatch) -> None:
     """Auth precondition: empty user_id -> empty marker, get_memory_service NOT called."""
-    from services.agent.tools.recall import RecallTool, _EMPTY_MARKER
+    from services.agent.tools.recall import _EMPTY_MARKER, RecallTool
 
     factory_spy = MagicMock()
     monkeypatch.setattr("services.agent.tools.recall.get_memory_service", factory_spy)
@@ -224,7 +223,7 @@ async def test_missing_user_id_returns_empty(monkeypatch: pytest.MonkeyPatch) ->
 
 async def test_missing_tenant_id_returns_empty(monkeypatch: pytest.MonkeyPatch) -> None:
     """Auth precondition: empty tenant_id -> empty marker, get_memory_service NOT called."""
-    from services.agent.tools.recall import RecallTool, _EMPTY_MARKER
+    from services.agent.tools.recall import _EMPTY_MARKER, RecallTool
 
     factory_spy = MagicMock()
     monkeypatch.setattr("services.agent.tools.recall.get_memory_service", factory_spy)
@@ -256,7 +255,7 @@ async def test_missing_query_returns_empty(monkeypatch: pytest.MonkeyPatch) -> N
     Note: "  " is truthy in Python (non-empty string), so it wins the `or` chain.
     The strip() applied at the end makes query_str == "", triggering the precondition.
     """
-    from services.agent.tools.recall import RecallTool, _EMPTY_MARKER
+    from services.agent.tools.recall import _EMPTY_MARKER, RecallTool
 
     factory_spy = MagicMock()
     monkeypatch.setattr("services.agent.tools.recall.get_memory_service", factory_spy)
@@ -364,6 +363,7 @@ def test_no_long_private_attr_reach() -> None:
     """
     import ast
     import textwrap
+
     from services.agent.tools.recall import RecallTool
 
     full_src = inspect.getsource(RecallTool.run)
