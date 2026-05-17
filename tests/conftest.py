@@ -193,3 +193,158 @@ async def clean_long_term_facts(pgvector_pool):
         except Exception:  # noqa: BLE001 — table may not exist on first call
             pass
     yield
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Phase 27 / Plan 27-00 — Test isolation + memory reliability scaffolding.
+#
+# Adds:
+#   - `uses_redis` + `benchmark` pytest markers (registered via pytest_configure).
+#   - `pytest_collection_modifyitems` hook that auto-attaches `redis_mock` to
+#     every test marked `@pytest.mark.uses_redis` (D-18).
+#   - `redis_mock` fixture backed by `fakeredis.aioredis.FakeRedis` (CONTEXT D-20
+#     override per RESEARCH §Theme 2 — fakeredis has real list/sorted-set/hash/
+#     pipeline semantics that a hand-rolled MagicMock would have to reimplement).
+#     Patches BOTH `utils.cache.get_redis` (5 consumer services) AND
+#     `redis.asyncio.from_url` (Pitfall 6 — ShortTermMemory bypass).
+#   - `app_factory` + `isolated_app` + `isolated_client` fixtures for the
+#     create_app() factory introduced in `tests/factories/app.py`.
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    """Register Phase 27 markers so `@pytest.mark.uses_redis` / `@pytest.mark.benchmark`
+    don't trigger ``PytestUnknownMarkWarning``."""
+    config.addinivalue_line(
+        "markers",
+        "uses_redis: test exercises Redis path; redis_mock fixture auto-applied",
+    )
+    config.addinivalue_line(
+        "markers",
+        "benchmark: long-running latency benchmark; opt-in via -m benchmark",
+    )
+
+
+def pytest_collection_modifyitems(
+    config: pytest.Config, items: list[pytest.Item]
+) -> None:
+    """Auto-attach `redis_mock` to every test marked `@pytest.mark.uses_redis`.
+
+    Implements D-18: tests opt-in to the fakeredis fixture via marker, not by
+    explicitly listing `redis_mock` as a function argument. This keeps the
+    marker single-source-of-truth for "this test path touches Redis."
+    """
+    for item in items:
+        # `item.fixturenames` is the resolved fixture list pytest will inject.
+        # The pytest stubs don't expose it on the `Item` base class; both the
+        # `in`-check and `.append` need the attr-defined suppression.
+        if (
+            "uses_redis" in item.keywords
+            and "redis_mock" not in item.fixturenames  # type: ignore[attr-defined]
+        ):
+            item.fixturenames.append("redis_mock")  # type: ignore[attr-defined]
+
+
+@pytest.fixture
+async def redis_mock(monkeypatch: pytest.MonkeyPatch):  # type: ignore[no-untyped-def]
+    """In-memory Redis double for unit tests.
+
+    Backed by ``fakeredis.aioredis.FakeRedis`` (RESEARCH §Theme 2 — overrides
+    CONTEXT D-20's MagicMock proposal because fakeredis correctly implements
+    GET/SET, lists (RPUSH/LRANGE), sorted sets (ZADD/ZCOUNT), hashes (HSET/HGET/
+    HGETALL/HDEL), EXPIRE, pipelines, and Lua ``eval`` out of the box).
+
+    Patches both Redis-access paths so every service receives the fake:
+      1. ``utils.cache.get_redis`` — canonical lazy accessor used by 5 services.
+      2. ``redis.asyncio.from_url`` — direct path used by
+         ``services.memory.memory_service.ShortTermMemory._get_client``
+         (Pitfall 6; bonus refactor in plan 27-02 may delegate to ``get_redis``
+         but the patch stays as a safety belt for unmigrated tests).
+
+    Also resets ``utils.cache._redis_client`` so a prior test's real connection
+    is not reused inside the same pytest process.
+    """
+    import fakeredis.aioredis
+
+    fake = fakeredis.aioredis.FakeRedis(decode_responses=True)
+
+    async def _get_redis_stub() -> fakeredis.aioredis.FakeRedis:
+        return fake
+
+    # Primary consumer-path patch.
+    monkeypatch.setattr("utils.cache.get_redis", _get_redis_stub)
+
+    # Reset cached singleton inside utils.cache so the patch above wins on next
+    # lookup even if a prior test populated _redis_client.
+    import utils.cache as cache_mod
+
+    monkeypatch.setattr(cache_mod, "_redis_client", None, raising=False)
+
+    # Pitfall 6 — ShortTermMemory direct-from_url bypass. Patched here as a
+    # safety belt; plan 27-02 may delegate ShortTermMemory through get_redis.
+    async def _from_url_stub(*_args: object, **_kwargs: object) -> fakeredis.aioredis.FakeRedis:
+        return fake
+
+    monkeypatch.setattr("redis.asyncio.from_url", _from_url_stub)
+
+    yield fake
+
+    # Explicit close — narrow exception tuple (no bare except per CLAUDE.md ERR-01).
+    # FakeRedis.aclose() can raise RuntimeError on a closed event loop or
+    # AttributeError on a partially-initialized client; either is non-fatal in
+    # test teardown.
+    try:
+        await fake.aclose()
+    except (RuntimeError, OSError, AttributeError) as exc:
+        from loguru import logger as _logger
+
+        _logger.debug(f"[redis_mock] aclose failed (non-fatal): {exc}")
+
+
+@pytest.fixture
+async def app_factory():  # type: ignore[no-untyped-def]
+    """Yields a callable that builds isolated FastAPI apps via create_app().
+
+    Each call resets the full singleton inventory (~34 entries) and constructs
+    a fresh FastAPI instance. The teardown calls ``_reset_singletons()`` one
+    more time so the next test starts with a clean slate.
+
+    Requires ``main._configure_app`` (introduced in plan 27-01). Tests should
+    gate via ``pytest.importorskip`` or a getattr check.
+    """
+    from tests.factories.app import _reset_singletons, create_app
+
+    created: list[object] = []
+
+    def _factory(**kwargs: object) -> object:
+        app = create_app(**kwargs)  # type: ignore[arg-type]
+        created.append(app)
+        return app
+
+    yield _factory
+    # Teardown — leave singletons reset for the next test.
+    _reset_singletons()
+
+
+@pytest.fixture
+async def isolated_app(app_factory):  # type: ignore[no-untyped-def]
+    """Pre-built isolated FastAPI app for tests that don't need dependency overrides."""
+    return app_factory()
+
+
+@pytest.fixture
+async def isolated_client(isolated_app):  # type: ignore[no-untyped-def]
+    """ASGI httpx client bound to an isolated FastAPI app.
+
+    Note: ASGITransport skips lifespan execution (Pitfall 4). Adequate for the
+    SC-1 cross-contamination test which asserts at the singleton-reset level.
+    Tests that need lifespan should use ``httpx.AsyncClient`` + ``LifespanManager``
+    directly.
+    """
+    from httpx import ASGITransport, AsyncClient
+
+    async with AsyncClient(
+        transport=ASGITransport(app=isolated_app),
+        base_url="http://test",
+    ) as client:
+        yield client
