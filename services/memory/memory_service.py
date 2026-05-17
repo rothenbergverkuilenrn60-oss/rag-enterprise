@@ -354,6 +354,87 @@ class LongTermMemory:
             )
             return []
 
+    async def _is_near_duplicate(
+        self,
+        conn: "asyncpg.Connection",
+        *,
+        user_id: str,
+        tenant_id: str,
+        embedding: list[float],
+        threshold: float,
+    ) -> tuple[bool, float | None]:
+        """Cosine near-duplicate precheck for ``save_fact`` (Phase 27 / TD-04).
+
+        Returns ``(is_duplicate, nearest_cosine_distance)``. Distance comes from
+        pgvector's cosine operator (``<=>``): 0 = identical, 2 = opposite.
+
+        Mirrors the GUC discipline from ``get_relevant_facts:336-352`` so the
+        HNSW index ``ltf_emb_hnsw_idx`` participates under the per-(user,tenant)
+        pre-filter (v1.1 Phase 8 / v1.6 Phase 24 carry-forward).
+
+        Uses ``ORDER BY ... LIMIT 1`` (not ``WHERE ... < threshold LIMIT 1``)
+        so the caller can surface the actual nearest distance in the audit row
+        (D-08: ``detail.nearest_distance``).
+
+        On empty table → ``(False, None)``. Caller wraps this method in
+        ``try / except asyncpg.PostgresError`` for fail-OPEN semantics per
+        RESEARCH §Theme 3 "Failure mode policy".
+        """
+        from config.settings import settings
+
+        async with conn.transaction():
+            ef = int(getattr(settings, "pgvector_ef_search_filtered", 200))
+            await conn.execute("SET LOCAL hnsw.iterative_scan = 'strict_order'")
+            await conn.execute(f"SET LOCAL hnsw.ef_search = {ef}")
+            row = await conn.fetchrow(
+                """SELECT embedding <=> $3::vector AS dist
+                   FROM long_term_facts
+                   WHERE user_id=$1 AND tenant_id=$2
+                   ORDER BY embedding <=> $3::vector
+                   LIMIT 1""",
+                user_id, tenant_id, embedding,
+            )
+        if row is None:
+            return (False, None)
+        dist = float(row["dist"])
+        return (dist < threshold, dist)
+
+    @staticmethod
+    async def _fire_near_duplicate_audit(
+        user_id: str, tenant_id: str, fact: str, dist: float | None,
+    ) -> None:
+        """Best-effort audit emit for near-duplicate detections (D-09 audit-mode).
+
+        v1.7 emits ``MEMORY_NEAR_DUPLICATE_SKIPPED`` for ops visibility BUT the
+        INSERT in ``save_fact`` still runs (audit-mode-before-enforce per v1.6
+        Phase 25 EVICT-02). v1.8 promotes to actual silent-skip.
+
+        Audit-write failure is non-fatal (v1.6 GDPR T1 Pattern D): logged at
+        warning level, swallowed so the caller's save can proceed.
+        """
+        from services.audit.audit_service import (
+            AUDIT_DETAIL_TRUNCATE_LEN,
+            AuditAction,
+            AuditEvent,
+            AuditResult,
+            get_audit_service,
+        )
+
+        try:
+            await get_audit_service().log(AuditEvent(
+                user_id=user_id,
+                tenant_id=tenant_id,
+                action=AuditAction.MEMORY_NEAR_DUPLICATE_SKIPPED,
+                resource_id="",
+                result=AuditResult.SKIPPED,  # semantic intent — INSERT NOT skipped in v1.7
+                detail={
+                    "fact_truncated": fact[:AUDIT_DETAIL_TRUNCATE_LEN],
+                    "nearest_distance": dist,
+                },
+            ))
+        except Exception as exc:  # noqa: BLE001 — audit-write failure must NOT block (v1.6 GDPR T1)
+            logger.warning("audit write failed (non-fatal): {}", exc)
+
     async def save_fact(
         self, user_id: str, tenant_id: str,
         fact: str, source_doc: str = "", importance: float = 0.5,
@@ -366,6 +447,7 @@ class LongTermMemory:
         # Lazy imports (circular-import resilience per repo convention).
         import httpx
 
+        from config.settings import settings
         from services.vectorizer.embedder import get_embedder
 
         try:
@@ -383,6 +465,29 @@ class LongTermMemory:
         try:
             pool = await self._get_pool()
             async with pool.acquire() as conn:
+                # Plan 27-03 / TD-04 — cosine near-duplicate precheck (D-09 audit-mode-only).
+                # Fail-OPEN: precheck PostgresError → log warning, treat as non-duplicate,
+                # INSERT proceeds. Mirrors get_relevant_facts:353-357 ("returns [] on failure")
+                # and matches v1.6 GDPR T1 Pattern D "audit-write failure must NOT block".
+                try:
+                    is_dup, dist = await self._is_near_duplicate(
+                        conn,
+                        user_id=user_id,
+                        tenant_id=tenant_id,
+                        embedding=embedding,
+                        threshold=settings.memory_near_duplicate_threshold,
+                    )
+                except asyncpg.PostgresError as exc:
+                    logger.warning(
+                        "near-duplicate precheck failed (fail-open): {}", exc,
+                    )
+                    is_dup, dist = False, None
+                if is_dup:
+                    # D-09: emit MEMORY_NEAR_DUPLICATE_SKIPPED audit row but DO NOT skip INSERT.
+                    # v1.8+ follow-up: promote to actual silent-skip (see SUMMARY).
+                    await self._fire_near_duplicate_audit(
+                        user_id, tenant_id, fact, dist,
+                    )
                 await conn.execute(
                     """INSERT INTO long_term_facts
                        (user_id, tenant_id, fact, source_doc, importance, embedding)
