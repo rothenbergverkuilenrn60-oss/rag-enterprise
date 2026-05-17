@@ -15,6 +15,10 @@ import pytest
 os.environ.setdefault("APP_MODEL_DIR", "/tmp")
 os.environ.setdefault("SECRET_KEY", "a-very-secure-key-for-testing-that-is-long-32c")
 
+# Plan 27-02 / TD-06 — auto-attach redis_mock fixture for every test in this
+# module (tests/conftest.py:pytest_collection_modifyitems hook).
+pytestmark = pytest.mark.uses_redis
+
 
 def _patch_feedback_deps(monkeypatch, redis_get_returns):
     """Patch the symbols submit_feedback imports lazily. Return (ab_svc_mock, fb_svc_mock)."""

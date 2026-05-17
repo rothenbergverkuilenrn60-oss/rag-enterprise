@@ -35,6 +35,10 @@ from utils.models import (
     ToolSpanStartEvent,
 )
 
+# Plan 27-02 / TD-06 — auto-attach redis_mock fixture for every test in this
+# module (tests/conftest.py:pytest_collection_modifyitems hook).
+pytestmark = pytest.mark.uses_redis
+
 # ── helpers ────────────────────────────────────────────────────────────
 
 def _req(query: str = "q") -> GenerationRequest:
