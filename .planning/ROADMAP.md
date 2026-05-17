@@ -60,8 +60,8 @@ See [milestones/v1.7-ROADMAP.md](milestones/v1.7-ROADMAP.md) for full phase deta
 **Plans:** 4 plans (Wave 1 → Wave 2 (overlap halt gate) → Wave 3)
 - [x] 30-00-PLAN.md — OAI-01: `make_api_error()` helper in tests/factories/openai_errors.py (DEVIATION: 32 callsites stale — no APIError construction failures on current master; executor pivoted to fix event-loop / Redis fixture leaks. Helper landed for future SDK drift. 16 RED → 1200 passed.) ✓ shipped 2026-05-17 (commits 030d774, 0c28ae9, f0a2d33, 8e681b2)
 - [~] 30-01-PLAN.md — EVT-01: +14 event-loop leak sites — PARTIALLY SUPERSEDED by Plan 30-00 deviation. Re-evaluate scope before running (likely now 0-2 remaining sites + `_SINGLETON_INVENTORY` extension only).
-- [ ] 30-02-PLAN.md — TEST-INFRA-01: mock HuggingFaceEmbedder.__init__ at conftest scope (execute/TDD-lite, Wave 2)
-- [ ] 30-03-PLAN.md — MYPY-01: fix config/settings.py:154 + bounded sweep cap=25 (execute, Wave 3, depends on 30-00 + 30-02; 30-01 dep dropped per supersession)
+- [x] 30-02-PLAN.md — TEST-INFRA-01: mock HuggingFaceEmbedder + CrossEncoderReranker init at tests/integration/conftest.py (Rule-2 deviation: reranker also raises FileNotFoundError on bge-m3-rerank — both mocked in same fixture) ✓ shipped 2026-05-17 (commits 4cbb4e0, 7b5c6e5)
+- [x] 30-03-PLAN.md — MYPY-01: fix config/settings.py:154 + bounded sweep cap=25 — 32→7 mypy errors (NET -25); 1 fix + 25 silenced with `# type: ignore[error-code]` + `# why:`; 7 overflow → deferred-items.md ✓ shipped 2026-05-17 (commits 3736b62, 2f67cd7, a9db41d, ee3273c)
 
 ## Phases
 
