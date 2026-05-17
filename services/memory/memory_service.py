@@ -96,15 +96,13 @@ class ShortTermMemory:
         self._client = None
 
     async def _get_client(self):
+        # Plan 27-02 / TD-06 (D-19 follow-on): delegate to utils.cache.get_redis
+        # so the singleton accessor is the sole Redis-construction path. Closes
+        # the last bypass (RESEARCH §6) and enables single-target mocking.
         if self._client is None:
-            from redis.asyncio import from_url
+            from utils.cache import get_redis
 
-            from config.settings import settings
-            self._client = await from_url(
-                settings.redis_url,
-                encoding="utf-8",
-                decode_responses=True,
-            )
+            self._client = await get_redis()
         return self._client
 
     def _key(self, session_id: str) -> str:
