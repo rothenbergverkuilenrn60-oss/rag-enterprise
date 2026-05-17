@@ -7,7 +7,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-import asyncpg
+import asyncpg  # type: ignore[import-untyped]  # why: asyncpg has no py.typed marker as of 2026-05
 from loguru import logger
 
 

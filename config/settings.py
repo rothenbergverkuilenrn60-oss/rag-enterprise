@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import Field, computed_field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -151,7 +151,7 @@ class Settings(BaseSettings):
     # ── Embedding Ensemble ────────────────────────────────────────────────────
     # 单模型时保持为空列表；多模型时配置：
     # [{"provider": "ollama", "weight": 0.6}, {"provider": "openai", "weight": 0.4}]
-    embedding_ensemble: list[dict] = []
+    embedding_ensemble: list[dict[str, Any]] = []
     embedding_ensemble_strategy: str = "average"  # average | concat
 
     # ── JWT ───────────────────────────────────────────────────────────────────

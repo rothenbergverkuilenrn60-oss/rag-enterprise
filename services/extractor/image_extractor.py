@@ -29,7 +29,7 @@ def extract_images_from_pdf(file_path: Path, doc_id: str) -> list[ExtractedImage
     Resize: images > 1024 px on either side are thumbnail-resized in memory (D-05).
     Returns empty list for PDFs with no qualifying images (no error raised).
     """
-    import fitz
+    import fitz  # type: ignore[import-untyped]  # why: PyMuPDF (fitz) has no stubs as of 2026-05
 
     extracted: list[ExtractedImage] = []
     total_found = 0

@@ -7,7 +7,7 @@ from __future__ import annotations
 import time
 from typing import Any, ClassVar
 
-import asyncpg
+import asyncpg  # type: ignore[import-untyped]  # why: asyncpg has no py.typed marker as of 2026-05
 import httpx
 from loguru import logger
 

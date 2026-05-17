@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 
-import asyncpg
+import asyncpg  # type: ignore[import-untyped]  # why: asyncpg has no py.typed marker as of 2026-05
 from loguru import logger
 
 

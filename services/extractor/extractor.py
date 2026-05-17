@@ -35,7 +35,7 @@ def is_scanned_pdf(file_path: Path, sample_pages: int = 3) -> bool:
     密度 < 0.01 字符/pt² 则认定为扫描件。
     """
     try:
-        import fitz
+        import fitz  # type: ignore[import-untyped]  # why: PyMuPDF (fitz) has no stubs as of 2026-05
         doc = fitz.open(str(file_path))
         total_chars = 0
         total_area = 0.0
@@ -230,8 +230,8 @@ def _extract_pdf_scanned_tesseract(file_path: Path) -> dict:
     try:
         import io
 
-        import fitz
-        import pytesseract
+        import fitz  # type: ignore[import-untyped]  # why: PyMuPDF (fitz) has no stubs as of 2026-05
+        import pytesseract  # type: ignore[import-not-found]  # why: pytesseract has no stubs as of 2026-05
         from PIL import Image
 
         doc = fitz.open(str(file_path))
@@ -429,7 +429,7 @@ def _extract_docx(file_path: Path) -> dict:
 
 
 def _extract_xlsx(file_path: Path) -> dict:
-    import pandas as pd
+    import pandas as pd  # type: ignore[import-untyped]  # why: pandas lacks complete stubs as of 2026-05
 
     xl = pd.ExcelFile(str(file_path))
     sheets_text, tables = [], []        # sheets_text：每个sheet的文本内容，tables：每个sheet的表格数据
@@ -467,7 +467,7 @@ def _extract_csv(file_path: Path) -> dict:
 
 
 def _extract_html(file_path: Path) -> dict:
-    from bs4 import BeautifulSoup
+    from bs4 import BeautifulSoup  # type: ignore[import-untyped]  # why: beautifulsoup4 lacks stubs as of 2026-05
 
     # errors="ignore" 用于忽略编码错误，避免解析失败,"html.parser" 是 BeautifulSoup 默认的解析器
     soup = BeautifulSoup(file_path.read_text(encoding="utf-8", errors="ignore"), "html.parser")
