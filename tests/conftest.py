@@ -33,9 +33,18 @@ def _pg_available() -> bool:
 PG_AVAILABLE = _pg_available()
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 async def pg_pool():
-    """Session-scoped asyncpg pool with pgvector codec registered on every connection."""
+    """Function-scoped asyncpg pool with pgvector codec registered on every connection.
+
+    Previously session-scoped; flipped to function-scope to match pytest-asyncio 1.x
+    default function-scoped test event loop. Session-scoped pool + function-scoped
+    test loop produced `InterfaceError: cannot perform operation: another operation
+    is in progress` on every PG-gated integration test.
+
+    Per-test pool overhead is ~50ms on a local pgvector instance — acceptable trade
+    for correctness across all PG-gated integration suites.
+    """
     if not PG_AVAILABLE:
         pytest.skip("PostgreSQL + pgvector not available")
     from pgvector.asyncpg import register_vector
