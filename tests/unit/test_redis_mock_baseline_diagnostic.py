@@ -74,7 +74,7 @@ def test_marker_applied_to_known_failing_files() -> None:
 # -----------------------------------------------------------------------------
 @pytest.mark.timeout(300)
 def test_no_pre_existing_redis_connection_error_in_marked_files() -> None:
-    """Spawn `uv run pytest <4 files>` as a subprocess and assert the
+    """Spawn `python -m pytest <4 files>` as a subprocess and assert the
     output contains NO `redis.exceptions.ConnectionError` or `Error 111`
     strings. This validates that the marker rollout closes the Redis-mode
     failure class — even if a live Redis on localhost:6379 would mask it,
@@ -82,10 +82,16 @@ def test_no_pre_existing_redis_connection_error_in_marked_files() -> None:
 
     Subprocess pattern follows tests/integration/audit/* conventions —
     explicit narrow `subprocess.TimeoutExpired` + `OSError` exception
-    handling, no bare except (CLAUDE.md ERR-01)."""
+    handling, no bare except (CLAUDE.md ERR-01).
+
+    NOTE: uses `sys.executable -m pytest` instead of `uv run pytest` so the
+    diagnostic works in CI runners that don't have the `uv` binary on PATH
+    (CI installs deps via `pip install -r requirements*.txt` per .github/
+    workflows/ci.yml). Local dev still works because `sys.executable` resolves
+    to the venv's python regardless of whether it was created by uv or venv."""
     cmd = [
-        "uv",
-        "run",
+        sys.executable,
+        "-m",
         "pytest",
         *TARGET_FILES,
         "--timeout",
