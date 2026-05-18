@@ -8,13 +8,15 @@ import asyncio
 import json
 import time
 from dataclasses import asdict, dataclass, field
+from typing import Literal
 
 import asyncpg
 import redis.asyncio
 from loguru import logger
-from pgvector.asyncpg import register_vector
+from pgvector.asyncpg import register_vector  # type: ignore[import-untyped]  # why: pgvector.asyncpg lacks stubs as of 2026-05
 
 from utils.asyncpg_helper import prepare_dsn
+from utils.models import ExtractedFact
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -82,6 +84,82 @@ class MemoryContext:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# Phase 27 / TD-05 — SaveFactsResult for batch save_facts() API.
+#
+# Returned by ``LongTermMemory.save_facts`` so callers (ExtractorAgent + the
+# D-12 ``save_fact`` wrapper) can observe how many facts were persisted vs.
+# skipped because of embed failures or SK-01 silent-skip near-duplicate
+# enforcement (v1.8 -- duplicates are filtered from rows_to_insert; audit row
+# still emitted per dup for ops dashboard visibility).
+# ══════════════════════════════════════════════════════════════════════════════
+@dataclass(frozen=True)
+class SaveFactsResult:
+    """Per-call summary from ``LongTermMemory.save_facts``.
+
+    Fields:
+        saved_count: rows actually executemany-INSERTed (= batch size
+            minus embed failures minus near-duplicate skips).
+        skipped_near_duplicates: how many facts in this batch were filtered
+            from ``rows_to_insert`` by SK-01 silent-skip enforcement (v1.8).
+            ``MEMORY_NEAR_DUPLICATE_SKIPPED`` audit row still emitted per skip
+            for ops dashboard visibility (D-09 carry-forward).
+        skipped_embed_failures: how many facts dropped because either embed_batch
+            raised AND the per-item gather fallback also raised for that item
+            (C2 fail-fast handling).
+    """
+    saved_count: int
+    skipped_near_duplicates: int
+    skipped_embed_failures: int
+
+
+# Category → importance bucket lookup (mirrors utils.models.ExtractedFact
+# cross-field validator). Used by ``_round_importance_to_literal`` so the
+# D-12 ``save_fact`` wrapper can synthesize a valid ExtractedFact from raw
+# (fact: str, importance: float) inputs without tripping the Pydantic
+# ``@model_validator(mode="after")`` that requires the 1:1 mapping.
+_IMPORTANCE_BUCKETS: tuple[
+    tuple[float, Literal["stable_preferences", "recurring_topics", "transient_context"], Literal[0.2, 0.5, 0.8]],
+    ...,
+] = (
+    # (upper_bound_exclusive, category, importance) — first match wins.
+    (0.35, "transient_context",  0.2),
+    (0.65, "recurring_topics",   0.5),
+    (float("inf"), "stable_preferences", 0.8),
+)
+
+
+def _round_importance_to_literal(
+    value: float,
+) -> tuple[
+    Literal["stable_preferences", "recurring_topics", "transient_context"],
+    Literal[0.2, 0.5, 0.8],
+]:
+    """Bucket a raw float importance into the (category, importance) literal pair
+    that satisfies the ``ExtractedFact`` cross-field validator.
+
+    D-12 wrapper needs both the category AND the importance because
+    ``utils.models.ExtractedFact`` enforces a 1:1 category↔importance map:
+        stable_preferences → 0.8
+        recurring_topics   → 0.5
+        transient_context  → 0.2
+
+    Mapping (RESEARCH §Theme 4 "Caveat for D-12 wrapper"):
+        x < 0.35           → ("transient_context",   0.2)
+        0.35 <= x < 0.65   → ("recurring_topics",    0.5)
+        x >= 0.65          → ("stable_preferences",  0.8)
+
+    The default ``importance=0.5`` from the singular ``save_fact`` signature
+    maps to ``("recurring_topics", 0.5)`` — matches the Phase 23 default
+    category used by ExtractorAgent when category is unspecified.
+    """
+    for upper_exclusive, category, literal_importance in _IMPORTANCE_BUCKETS:
+        if value < upper_exclusive:
+            return category, literal_importance
+    # Unreachable — final bucket has upper=inf. mypy needs the explicit return.
+    return "stable_preferences", 0.8
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # 短期记忆（Redis）
 # ══════════════════════════════════════════════════════════════════════════════
 class ShortTermMemory:
@@ -96,15 +174,13 @@ class ShortTermMemory:
         self._client = None
 
     async def _get_client(self):
+        # Plan 27-02 / TD-06 (D-19 follow-on): delegate to utils.cache.get_redis
+        # so the singleton accessor is the sole Redis-construction path. Closes
+        # the last bypass (RESEARCH §6) and enables single-target mocking.
         if self._client is None:
-            from redis.asyncio import from_url
+            from utils.cache import get_redis
 
-            from config.settings import settings
-            self._client = await from_url(
-                settings.redis_url,
-                encoding="utf-8",
-                decode_responses=True,
-            )
+            self._client = await get_redis()
         return self._client
 
     def _key(self, session_id: str) -> str:
@@ -164,7 +240,7 @@ class LongTermMemory:
 
             # Plan 26-03 / TD-03: centralized DSN normalization (was 7-line inline strip).
             dsn, ssl_kwarg = prepare_dsn(settings.pg_dsn)
-            self._pool = await asyncpg.create_pool(
+            self._pool = await asyncpg.create_pool(  # type: ignore[call-overload]  # why: asyncpg-stubs ssl kwarg expects SSLContext|Literal[...]; prepare_dsn returns dict[str,str] — full annotation deferred (T2.5 drift)
                 dsn, min_size=2, max_size=10, init=_init_conn, **ssl_kwarg,
             )
             await self._create_tables()
@@ -356,44 +432,392 @@ class LongTermMemory:
             )
             return []
 
+    async def _is_near_duplicate(
+        self,
+        conn: "asyncpg.Connection",
+        *,
+        user_id: str,
+        tenant_id: str,
+        embedding: list[float],
+        threshold: float,
+    ) -> tuple[bool, float | None]:
+        """Cosine near-duplicate precheck for ``save_fact`` (Phase 27 / TD-04).
+
+        Returns ``(is_duplicate, nearest_cosine_distance)``. Distance comes from
+        pgvector's cosine operator (``<=>``): 0 = identical, 2 = opposite.
+
+        Mirrors the GUC discipline from ``get_relevant_facts:336-352`` so the
+        HNSW index ``ltf_emb_hnsw_idx`` participates under the per-(user,tenant)
+        pre-filter (v1.1 Phase 8 / v1.6 Phase 24 carry-forward).
+
+        Uses ``ORDER BY ... LIMIT 1`` (not ``WHERE ... < threshold LIMIT 1``)
+        so the caller can surface the actual nearest distance in the audit row
+        (D-08: ``detail.nearest_distance``).
+
+        On empty table → ``(False, None)``. Caller wraps this method in
+        ``try / except asyncpg.PostgresError`` for fail-OPEN semantics per
+        RESEARCH §Theme 3 "Failure mode policy".
+        """
+        from config.settings import settings
+
+        async with conn.transaction():
+            ef = int(getattr(settings, "pgvector_ef_search_filtered", 200))
+            await conn.execute("SET LOCAL hnsw.iterative_scan = 'strict_order'")
+            await conn.execute(f"SET LOCAL hnsw.ef_search = {ef}")
+            row = await conn.fetchrow(
+                """SELECT embedding <=> $3::vector AS dist
+                   FROM long_term_facts
+                   WHERE user_id=$1 AND tenant_id=$2
+                   ORDER BY embedding <=> $3::vector
+                   LIMIT 1""",
+                user_id, tenant_id, embedding,
+            )
+        if row is None:
+            return (False, None)
+        dist = float(row["dist"])
+        return (dist < threshold, dist)
+
+    @staticmethod
+    async def _fire_near_duplicate_audit(
+        user_id: str, tenant_id: str, fact: str, dist: float | None,
+    ) -> None:
+        """Best-effort audit emit for near-duplicate detections (SK-01 v1.8).
+
+        v1.8 SK-01 enforcement live: caller ``save_facts`` filters the duplicate
+        from ``rows_to_insert``; this audit emit is now the sole DB-visible
+        artifact of a skipped duplicate. Carry-forward from v1.6 Phase 25
+        EVICT-02 audit-mode-before-enforce lifecycle.
+
+        Audit-write failure is non-fatal (v1.6 GDPR T1 Pattern D): logged at
+        warning level, swallowed so the caller's skip-INSERT can proceed.
+        """
+        from services.audit.audit_service import (
+            AUDIT_DETAIL_TRUNCATE_LEN,
+            AuditAction,
+            AuditEvent,
+            AuditResult,
+            get_audit_service,
+        )
+
+        try:
+            await get_audit_service().log(AuditEvent(
+                user_id=user_id,
+                tenant_id=tenant_id,
+                action=AuditAction.MEMORY_NEAR_DUPLICATE_SKIPPED,
+                resource_id="",
+                result=AuditResult.SKIPPED,  # SK-01 v1.8 -- INSERT IS skipped by caller
+                detail={
+                    "fact_truncated": fact[:AUDIT_DETAIL_TRUNCATE_LEN],
+                    "nearest_distance": dist,
+                },
+            ))
+        except Exception as exc:  # noqa: BLE001 — audit-write failure must NOT block (v1.6 GDPR T1)
+            logger.warning("audit write failed (non-fatal): {}", exc)
+
+    async def _bulk_near_duplicate_check_raw(
+        self,
+        conn: "asyncpg.Connection",
+        *,
+        user_id: str,
+        tenant_id: str,
+        embeddings: list[list[float]],
+        threshold: float,
+    ) -> set[int]:
+        """Bulk cosine near-duplicate check for save_facts batch path (Phase 27 / TD-05).
+
+        Returns the set of zero-based indices in ``embeddings`` whose closest
+        cosine distance to an existing (user_id, tenant_id) row is below
+        ``threshold``. Implements C1 of plan 27-04: the SQL MUST use
+        ``unnest($1::text[]) WITH ORDINALITY`` + inline ``vec_txt::vector`` cast
+        because the ``pgvector.asyncpg`` codec registered in ``_get_pool._init_conn``
+        hijacks ``$1::vector[]`` parameter binding (empirically validated against
+        live PG — RESEARCH §10 lines 281-304 / D-13). Pass ``$1`` as a list of
+        pgvector text literals: ``'[0.1,0.2,...]'``.
+
+        GUC discipline (``hnsw.iterative_scan`` + ``hnsw.ef_search``) MUST be
+        established by the CALLER before invoking this helper. This ``_raw``
+        variant does NOT open a ``conn.transaction()`` and does NOT issue
+        ``SET LOCAL`` — the caller owns the txn and GUCs (A1-A: SAVEPOINT release
+        would revert ``SET LOCAL`` before the bulk SELECT runs, silently degrading
+        the HNSW scan — plan-review finding 29-00).
+
+        Caller MUST wrap the call in ``try / except asyncpg.PostgresError`` for
+        fail-OPEN semantics (matches save_fact precheck contract).
+        """
+        # Build pgvector text literals for the bulk binding (C1).
+        vec_literals = [
+            "[" + ",".join(str(x) for x in vec) + "]" for vec in embeddings
+        ]
+
+        rows = await conn.fetch(
+            """SELECT (idx - 1) AS zero_idx
+               FROM unnest($1::text[]) WITH ORDINALITY AS t(vec_txt, idx)
+               WHERE EXISTS (
+                   SELECT 1 FROM long_term_facts
+                   WHERE user_id = $2
+                     AND tenant_id = $3
+                     AND embedding <=> vec_txt::vector < $4
+               )""",
+            vec_literals, user_id, tenant_id, threshold,
+        )
+        return {row["zero_idx"] for row in rows}
+
+    async def save_facts(
+        self,
+        facts: list[ExtractedFact],
+        *,
+        user_id: str,
+        tenant_id: str,
+        source_doc: str = "",
+    ) -> SaveFactsResult:
+        """Batch persist a list of ``ExtractedFact`` rows in O(1) PG round-trips
+        (Phase 27 / TD-05 / SC-4).
+
+        Wire shape (typical N=5, no duplicates, no embed failures):
+            1× embed_batch ............ embedder (one call, all texts)
+            1× pg_advisory_xact_lock .. PG (TOC-01 v1.8 lock — see below)
+            1× bulk dedupe SELECT ..... PG (C1 unnest text[] cast)
+            1× executemany INSERT ..... PG
+            K× audit_log emit ......... K = duplicate count (D-09 best-effort)
+        Total: 4 + K PG round-trips (was: 3 + K pre-29-00).
+
+        Advisory-lock discipline (TOC-01 v1.8 / D-TOC-01):
+            The precheck SELECT and executemany INSERT are wrapped in a single
+            ``async with conn.transaction():`` that begins with
+            ``SELECT pg_advisory_xact_lock(hashtext($1 || '|' || $2))``
+            keyed on ``(user_id, tenant_id)``. Lock is auto-released at txn end.
+            Granularity: per-(user_id, tenant_id) — writers for different pairs
+            do NOT serialize. The ``'|'`` separator prevents prefix collision.
+            See .planning/phases/29-toctou-silent-skip-enforcement/29-CONTEXT.md
+            D-TOC-01 for full rationale.
+
+        GUC discipline (A1-A inlining — plan-review finding 29-00):
+            ``SET LOCAL hnsw.iterative_scan = 'strict_order'`` and
+            ``SET LOCAL hnsw.ef_search`` are issued inside the OUTER advisory-lock
+            transaction (NOT inside a nested SAVEPOINT). ``_bulk_near_duplicate_check_raw``
+            runs inside the same outer txn — GUCs remain in effect. Moving these
+            into an inner ``conn.transaction()`` (SAVEPOINT) would revert them at
+            SAVEPOINT release, silently degrading the HNSW scan.
+
+        Failure modes:
+            - empty facts list:          early-return ``SaveFactsResult(0, 0, 0)``.
+            - embed_batch raises:        C2 fallback to ``asyncio.gather(*embed_one,
+                                         return_exceptions=True)``; per-item
+                                         exceptions count as ``skipped_embed_failures``.
+            - all embeds fail:           return ``SaveFactsResult(0, 0, N)``;
+                                         executemany NOT called.
+            - lock acquisition raises:   ``asyncpg.PostgresError`` → logged →
+                                         re-raised as ``MemoryFactWriteError``
+                                         (lock failure = persistence failure).
+            - bulk dedupe SQL raises:    fail-OPEN (log warning, treat as no-dup);
+                                         executemany still runs.
+            - executemany raises:        re-raised as ``MemoryFactWriteError``;
+                                         no partial-batch row count surfaced
+                                         because asyncpg.executemany is atomic
+                                         per-statement (whole batch fails together).
+
+        SK-01 v1.8 silent-skip enforcement: duplicates are filtered from
+        rows_to_insert before executemany; audit row still emitted per dup
+        for ops dashboard visibility (D-09 audit emit preserved per D-SK-01).
+        """
+        # Early return — keep the contract observable from the test harness
+        # (embedder NOT called, executemany NOT called).
+        if not facts:
+            return SaveFactsResult(0, 0, 0)
+
+        # Lazy imports — circular-import resilience (Phase 23 convention).
+        import httpx
+
+        from config.settings import settings
+        from services.vectorizer.embedder import get_embedder
+
+        embedder = get_embedder()
+        embed_failures = 0
+        texts = [f.fact for f in facts]
+        embeddings: list[list[float] | None]
+        try:
+            # Happy path — single batch call returns N vectors.
+            embeddings = list(await embedder.embed_batch(texts))
+        except (httpx.HTTPError, RuntimeError, OSError) as exc:
+            # C2 fallback — all 3 embedders RAISE on first failed text (they do
+            # NOT return per-item None). Fall back to per-item gather with
+            # return_exceptions=True so partial-success is possible.
+            logger.warning(
+                "embed_batch failed; falling back per-item: {}", exc,
+            )
+            per_item: list[BaseException | list[float]] = list(
+                await asyncio.gather(
+                    *[embedder.embed_one(t) for t in texts],
+                    return_exceptions=True,
+                ),
+            )
+            embeddings = []
+            for idx, result in enumerate(per_item):
+                if isinstance(result, BaseException):
+                    # A3 (eng-review) — per-text context for ops debugging;
+                    # aggregate counter alone is insufficient signal.
+                    logger.warning(
+                        "embed_batch fallback: idx={} text_len={} exc={!r}",
+                        idx, len(facts[idx].fact), result,
+                    )
+                    embeddings.append(None)
+                    embed_failures += 1
+                else:
+                    embeddings.append(result)
+
+        # Step 2 — drop embed-failed entries (preserves original positional
+        # indexing inside ``indexed`` so dup_zero_idxs lines up with the
+        # post-filter list passed to _bulk_near_duplicate_check_raw).
+        indexed: list[tuple[int, ExtractedFact, list[float]]] = [
+            (i, f, e)
+            for i, (f, e) in enumerate(zip(facts, embeddings, strict=True))
+            if e is not None
+        ]
+        if not indexed:
+            # Every embed failed — nothing to persist, nothing to dedupe.
+            return SaveFactsResult(0, 0, embed_failures)
+
+        # Step 3 — acquire pool, then wrap precheck + INSERT in an advisory-lock
+        # transaction to close the TOCTOU race (TOC-01 v1.8 / D-TOC-01).
+        # embed_batch (Step 1) deliberately runs OUTSIDE the lock so per-user
+        # write throughput is not serialized on the slow embedding step
+        # (29-CONTEXT Open Risks #1).
+        pool = await self._get_pool()
+        async with pool.acquire() as conn:
+            valid_embeddings = [e for _, _, e in indexed]
+            async with conn.transaction():
+                # TOC-01 v1.8 — acquire per-(user_id, tenant_id) advisory lock.
+                # '|' separator prevents prefix collision: ('alice','tcorp') ≠ ('alicetcorp','').
+                try:
+                    await conn.execute(  # TOC-01 v1.8
+                        "SELECT pg_advisory_xact_lock(hashtext($1 || '|' || $2))",
+                        user_id, tenant_id,
+                    )
+                except asyncpg.PostgresError as exc:
+                    logger.error(
+                        "memory service failure",
+                        operation="save_facts_lock",
+                        exc_info=exc,
+                    )
+                    raise MemoryFactWriteError("lock acquisition failed") from exc
+
+                # A1-A inlined GUC — SET LOCAL inside the OUTER txn (NOT a nested
+                # SAVEPOINT) so the GUCs are still in effect when the bulk SELECT runs.
+                # A nested conn.transaction() (SAVEPOINT) would revert SET LOCAL at
+                # SAVEPOINT release — plan-review finding 29-00 A1-A.
+                ef = int(getattr(settings, "pgvector_ef_search_filtered", 200))
+                await conn.execute("SET LOCAL hnsw.iterative_scan = 'strict_order'")  # A1-A inlined GUC
+                await conn.execute(f"SET LOCAL hnsw.ef_search = {ef}")  # A1-A inlined GUC
+
+                try:
+                    dup_zero_idxs = await self._bulk_near_duplicate_check_raw(
+                        conn,
+                        user_id=user_id,
+                        tenant_id=tenant_id,
+                        embeddings=valid_embeddings,
+                        threshold=settings.memory_near_duplicate_threshold,
+                    )
+                except (asyncpg.PostgresError, asyncpg.InterfaceError) as exc:
+                    # Fail-OPEN — mirrors save_fact precheck contract.
+                    logger.warning(
+                        "bulk dedupe check failed (fail-open): {}", exc,
+                    )
+                    dup_zero_idxs = set()
+
+                # Step 4 — fire audit rows for each duplicate (D-09 audit emit,
+                # preserved by SK-01 for ops dashboard visibility).
+                # Best-effort, parallel via gather(return_exceptions=True). dist=None
+                # on the bulk path because the bulk SELECT doesn't return per-row
+                # distance (out of scope per RESEARCH; v1.8 follow-up).
+                if dup_zero_idxs:
+                    audit_tasks = [
+                        self._fire_near_duplicate_audit(
+                            user_id, tenant_id, indexed[local_i][1].fact, None,
+                        )
+                        for local_i in dup_zero_idxs
+                    ]
+                    await asyncio.gather(*audit_tasks, return_exceptions=True)
+
+                # Step 5 — SK-01 silent-skip: filter duplicates from rows_to_insert
+                # before executemany. Only non-duplicate rows are INSERTed.
+                # INSERT SQL kept verbatim from the singular save_fact path so a
+                # single bulk-cast precedent exists in the codebase.
+                rows_to_insert = [
+                    (user_id, tenant_id, f.fact, source_doc, f.importance, e)
+                    for local_i, (_, f, e) in enumerate(indexed)
+                    if local_i not in dup_zero_idxs
+                ]
+                if not rows_to_insert:
+                    # Entire batch was duplicates -- skip executemany entirely.
+                    # asyncpg behavior on empty executemany is implementation-defined;
+                    # explicit short-circuit is safer + saves 1 RTT.
+                    return SaveFactsResult(
+                        saved_count=0,
+                        skipped_near_duplicates=len(dup_zero_idxs),
+                        skipped_embed_failures=embed_failures,
+                    )
+                try:
+                    await conn.executemany(
+                        """INSERT INTO long_term_facts
+                           (user_id, tenant_id, fact, source_doc, importance, embedding)
+                           VALUES ($1,$2,$3,$4,$5,$6::vector)""",
+                        rows_to_insert,
+                    )
+                except asyncpg.PostgresError as exc:
+                    logger.error(
+                        "memory service failure",
+                        operation="save_facts",
+                        exc_info=exc,
+                    )
+                    raise MemoryFactWriteError("batch persistence failed") from exc
+
+        return SaveFactsResult(
+            saved_count=len(rows_to_insert),
+            skipped_near_duplicates=len(dup_zero_idxs),
+            skipped_embed_failures=embed_failures,
+        )
+
     async def save_fact(
         self, user_id: str, tenant_id: str,
         fact: str, source_doc: str = "", importance: float = 0.5,
     ) -> None:
-        # Plan 23-02 / MEM-02 — embed-on-write contract.
-        # Step 1 (embed) precedes Step 2 (INSERT) in SEPARATE try blocks so that
-        # an embedder failure returns BEFORE _get_pool is called → zero partial-write
-        # rows. Both failure paths raise typed MemoryFactWriteError so the Plan-05
-        # dispatch wrapper can surface them via log_task_error.
-        # Lazy imports (circular-import resilience per repo convention).
-        import httpx
+        """Singular save (D-12 wrapper around ``save_facts``).
 
-        from services.vectorizer.embedder import get_embedder
+        Phase 27 / TD-05: now a thin delegate to ``save_facts([ExtractedFact(...)])``
+        so the batch path is the single source of truth for embed-on-write,
+        near-duplicate audit emit, and INSERT. The pre-27-03 embed-failure
+        raise contract is preserved: if the underlying ``save_facts`` returns
+        ``saved_count == 0`` AND ``skipped_embed_failures > 0`` (sole row
+        failed to embed), raise ``MemoryFactWriteError``.
 
+        ``importance`` is bucketed to the nearest ``ExtractedFact.importance``
+        Literal {0.2, 0.5, 0.8} via ``_round_importance_to_literal``; the
+        matching category is paired so the ``ExtractedFact``
+        ``@model_validator`` 1:1 mapping is satisfied (RESEARCH §Theme 4
+        "Caveat for D-12 wrapper" lines 752-757).
+        """
+        category, rounded_importance = _round_importance_to_literal(importance)
         try:
-            embedding: list[float] = await get_embedder().embed_one(fact)
-        except (httpx.HTTPError, RuntimeError, OSError) as exc:
-            # Narrow-exception list (RESEARCH §Pattern 2):
-            #   RuntimeError      — OllamaEmbedder.embed_batch re-raise (embedder.py:68)
-            #   httpx.HTTPError   — Ollama + OpenAI transport failures
-            #   OSError           — HuggingFace torch device / model-load failures
-            logger.error(
-                "memory service failure", operation="save_fact_embed", exc_info=exc,
+            extracted = ExtractedFact(
+                fact=fact, category=category, importance=rounded_importance,
             )
-            raise MemoryFactWriteError("embedding failed") from exc
-
-        try:
-            pool = await self._get_pool()
-            async with pool.acquire() as conn:
-                await conn.execute(
-                    """INSERT INTO long_term_facts
-                       (user_id, tenant_id, fact, source_doc, importance, embedding)
-                       VALUES ($1,$2,$3,$4,$5,$6::vector)""",
-                    user_id, tenant_id, fact, source_doc, importance, embedding,
-                )
-        except asyncpg.PostgresError as exc:
-            logger.error("memory service failure", operation="save_fact", exc_info=exc)
-            raise MemoryFactWriteError("persistence failed") from exc
+        except ValueError as exc:
+            # ``ExtractedFact._fact_len`` rejects empty/over-200-char strings.
+            # Preserve fail-fast semantics; do NOT wrap in MemoryFactWriteError
+            # (that's reserved for embed/persistence failures).
+            logger.error(
+                "memory service failure", operation="save_fact_validate", exc_info=exc,
+            )
+            raise
+        result = await self.save_facts(
+            [extracted],
+            user_id=user_id,
+            tenant_id=tenant_id,
+            source_doc=source_doc,
+        )
+        # Preserve pre-27-03 embed-failure contract for singular callers.
+        if result.saved_count == 0 and result.skipped_embed_failures > 0:
+            raise MemoryFactWriteError("embedding failed")
 
     async def forget_user(self, user_id: str, tenant_id: str) -> int:
         """Delete all long_term_facts rows for a (user_id, tenant_id) pair.

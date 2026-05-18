@@ -104,7 +104,7 @@ def _paddle_pipeline() -> Any:
     Plan 02 pre-warms this in the ARQ worker startup hook so live ingest
     does not pay the 5–15s cold-start cost.
     """
-    from paddleocr import PPStructureV3  # local import: optional dep
+    from paddleocr import PPStructureV3  # type: ignore[import-not-found]  # why: paddleocr has no stubs as of 2026-05; local import: optional dep
     logger.info("[OCR] Initializing PP-StructureV3 singleton (first call)")
     # paddleocr 3.1.x dropped the `lang` kwarg from PPStructureV3 (now controlled via config / model selection);
     # default Chinese support is built in for the layout/table sub-pipelines.

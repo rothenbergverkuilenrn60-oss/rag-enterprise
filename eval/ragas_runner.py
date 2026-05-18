@@ -16,7 +16,7 @@ from datetime import datetime
 from typing import Any
 
 import httpx
-from datasets import Dataset
+from datasets import Dataset  # type: ignore[import-untyped]  # why: huggingface datasets has no py.typed marker or stubs as of 2026-05; tracking: NA
 from loguru import logger
 from ragas import evaluate
 from ragas.metrics import (

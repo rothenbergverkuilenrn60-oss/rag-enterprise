@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import Field, computed_field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -151,7 +151,7 @@ class Settings(BaseSettings):
     # ── Embedding Ensemble ────────────────────────────────────────────────────
     # 单模型时保持为空列表；多模型时配置：
     # [{"provider": "ollama", "weight": 0.6}, {"provider": "openai", "weight": 0.4}]
-    embedding_ensemble: list[dict] = []
+    embedding_ensemble: list[dict[str, Any]] = []
     embedding_ensemble_strategy: str = "average"  # average | concat
 
     # ── JWT ───────────────────────────────────────────────────────────────────
@@ -496,6 +496,11 @@ class Settings(BaseSettings):
     # T6 (eng-review F4): Field(ge=1) rejects 0/negative at settings-load to
     # prevent ConfigMap typo from wiping every long_term_facts row.
     memory_facts_cap_per_user: int = Field(default=500, ge=1)
+
+    # Phase 27 / TD-04 — cosine near-duplicate guard threshold.
+    # v1.7 audit-mode-only (D-09): save still happens; row emitted for ops visibility.
+    # Override via env APP_MEMORY_NEAR_DUPLICATE_THRESHOLD=<float>.
+    memory_near_duplicate_threshold: float = Field(default=0.05, ge=0.0, le=1.0)
 
     @field_validator("data_dir", "processed_dir", "index_dir", "log_dir", "cache_dir", mode="before")
     @classmethod

@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-05-17
+
+Memory Tech-Debt Burn-Down. Production-cleans the memory subsystem (TD-01..TD-07) before adding more features. Zero new user-facing capabilities; pure refactor + reliability.
+
+### Added
+
+- **TD-01** — `services/audit/audit_service.py` self-bootstraps the `audit_log` PostgreSQL table on first call via `_get_pool` → `_create_tables`. INSERT-ONLY invariant (`REVOKE UPDATE, DELETE ON audit_log FROM PUBLIC`) preserved. Cold-start fresh PG no longer requires manual DDL. See [v1.7 milestone detail](MILESTONES.md#v17).
+- **TD-03** — `utils/asyncpg_helper.prepare_dsn(dsn)` centralizes asyncpg URL `?ssl=disable` strip (asyncpg URL parser misreads the literal). Both `services/memory/memory_service.py` and `services/audit/audit_service.py` import the helper; per-module inline copies removed. See [v1.7 milestone detail](MILESTONES.md#v17).
+- **TD-07** — bge-m3 model loader resolves vanilla HuggingFace cache layout `{MODEL_DIR}/BAAI/bge-m3/` natively. Legacy `{MODEL_DIR}/embedding_models/bge-m3/` path still supported (backwards-compat). See [v1.7 milestone detail](MILESTONES.md#v17).
+- **TD-02** — `tests/factories/app.py::create_app()` factory + `_configure_app(app)` extraction in `main.py`. Per-test isolated FastAPI app construction; parallel cross-contamination test green. 34-entry singleton inventory + completeness lint. See [v1.7 milestone detail](MILESTONES.md#v17).
+- **TD-06** — `redis_mock` fixture in `tests/conftest.py` (fakeredis-backed) + `pytest_collection_modifyitems` hook auto-applies to `@pytest.mark.uses_redis` tests. `ShortTermMemory._get_client` now delegates to `utils.cache.get_redis` (single mock target). Unit suite runs without live Redis. See [v1.7 milestone detail](MILESTONES.md#v17).
+- **TD-04** — `LongTermMemory._is_near_duplicate(text, threshold=0.05)` cosine precheck before save. Near-duplicate hits emit `MEMORY_NEAR_DUPLICATE_SKIPPED` audit row (new `AuditAction` enum value). New `MEMORY_NEAR_DUPLICATE_THRESHOLD` setting. See [v1.7 milestone detail](MILESTONES.md#v17).
+- **TD-05** — `LongTermMemory.save_facts(list[ExtractedFact])` batch path: 1× `embed_batch` + 1× bulk dedupe SELECT (C1 `unnest($1::text[]) WITH ORDINALITY` + `vec_txt::vector` cast — sidesteps pgvector.asyncpg codec hijack) + 1× `executemany`. `save_fact` retained as thin D-12 wrapper. ExtractorAgent dispatch (D-17) migrated. Benchmark: p50 25.31ms → 5.51ms (speedup 19.80ms with MagicMock embedder; ~123ms expected with real bge-m3). See [v1.7 milestone detail](MILESTONES.md#v17).
+- **DOC-01** — `docs/RUNBOOK.md` (new); `docs/release-notes-v1.7.md` (new); `.planning/REQUIREMENTS-v1.8.md` (new scaffold with 7 pre-seeded backlog items: SK-01, TOC-01, OAI-01, EVT-01, MYPY-01, TEST-INFRA-01, TEST-INFRA-02). README + ARCHITECTURE + memory-eviction.md surgically refreshed.
+
+### Changed
+
+- **Memory write path** — `LongTermMemory.save_fact` is now a thin wrapper that delegates to `save_facts([...])`. Signature unchanged; embed-failure raise contract preserved. ExtractorAgent (`services/agent/extractor.py`) calls `save_facts(...)` once per turn instead of the per-fact for-loop.
+- **Test conventions** — Redis-dependent unit tests must apply `@pytest.mark.uses_redis` (auto-mocked via `redis_mock` fixture). Audit + memory integration suites can be migrated to `app_factory` fixture for per-test isolated app construction (existing tests left in place per Phase 27 D-05).
+
+### Fixed
+
+- **`audit_log` cold-start manual-DDL footgun** — fresh PG cluster no longer requires operator to run `audit_log` DDL by hand before first audit-write succeeds (TD-01).
+- **asyncpg `?ssl=disable` URL literal misread** — duplicate per-module strip helpers consolidated to `utils/asyncpg_helper.prepare_dsn` (TD-03; per A1 also handles short-form `postgres+asyncpg://` → `postgres://` scheme normalization).
+- **bge-m3 fresh-machine setup** — vanilla HuggingFace cache layout resolves without symlink (TD-07).
+
+> Near-duplicate guard is **audit-mode** in v1.7 (`MEMORY_NEAR_DUPLICATE_SKIPPED` audit row emitted on hit; INSERT still runs). v1.8 will promote to silent-skip with TOCTOU mitigation — see [SK-01](.planning/REQUIREMENTS-v1.8.md) + [TOC-01](.planning/REQUIREMENTS-v1.8.md). This audit-mode-before-enforce discipline follows v1.6 EVICT-02 precedent.
+
 ## [1.6.0] - 2026-05-11
 
 Streaming UI + Admin Console + RAGAS Pipeline Rescue + Retriever Tuning.
@@ -85,7 +113,9 @@ Initial release — production-grade RAG platform. See [v1.0 milestone roadmap](
 - Phase 5 — Async Ingest Tracking: `POST /ingest/async` returns `task_id`; ARQ/Redis worker; poll status via `GET /ingest/status/{task_id}`.
 - Phase 6 — Test Coverage and Eval: 200 stratified RAGAS QA pairs; `faithfulness > 0.85`, `answer_relevancy > 0.80` gates.
 
-[Unreleased]: https://github.com/rothenbergverkuilenrn60-oss/rag-enterprise/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/rothenbergverkuilenrn60-oss/rag-enterprise/compare/v1.7.0...HEAD
+[1.7.0]:      https://github.com/rothenbergverkuilenrn60-oss/rag-enterprise/compare/v1.6.0...v1.7.0
+[1.6.0]:      https://github.com/rothenbergverkuilenrn60-oss/rag-enterprise/compare/v1.4.0...v1.6.0
 [1.4.0]:      https://github.com/rothenbergverkuilenrn60-oss/rag-enterprise/compare/v1.3.0...v1.4.0
 [1.3.0]:      https://github.com/rothenbergverkuilenrn60-oss/rag-enterprise/compare/v1.2.0...v1.3.0
 [1.2.0]:      https://github.com/rothenbergverkuilenrn60-oss/rag-enterprise/compare/v1.1.0...v1.2.0

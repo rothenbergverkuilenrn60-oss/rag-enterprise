@@ -77,7 +77,7 @@ class KafkaEventBackend:
 
     async def start_producer(self) -> None:
         try:
-            from aiokafka import AIOKafkaProducer
+            from aiokafka import AIOKafkaProducer  # type: ignore[import-not-found]  # why: aiokafka has no stubs as of 2026-05
             self._producer = AIOKafkaProducer(
                 bootstrap_servers=self._servers,
                 value_serializer=lambda v: v.encode("utf-8"),

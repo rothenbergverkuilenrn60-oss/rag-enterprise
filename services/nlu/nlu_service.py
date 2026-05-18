@@ -535,7 +535,7 @@ class NLUService:
                 quad["original"] + quad["rewrite"] + quad["hyde"] + quad["context"]
             )
             seen: set[str] = set()
-            rewritten = [q for q in rewritten if q not in seen and not seen.add(q)]  # type: ignore
+            rewritten = [q for q in rewritten if q not in seen and not seen.add(q)]  # type: ignore[func-returns-value]  # why: set.add() returns None; walrus-style dedup pattern accepted here
 
         # ── Step 5: 实体消歧 ─────────────────────────────────────────────────
         if entities and getattr(settings, "entity_disambiguation_enabled", True):

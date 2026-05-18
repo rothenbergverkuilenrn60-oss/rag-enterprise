@@ -253,17 +253,17 @@ def dispatch_extraction(
         # transitively import services.agent.* via integration shims.
         from services.memory.memory_service import get_memory_service
         mem = get_memory_service()
-        for f in facts:
-            # save_fact embeds + INSERTs atomically (Plan 02 contract);
-            # MemoryFactWriteError bubbles into log_task_error via the
-            # callback boundary.
-            await mem._long.save_fact(
-                user_id=user_id,
-                tenant_id=tenant_id,
-                fact=f.fact,
-                source_doc="",
-                importance=f.importance,
-            )
+        # Phase 27 / TD-05 / D-17 — single batch call collapses 3N RTT into
+        # 3 + K RTT (1 embed_batch + 1 bulk dedupe + 1 executemany +
+        # K audit emits for K duplicates). save_facts owns the embed-on-write
+        # contract; MemoryFactWriteError bubbles into log_task_error via the
+        # callback boundary just like the pre-D-17 per-fact path.
+        await mem._long.save_facts(
+            facts,
+            user_id=user_id,
+            tenant_id=tenant_id,
+            source_doc="",
+        )
 
     task = asyncio.create_task(_run_and_persist(), name="extractor")
     task.add_done_callback(log_task_error)

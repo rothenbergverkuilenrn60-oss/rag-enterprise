@@ -238,8 +238,12 @@ async def test_dispatch_extraction_failure_isolated(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_dispatch_run_and_persist_calls_save_fact(monkeypatch):
-    """Two extracted facts → save_fact awaited twice with correct kwargs."""
+async def test_dispatch_run_and_persist_calls_save_facts(monkeypatch):
+    """Phase 27 / TD-05 / D-17 — two extracted facts → ONE save_facts call.
+
+    Replaces the pre-D-17 per-fact loop (was: save_fact awaited twice). The
+    D-17 migration collapses N save_fact RTTs into 1 save_facts batch.
+    """
     facts = [
         ExtractedFact(
             fact="user prefers React",
@@ -257,9 +261,9 @@ async def test_dispatch_run_and_persist_calls_save_fact(monkeypatch):
         extractor_mod, "get_extractor", lambda: fake_extractor
     )
 
-    mock_save_fact = AsyncMock()
+    mock_save_facts = AsyncMock()
     fake_mem = MagicMock()
-    fake_mem._long = MagicMock(save_fact=mock_save_fact)
+    fake_mem._long = MagicMock(save_facts=mock_save_facts)
     # Patch the lazy `from services.memory.memory_service import get_memory_service`
     # by intercepting the module-level symbol on the source module — the
     # `from ... import` inside `_run_and_persist` resolves through
@@ -275,29 +279,32 @@ async def test_dispatch_run_and_persist_calls_save_fact(monkeypatch):
     )
     await asyncio.sleep(0.05)
 
-    assert mock_save_fact.await_count == 2
-    seen_facts = {
-        c.kwargs["fact"] for c in mock_save_fact.await_args_list
-    }
-    assert seen_facts == {"user prefers React", "user works in healthcare"}
-    # All calls scoped to the correct tenant + user.
-    for c in mock_save_fact.await_args_list:
-        assert c.kwargs["user_id"] == "u1"
-        assert c.kwargs["tenant_id"] == "t1"
-        assert c.kwargs["importance"] == 0.8
+    # D-17 — exactly ONE save_facts call, regardless of N facts.
+    assert mock_save_facts.await_count == 1
+    call = mock_save_facts.await_args
+    # Positional arg: the full facts list (order preserved).
+    passed_facts = call.args[0]
+    assert [f.fact for f in passed_facts] == [
+        "user prefers React",
+        "user works in healthcare",
+    ]
+    # Keyword args carry the auth scope.
+    assert call.kwargs["user_id"] == "u1"
+    assert call.kwargs["tenant_id"] == "t1"
+    assert call.kwargs["source_doc"] == ""
 
 
 @pytest.mark.asyncio
-async def test_dispatch_zero_facts_skips_save_fact(monkeypatch):
-    """Empty extractor result → save_fact never awaited."""
+async def test_dispatch_zero_facts_skips_save_facts(monkeypatch):
+    """Empty extractor result → save_facts never awaited (early-return guard)."""
     fake_extractor = MagicMock(run=AsyncMock(return_value=[]))
     monkeypatch.setattr(
         extractor_mod, "get_extractor", lambda: fake_extractor
     )
 
-    mock_save_fact = AsyncMock()
+    mock_save_facts = AsyncMock()
     fake_mem = MagicMock()
-    fake_mem._long = MagicMock(save_fact=mock_save_fact)
+    fake_mem._long = MagicMock(save_facts=mock_save_facts)
     import services.memory.memory_service as mem_mod
     monkeypatch.setattr(mem_mod, "get_memory_service", lambda: fake_mem)
 
@@ -309,4 +316,4 @@ async def test_dispatch_zero_facts_skips_save_fact(monkeypatch):
     )
     await asyncio.sleep(0.05)
 
-    assert mock_save_fact.await_count == 0
+    assert mock_save_facts.await_count == 0

@@ -33,9 +33,9 @@ from loguru import logger
 async def _run_server() -> None:
     """MCP Server 主函数（stdio 传输模式）。"""
     try:
-        from mcp import types
-        from mcp.server import Server
-        from mcp.server.stdio import stdio_server
+        from mcp import types  # type: ignore[import-not-found]  # why: mcp package has no stubs as of 2026-05
+        from mcp.server import Server  # type: ignore[import-not-found]  # why: mcp package has no stubs as of 2026-05
+        from mcp.server.stdio import stdio_server  # type: ignore[import-not-found]  # why: mcp package has no stubs as of 2026-05
     except ImportError:
         raise RuntimeError(
             "MCP 依赖未安装。请运行：pip install mcp\n"
