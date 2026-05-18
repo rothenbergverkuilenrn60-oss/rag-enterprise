@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.9
 milestone_name: Hardening Round 3
-status: verified
-stopped_at: .planning/phases/33-autouse-mock-opt-out-flaky-failures/33-VERIFICATION.md
+status: v1.9 COMPLETE — all 5 phases done; PR #10 in flight (phases 31-33); phases 34+35 on master ready for follow-up PR
+stopped_at: v1.9 milestone closed locally; PR #10 covers phases 31-33; phases 34+35 (6 commits) pending second catch-up PR or amend of #10
 last_updated: "2026-05-18T16:00:00.000Z"
 last_activity: 2026-05-18
 progress:
   total_phases: 5
-  completed_phases: 3
+  completed_phases: 5
   total_plans: 4
   completed_plans: 4
   percent: 100
@@ -37,8 +37,8 @@ Last activity: 2026-05-18
 | 31 | Event-Loop Leak Sweep | Not started | 0/0 (TBD) | EVT-02 |
 | 32 | mypy --strict Cleanup | Not started | 0/0 (TBD) | MYPY-02, MYPY-03, MYPY-04 |
 | 33 | Autouse Opt-Out + Order-Dependent Failures | Verified ✓ | 2/2 | TEST-08, TEST-09 |
-| 34 | Sentinel Drift Refresh | Not started | 0/0 (TBD) | TEST-10, TEST-11 |
-| 35 | Planning Artifact Backfill | Not started | 0/0 (TBD) | DOC-02, DOC-03 |
+| 34 | Sentinel Drift Refresh | Complete ✓ (inline) | 2/2 fixes | TEST-10, TEST-11 |
+| 35 | Planning Artifact Backfill | Complete ✓ (inline) | 3/3 docs | DOC-02, DOC-03 |
 
 ## Accumulated Context
 

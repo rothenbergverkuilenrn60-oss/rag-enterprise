@@ -326,7 +326,7 @@ async def test_no_v1_5_regression(
     await mem_long._create_tables()
 
     req = GenerationRequest(
-        q="What does the user know about databases?",
+        query="What does the user know about databases?",
         session_id=AUDIT_SESSION_ID,
         user_id=AUDIT_USER_ID,
         tenant_id=AUDIT_TENANT_ID,

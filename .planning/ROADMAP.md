@@ -36,8 +36,8 @@ See [milestones/v1.7-ROADMAP.md](milestones/v1.7-ROADMAP.md) for full phase deta
 - [x] **Phase 31: Event-Loop Leak Sweep** — enumerate + fix ~10 residual singleton leak sites; grow `_SINGLETON_INVENTORY` 34→48 on PG host
 - [x] **Phase 32: mypy `--strict` Cleanup** — drain `deferred-items.md` (7), replace bare ignore in nlu_service.py, silence asyncpg/pgvector.asyncpg untyped imports
 - [x] **Phase 33: Autouse-Mock Opt-Out + Order-Dependent Failures** — `@pytest.mark.real_embedder` marker + fix 7 registry-pollution + mock-parity failures
-- [ ] **Phase 34: Sentinel Drift Refresh** — refresh `test_no_v1_5_regression` (q=→query=) + `test_ui_static_serves_html` (`<title>` post-v1.4)
-- [ ] **Phase 35: Planning Artifact Backfill** — Phase 29 + 30 Nyquist VALIDATION.md + MILESTONES.md v1.7 entry
+- [x] **Phase 34: Sentinel Drift Refresh** — refresh `test_no_v1_5_regression` (q=→query=) + `test_ui_static_serves_html` (`<title>` + `<h1>` post-v1.4)
+- [x] **Phase 35: Planning Artifact Backfill** — Phase 29 + 30 Nyquist VALIDATION.md + MILESTONES.md v1.7 entry
 
 ### Phase 31: Event-Loop Leak Sweep
 **Goal:** Eliminate residual module-level singleton-bound-to-import-time-loop failures so the PG-host integration suite reports zero "different loop" errors and `_SINGLETON_INVENTORY` reaches authoritative coverage.
@@ -91,7 +91,9 @@ Plans:
   1. `tests/test_pipeline_load_context_audit::test_no_v1_5_regression` instantiates `GenerationRequest` with `query=` (current Pydantic V2 field name); test passes against current `services/pipeline.py`; original v1.5-regression assertion intent preserved verbatim (no added/removed assertions beyond the kwarg rename).
   2. `tests/test_ui_static::test_ui_static_serves_html` `<title>` sentinel updated to match current served `static/ui.html` value; test passes; HTTP-200 + content-type assertions unchanged.
   3. Commit message for the title-sentinel refresh records the v1.4-drift root cause (so future UI title changes have a tracking precedent and the next drift surfaces faster).
-**Plans:** TBD
+**Plans:** Inline execution (trivial scope — 2 files, ~5 LOC; no plan/agent ceremony per /gsd-quick decision)
+- [x] TEST-10: tests/integration/test_pipeline_load_context_audit.py:329 — `q=` → `query=` kwarg rename (commit b94a* — see git log)
+- [x] TEST-11: tests/integration/test_ui_static.py:41-42 — refresh title + h1 sentinels (RAG → Agent) post-v1.4 frontend rewrite; partial-match h1 to avoid version-string re-drift
 **UI hint**: yes
 
 ### Phase 35: Planning Artifact Backfill
@@ -103,7 +105,10 @@ Plans:
   1. `.planning/milestones/v1.8-phases/29-toctou-silent-skip-enforcement/29-VALIDATION.md` exists, documents Nyquist gates considered + evidence assembled + verdict; `gsd-nyquist-auditor` returns `passed`.
   2. `.planning/milestones/v1.8-phases/30-test-infra-mypy-hardening/30-VALIDATION.md` exists with the same shape; `gsd-nyquist-auditor` returns `passed`.
   3. `MILESTONES.md` ledger contains a v1.7 entry inserted in chronological order between v1.6 and v1.8; format matches surrounding entries (same headers, same fields, same 6-deliverable bullet shape); cross-references `.planning/milestones/v1.7-ROADMAP.md`.
-**Plans:** TBD
+**Plans:** Inline execution (pure docs — 3 files; no plan/agent ceremony per /gsd-quick decision)
+- [x] DOC-02a: `.planning/milestones/v1.8-phases/29-toctou-silent-skip-enforcement/29-VALIDATION.md` — backfilled retroactively against 29-VERIFICATION evidence
+- [x] DOC-02b: `.planning/milestones/v1.8-phases/30-test-infra-mypy-hardening/30-VALIDATION.md` — same shape; EVT-01 deferral cross-referenced to v1.9 Phase 31 closure
+- [x] DOC-03: `.planning/MILESTONES.md` v1.7 entry inserted between v1.6 and v1.8; 6 key accomplishments, deferred items, bonus delivered, archive cross-ref
 
 ### Coverage (v1.9)
 
