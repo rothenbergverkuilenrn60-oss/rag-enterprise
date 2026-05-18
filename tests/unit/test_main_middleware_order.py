@@ -41,7 +41,6 @@ os.environ.setdefault("SECRET_KEY", "test-secret-key-for-unit-tests-only-32c")
 
 import pytest
 
-
 # Captured baseline (pre-refactor). Format: (middleware_class_name, dispatch_function_name_or_None).
 EXPECTED_MIDDLEWARE_ORDER: tuple[tuple[str, str | None], ...] = (
     ("BaseHTTPMiddleware", "auth_middleware"),

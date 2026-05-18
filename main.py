@@ -20,7 +20,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.responses import Response as FastAPIResponse
 from fastapi.staticfiles import StaticFiles
-from jose import JWTError  # type: ignore[import-untyped]  # why: python-jose has no py.typed marker or stubs as of 2026-05; tracking: NA
+from jose import (
+    JWTError,  # type: ignore[import-untyped]  # why: python-jose has no py.typed marker or stubs as of 2026-05; tracking: NA
+)
 from loguru import logger
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware

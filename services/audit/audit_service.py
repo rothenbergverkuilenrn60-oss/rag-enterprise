@@ -23,7 +23,6 @@ from loguru import logger
 from config.settings import settings
 from utils.asyncpg_helper import prepare_dsn
 
-
 # Phase 27 / TD-04 (CQ3) — project-wide truncation constant for audit_log.detail
 # user-controlled string fields. Established by Phase 25 RULE_BLOCKED convention
 # (audit_service.py:311 — `message[:200]`). Centralized here so the limit can be

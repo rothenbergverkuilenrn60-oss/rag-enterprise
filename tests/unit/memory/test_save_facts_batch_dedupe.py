@@ -18,7 +18,7 @@ import os
 os.environ.setdefault("APP_MODEL_DIR", "/tmp")
 os.environ.setdefault("SECRET_KEY", "a-very-secure-key-for-testing-that-is-long-32c")
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import asyncpg
 import pytest

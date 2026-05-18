@@ -467,7 +467,9 @@ def _extract_csv(file_path: Path) -> dict:
 
 
 def _extract_html(file_path: Path) -> dict:
-    from bs4 import BeautifulSoup  # type: ignore[import-untyped]  # why: beautifulsoup4 lacks stubs as of 2026-05
+    from bs4 import (
+        BeautifulSoup,  # type: ignore[import-untyped]  # why: beautifulsoup4 lacks stubs as of 2026-05
+    )
 
     # errors="ignore" 用于忽略编码错误，避免解析失败,"html.parser" 是 BeautifulSoup 默认的解析器
     soup = BeautifulSoup(file_path.read_text(encoding="utf-8", errors="ignore"), "html.parser")

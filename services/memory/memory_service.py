@@ -13,7 +13,9 @@ from typing import Literal
 import asyncpg
 import redis.asyncio
 from loguru import logger
-from pgvector.asyncpg import register_vector  # type: ignore[import-untyped]  # why: pgvector.asyncpg lacks stubs as of 2026-05
+from pgvector.asyncpg import (
+    register_vector,  # type: ignore[import-untyped]  # why: pgvector.asyncpg lacks stubs as of 2026-05
+)
 
 from utils.asyncpg_helper import prepare_dsn
 from utils.models import ExtractedFact

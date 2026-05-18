@@ -48,7 +48,9 @@ async def pg_pool():
     """
     if not PG_AVAILABLE:
         pytest.skip("PostgreSQL + pgvector not available")
-    from pgvector.asyncpg import register_vector  # type: ignore[import-untyped]  # why: pgvector.asyncpg lacks py.typed marker and has no community stubs as of 2026-05; tracking: NA
+    from pgvector.asyncpg import (
+        register_vector,  # type: ignore[import-untyped]  # why: pgvector.asyncpg lacks py.typed marker and has no community stubs as of 2026-05; tracking: NA
+    )
 
     async def _init_conn(conn: asyncpg.Connection) -> None:
         await register_vector(conn)

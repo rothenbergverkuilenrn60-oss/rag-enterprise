@@ -54,7 +54,9 @@ _guc_capture: list[dict[str, str]] = []
 # ---------------------------------------------------------------------------
 async def _make_pool() -> asyncpg.Pool:
     """Create an independent asyncpg pool with pgvector codec registered."""
-    from pgvector.asyncpg import register_vector  # type: ignore[import-untyped]  # why: pgvector.asyncpg lacks py.typed marker and has no community stubs as of 2026-05; tracking: NA
+    from pgvector.asyncpg import (
+        register_vector,  # type: ignore[import-untyped]  # why: pgvector.asyncpg lacks py.typed marker and has no community stubs as of 2026-05; tracking: NA
+    )
 
     async def _init(conn: asyncpg.Connection) -> None:
         await register_vector(conn)

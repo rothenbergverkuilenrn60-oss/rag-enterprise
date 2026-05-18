@@ -37,8 +37,8 @@ def _mock_local_model_inits(request: pytest.FixtureRequest) -> object:
     autouse=True at tests/integration/ scope — fires for all integration tests.
     Unit tests under tests/unit/ are unaffected (different conftest tree).
     """
-    from services.vectorizer import embedder as _embedder_mod
     from services.retriever import retriever as _retriever_mod
+    from services.vectorizer import embedder as _embedder_mod
 
     def _noop_embedder_init(self: object, *args: object, **kwargs: object) -> None:
         mock_model = MagicMock()

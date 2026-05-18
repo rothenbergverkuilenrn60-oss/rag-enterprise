@@ -133,7 +133,9 @@ class PgVectorStore(BaseVectorStore):
     async def _get_pool(self):
         if self._pool is None:
             import asyncpg as _asyncpg
-            from pgvector.asyncpg import register_vector  # type: ignore[import-untyped]  # why: pgvector.asyncpg lacks stubs as of 2026-05
+            from pgvector.asyncpg import (
+                register_vector,  # type: ignore[import-untyped]  # why: pgvector.asyncpg lacks stubs as of 2026-05
+            )
 
             async def _init_conn(conn: _asyncpg.Connection) -> None:
                 await register_vector(conn)
