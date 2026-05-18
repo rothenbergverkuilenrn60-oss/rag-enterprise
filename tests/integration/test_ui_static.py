@@ -34,12 +34,14 @@ def test_ui_static_serves_html(client: TestClient) -> None:
     )
     body = resp.text
 
-    # 5 v1.0 HTML sentinels — see 09-01-PLAN.md <interfaces> for derivation.
+    # 5 HTML sentinels — see 09-01-PLAN.md <interfaces> for derivation.
     # Phase 14 (UI-02) note: 2 JS-side sentinels ('/api/v1/query', 'include_images:true')
     # moved out of ui.html into static/ui.js; covered by tests/unit/test_static_ui.py::test_ui_js_served.
+    # Phase 34 (TEST-11) note: title + h1 refreshed post-v1.4 frontend rewrite
+    # (RAG → Agent). Partial h1 match avoids re-drift when version string updates.
     sentinels = [
-        "<title>RAG 查询</title>",
-        "<h1>RAG 查询界面</h1>",
+        "<title>Agent 查询</title>",
+        "<h1>Agent 查询界面",
         'id="q"',
         'id="btn"',
         'id="out"',
