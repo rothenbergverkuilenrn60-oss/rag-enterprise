@@ -19,7 +19,9 @@ from typing import Any
 import httpx
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError
+from jose import (
+    JWTError,  # type: ignore[import-untyped]  # why: python-jose has no stubs as of 2026-05
+)
 from loguru import logger
 
 from config.settings import settings

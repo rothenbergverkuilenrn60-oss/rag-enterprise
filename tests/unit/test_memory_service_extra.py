@@ -232,15 +232,35 @@ async def test_long_term_save_fact_calls_insert(monkeypatch):
     # Phase 23 / MEM-02 — save_fact now embeds before INSERT. Mock the embedder
     # at the source path so the lazy `from … import get_embedder` inside
     # save_fact resolves to a stub returning a deterministic 1024-dim vector.
-    fake_embedder = MagicMock(embed_one=AsyncMock(return_value=[0.1] * 1024))
+    # why: TEST-09 / D-MOCK-01 — save_facts (v1.7 batch API) calls embed_batch
+    # which returns list[list[float]]; supply BOTH shapes for parity with
+    # services/vectorizer/embedder.py (no production compat shim).
+    fake_embedder = MagicMock(
+        embed_one=AsyncMock(return_value=[0.1] * 1024),
+        embed_batch=AsyncMock(return_value=[[0.1] * 1024]),
+    )
     monkeypatch.setattr(
         "services.vectorizer.embedder.get_embedder", lambda: fake_embedder
     )
+    # Rule 1 deviation (TEST-09 / 33-01-02 plan-author oversight):
+    # Phase 27-04 changed save_fact to delegate to save_facts (batch path),
+    # which uses conn.transaction() + conn.fetch (bulk dedupe) + conn.executemany.
+    # Previously the test only mocked conn.execute; the missing async mocks were
+    # the residual cause of the failure beyond the embed_batch shape. Mirror the
+    # _TxnCtx + AsyncMock pattern already used by sibling tests at line 196-200.
     conn = MagicMock()
     conn.execute = AsyncMock()
+    conn.fetch = AsyncMock(return_value=[])  # no near-dups → executemany runs
+    conn.executemany = AsyncMock()
+
+    class _TxnCtx:
+        async def __aenter__(self): return conn
+        async def __aexit__(self, *a): return False
+
+    conn.transaction = MagicMock(return_value=_TxnCtx())
     lt = _make_long(_make_pool(conn))
     await lt.save_fact("u1", "t1", fact="xyz")
-    conn.execute.assert_awaited_once()
+    conn.executemany.assert_awaited_once()
 
 
 @pytest.mark.unit

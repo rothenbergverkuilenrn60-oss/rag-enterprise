@@ -84,7 +84,9 @@ def _setup_langfuse() -> None:
             logger.warning("[Observability] Langfuse keys missing, skipping")
             return
 
-        from langfuse import Langfuse
+        from langfuse import (
+            Langfuse,  # type: ignore[import-untyped]  # why: langfuse has no py.typed marker or stubs as of 2026-05; tracking: NA
+        )
         _langfuse_client = Langfuse(
             public_key=settings.langfuse_public_key,
             secret_key=settings.langfuse_secret_key,

@@ -439,4 +439,4 @@ class TestRagasEvaluatorE2E:
         assert report.failed_evals == 1
         failed = [r for r in report.results if r.error is not None]
         assert len(failed) == 1
-        assert "Connection timeout" in failed[0].error  # type: ignore
+        assert "Connection timeout" in failed[0].error

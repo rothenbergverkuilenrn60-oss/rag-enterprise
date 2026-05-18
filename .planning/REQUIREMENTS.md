@@ -1,77 +1,99 @@
-# EnterpriseRAG — v1.7 Memory Tech-Debt Burn-Down Requirements
+# EnterpriseRAG — v1.9 Hardening Round 3 Requirements
 
-**Milestone:** v1.7
-**Goal:** Knock out all 7 deferred items surfaced at v1.6 ship — keep the memory subsystem production-clean before adding more features. No new user-facing capabilities; pure refactor + reliability.
-**Opened:** 2026-05-17
-**Phase numbering:** Continues from v1.6 (last phase = 25); v1.7 starts at **Phase 26**.
+**Milestone:** v1.9 Hardening Round 3
+**Status:** 📝 Planning (REQUIREMENTS scoped; ROADMAP written 2026-05-18)
+**Opened:** 2026-05-18
+**Phase numbering:** Continues from v1.8 (last phase = 30); v1.9 starts at **Phase 31**.
 
-## Active Requirements (v1.7)
+**Goal:** Close v1.8-deferred debt — eliminate residual event-loop singleton leaks (EVT-01 carry-over), finish mypy `--strict` cleanup (MYPY-01 overflow + bare ignores + asyncpg untyped imports), stabilize test infra (autouse-mock opt-out marker, order-dependent flaky failures, sentinel drift), and backfill missing planning artifacts (Nyquist VALIDATION.md, MILESTONES.md v1.7 entry). Zero new user-facing capabilities — pure reliability + test infra polish + process polish.
 
-All requirements are scoped to this milestone. Traceability to phases is filled by the roadmap step.
+**Carry-forward gates** (inherited from v1.8): `diff-cover ≥ 80%` on touched files; combined coverage `--fail-under=70`; INSERT-ONLY `audit_log` invariant; audit-mode-before-enforce; audit-write failure must NOT block destructive action; `# type: ignore[code]  # why:` silence convention (mypy violations cap = 25; deferred-items cap = 7); `BaseTool` ABC + `AGENT_TOOL_ALLOWLIST` constant preserved.
 
-### Schema & Infra Hygiene
+## Categorized ID Schema
 
-- [ ] **TD-01**: `audit_log` PostgreSQL table auto-creates on `services/audit/audit_service.py` startup, matching the `_create_tables` pattern already in `services/memory/long_term_memory.py`.
-  - **Acceptance:** Cold-start a fresh database; the first call into `audit_service` creates the `audit_log` table + `INSERT-ONLY` invariant (REVOKE UPDATE/DELETE) without manual DDL. No regression on v1.6 audit-write semantics.
+| Prefix | Category | Description |
+|--------|----------|-------------|
+| `EVT-` | Event-loop singleton leaks | Residual fixture sites left over from v1.8 Phase 30-01 supersession |
+| `MYPY-` | mypy --strict cleanup | Deferred violations, bare ignores, untyped-import silences |
+| `TEST-` | Test infra hygiene | Autouse-mock opt-out marker, order-dependent failures, sentinel drift |
+| `DOC-` | Planning artifact backfill | Nyquist VALIDATION.md, missing MILESTONES.md entry |
 
-- [ ] **TD-03**: `utils/asyncpg_helper.py` centralizes the `?ssl=disable` URL-param strip pattern. `services/memory/memory_service.py` and `services/audit/audit_service.py` import the helper; both inline copies of the pattern are removed.
-  - **Acceptance:** `rg "ssl=disable"` returns zero hits in `services/`; both modules connect via the helper; existing real-PG integration tests still green.
+## Active Requirements (v1.9)
 
-- [ ] **TD-07**: bge-m3 model directory layout fix — code resolves model files at the Hugging Face cache layout natively (e.g. `{MODEL_DIR}/BAAI/bge-m3/`), with backwards-compat for the legacy `{MODEL_DIR}/embedding_models/bge-m3/` path or a migration helper. Symlink workaround removed from documented setup.
-  - **Acceptance:** Fresh-machine setup with a vanilla HF cache loads bge-m3 without symlinks; tests cover both legacy and HF cache layouts; docs updated.
+### Event-loop Singleton Leaks
 
-### Test Isolation
+- [x] **EVT-02**: Enumerate + fix all remaining event-loop singleton leak sites surfaced during v1.8 Phase 30 (Plan 30-01 superseded — ~10 sites deferred). Grow `_SINGLETON_INVENTORY` from 34 toward 48 on a PG-enabled host. Each leak site is a module-level instance whose constructor binds to whatever event loop existed at import time, causing `RuntimeError: ... attached to a different loop` when fixtures recreate the loop.
+  - **Acceptance:** PG-host run of full suite (`pytest -m integration --uses-redis`) reports zero "different loop" failures; `_SINGLETON_INVENTORY` lint passes with the new count.
+  - **Reference:** `.planning/milestones/v1.8-MILESTONE-AUDIT.md` tech-debt block; `tests/factories/app.py::_SINGLETON_INVENTORY`.
 
-- [ ] **TD-02**: Per-test `create_app()` factory replaces the module-level singleton graph + FastAPI app singleton. Integration tests can construct an isolated app per test without monkeypatching globals.
-  - **Acceptance:** A test using `create_app()` does not leak state to a parallel test; `tests/conftest.py` provides a function-scope app fixture; at least the audit/memory integration suites are migrated to the factory and remain green.
+### mypy `--strict` Cleanup
 
-- [ ] **TD-06**: Redis-mock fixture rollout closes the 32 pre-existing Redis-dependent unit-test failures baselined in v1.6 Phase 24. A reusable `redis_mock` fixture lives in `tests/conftest.py` (or a dedicated `tests/fixtures/redis_mock.py`).
-  - **Acceptance:** Unit suite passes without a live Redis; baseline 32 failures = 0; no integration test that genuinely needs Redis is force-mocked.
+- [x] **MYPY-02**: Resolve all 7 deferred violations recorded in `.planning/milestones/v1.8-phases/30-test-infra-mypy-hardening/deferred-items.md` (overflow beyond the 25-silence cap). Cap drains to ≤ 0 entries.
+  - **Acceptance:** `deferred-items.md` listed entries reach zero; full repo `mypy --strict` reports ≤ 0 net new violations vs v1.8 close baseline (target ≤ 25 silences total).
 
-### Memory Service Reliability
+- [x] **MYPY-03**: Replace bare `# type: ignore` at `services/nlu/nlu_service.py:538` with the v1.8 `# type: ignore[code]  # why:` convention. Pre-existing since v1.3/v1.6 — left untouched at v1.8 close because it was outside the Plan 30-03 scope window.
+  - **Acceptance:** Targeted error code present; explanatory `# why:` comment present; `mypy --strict services/nlu/nlu_service.py` exits 0 with no new findings.
 
-- [ ] **TD-04**: `LongTermMemory.save_fact` near-duplicate guard via `<embedding> <=> $vec < 0.05` cosine precheck (eng-review A3 from Phase 23). When the precheck hits, save is skipped and an audit-mode metric is recorded; default behavior is metric-only for one release before silent skip is enforced.
-  - **Acceptance:** Saving a fact whose embedding is `<0.05` cosine distance from an existing fact records a `memory.save_fact.near_duplicate_skipped` audit event; existing save tests still green; the precheck adds ≤1 extra round-trip on the hot path.
+- [x] **MYPY-04**: Resolve asyncpg + pgvector.asyncpg `import-untyped` silences in `tests/integration/memory/test_save_facts_toctou.py:32, 57`. Either upstream stubs landed (verify), or local stubs added to `stubs/` dir, or `[code]  # why:` form applied with concrete upstream-tracking link.
+  - **Acceptance:** Both lines pass `mypy --strict tests/integration/memory/test_save_facts_toctou.py` without `[import-untyped]` errors.
 
-- [ ] **TD-05**: `LongTermMemory.save_facts(list[ExtractedFact])` batch path uses 1× `embed_batch` + `executemany` (replaces the 3× round-trips per turn measured in v1.6). ExtractorAgent dispatch updated to call the batch API.
-  - **Acceptance:** A 5-fact turn issues exactly 1 embed call + 1 PG round-trip (verified by mock-based unit test); per-turn extractor latency ≤ baseline minus measured embed-RTT × (N−1); near-duplicate guard from TD-04 still honored inside the batch.
+### Test Infra Hygiene
 
-### Documentation
+- [ ] **TEST-08**: Add `@pytest.mark.real_embedder` opt-out marker so the `tests/integration/conftest.py` autouse fixture (which mocks `HuggingFaceEmbedder.__init__` + `CrossEncoderReranker.__init__`) honors a per-test opt-out. Tests marked `@pytest.mark.real_embedder` must observe the real implementation classes — autouse mock skips itself when marker is present.
+  - **Acceptance:** Marker registered in `pyproject.toml` / `pytest.ini`; autouse fixture conditionally early-returns when `request.node.get_closest_marker("real_embedder")` is non-None; at least one canary test exists exercising the real-embedder path on PG host; documented in `docs/RUNBOOK.md` test-infra section.
 
-- [ ] **DOC-01**: End-of-milestone doc + CHANGELOG sweep. README, `ARCHITECTURE.md`, dev runbook, and `docs/memory-eviction.md` (where touched) are refreshed for v1.7 changes. CHANGELOG entry for v1.7 added with item-level call-outs (TD-01..07).
-  - **Acceptance:** `docs/`, `README.md`, and `CHANGELOG.md` are consistent with the post-v1.7 codebase; reviewer can walk every changed module from the docs without grep.
+- [ ] **TEST-09**: Fix 7 pre-existing order-dependent unit-test failures (registry-singleton pollution between tests + `embed_one`/`embed_batch` mock-shape mismatch from v1.7 batch API migration). Failures only manifest in certain `-p random_order` permutations, masking the underlying state leak.
+  - **Acceptance:** Full unit suite passes under `pytest --random-order --random-order-seed=<fixed>` for at least 3 distinct seeds; registry singletons reset via fixture in `tests/conftest.py`; mock-shape parity restored (consumers patch the same callable signature regardless of single-vs-batch path).
 
-## Out of Scope (deferred to v1.8+)
+- [ ] **TEST-10**: Refresh `tests/test_pipeline_load_context_audit::test_no_v1_5_regression` for the GenerationRequest schema drift (v1.5 introduced `query=`; test still uses pre-v1.5 `q=` kwarg, triggering ValidationError).
+  - **Acceptance:** Test instantiates GenerationRequest with `query=` (matching current Pydantic V2 model); test passes against current `services/pipeline.py`; original v1.5-regression intent preserved (no scope creep — the test still verifies what it was written to verify).
 
-- Code-acting / SQLTool (10x roadmap #4) — sandbox selection unresolved
-- RLS on `long_term_facts` + asyncpg pool `app.current_tenant` production verification
-- SSE memory events (`memory.extracted`, `memory.recalled`) — explicit-trace differentiation
-- Per-tenant capacity overrides / importance decay on `LongTermMemory`
-- UI-03 React/Vue full migration; TEST-07 mutation testing; UI-02 first-deploy browser smoke
-- Per-module coverage floor raise (>70%) or branch-coverage activation
-- PyMuPDF AGPL commercial licensing
-- Docker Build CI fix (paddleocr / paddlex / paddlepaddle ABI churn — currently `continue-on-error: true`)
-- New memory features (cross-user-within-tenant recall, decay, hierarchical memory, etc.)
-- Adding more agent tools to `AGENT_TOOL_ALLOWLIST`
+- [ ] **TEST-11**: Refresh `tests/test_ui_static::test_ui_static_serves_html` `<title>` sentinel — current sentinel was minted against v1.0 UI; v1.4 frontend rewrite (`static/ui.html` split into ui.css + ui.js) drifted the `<title>` value. Test now fails because sentinel no longer matches served HTML.
+  - **Acceptance:** Sentinel updated to match current `static/ui.html` `<title>` text; test passes; brief commit-message note records the v1.4-drift root cause so future drifts have a tracking precedent.
 
-## Future Requirements (post-v1.7 candidates surfaced during this milestone)
+### Planning Artifact Backfill
 
-(Filled at v1.7 ship — leave empty until then.)
+- [ ] **DOC-02**: Backfill Nyquist `VALIDATION.md` for Phase 29 + 30 via `/gsd:validate-phase 29` + `/gsd:validate-phase 30` on the live `.planning/milestones/v1.8-phases/29-toctou-silent-skip-enforcement/` and `.planning/milestones/v1.8-phases/30-test-infra-mypy-hardening/` directories. Both phases shipped without Nyquist coverage — milestone audit flagged this as process gap.
+  - **Acceptance:** `29-VALIDATION.md` + `30-VALIDATION.md` files exist; each documents Nyquist gates considered, evidence assembled, validation verdict; gsd-nyquist-auditor returns `passed` for both phases.
+
+- [ ] **DOC-03**: Backfill missing MILESTONES.md v1.7 entry — v1.7-close oversight (v1.7 shipped without appending its summary to the repo-root MILESTONES.md ledger). Mirror v1.6 + v1.8 entries: 6-deliverable bullet list, accomplishments, deferred items, audit reference.
+  - **Acceptance:** MILESTONES.md ledger contains v1.7 entry in chronological order between v1.6 and v1.8; format matches surrounding entries (same headers, same fields); `.planning/milestones/v1.7-ROADMAP.md` cross-referenced.
+
+## Out of Scope
+
+The following items remain on the carry-forward list (NOT v1.9-scoped) — explicit deferral with reasoning:
+
+- **Code-acting / SQLTool (10x roadmap #4)** — sandbox selection unresolved; needs design phase first; v1.9 is debt-paydown not feature
+- **RLS `app.current_tenant` per-connection production verification** — needs production-pool access we don't have in sandbox; defer to first production deploy
+- **SSE memory events (memory.extracted, memory.recalled)** — new user-facing feature; v1.9 charter excludes new capabilities
+- **Per-tenant capacity overrides / importance decay** — new memory-system feature; out of v1.9 charter
+- **UI-03 React/Vue full migration** — large new-feature scope; carry-forward
+- **TEST-07 mutation testing** — separate test-quality initiative; not part of v1.8 deferred items
+- **UI-02 first-deploy browser smoke** — needs deploy infrastructure; defer to first deploy
+- **Per-module coverage floor raise (>70%) or branch-coverage activation** — Phase 22 D-08 follow-up; separate initiative
+- **PyMuPDF AGPL commercial licensing** — legal/business decision, not engineering
+- **Docker Build CI fix (paddleocr ABI churn)** — infra-team scope; currently masked by `continue-on-error: true`
+- **Phase 26-04 P1 backport to `LongTermMemory._get_pool`** — pre-v1.8 patch backport; consider v1.10 hygiene round
+- **Close-then-reuse `_closed: bool` guard** — project-wide pattern adoption; consider v1.10
+- **AuditService `application_name=audit_service`** — observability polish; consider v1.10
 
 ## Traceability
 
-| REQ-ID | Title | Phase |
-|--------|-------|-------|
-| TD-01  | `audit_log` auto-create | Phase 26 — Memory Infra Hygiene |
-| TD-02  | Per-test `create_app()` factory | Phase 27 — Test Isolation + Memory Reliability |
-| TD-03  | `utils/asyncpg_helper.py` centralization | Phase 26 — Memory Infra Hygiene |
-| TD-04  | `save_fact` near-duplicate guard | Phase 27 — Test Isolation + Memory Reliability |
-| TD-05  | `save_facts` batch path | Phase 27 — Test Isolation + Memory Reliability |
-| TD-06  | Redis-mock fixture rollout | Phase 27 — Test Isolation + Memory Reliability |
-| TD-07  | bge-m3 model dir layout fix | Phase 26 — Memory Infra Hygiene |
-| DOC-01 | Doc + CHANGELOG sweep | Phase 28 — Doc Sweep + v1.7 Release |
+Each REQ-ID maps to exactly one phase. Coverage: 10/10. No orphans. No duplicates.
 
-**Coverage check:** 8/8 requirements mapped to 3 phases. No phase without a requirement; no requirement without a phase.
+| REQ-ID | Phase | Plan(s) |
+|--------|-------|---------|
+| EVT-02 | 31 | TBD |
+| MYPY-02 | 32 | TBD |
+| MYPY-03 | 32 | TBD |
+| MYPY-04 | 32 | TBD |
+| TEST-08 | 33 | TBD |
+| TEST-09 | 33 | TBD |
+| TEST-10 | 34 | TBD |
+| TEST-11 | 34 | TBD |
+| DOC-02 | 35 | TBD |
+| DOC-03 | 35 | TBD |
 
----
-*Last updated: 2026-05-17 — v1.7 roadmap drafted (Phases 26–28).*
+## Future Requirements (v1.10+ carry-forward)
+
+See "Out of Scope" above for the full carry-forward list. Items there are deferred (not invalidated) and will be re-evaluated at v1.10 planning.

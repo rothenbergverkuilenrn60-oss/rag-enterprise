@@ -2,7 +2,7 @@
 # main.py
 # 企业级 RAG 应用入口
 # FastAPI + 全局中间件 + 异常处理 + 生命周期管理
-# 启动命令：conda run -n torch_env uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+# 启动命令：uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 # =============================================================================
 from __future__ import annotations
 
@@ -20,7 +20,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.responses import Response as FastAPIResponse
 from fastapi.staticfiles import StaticFiles
-from jose import JWTError
+from jose import (
+    JWTError,  # type: ignore[import-untyped]  # why: python-jose has no py.typed marker or stubs as of 2026-05; tracking: NA
+)
 from loguru import logger
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
@@ -156,7 +158,24 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:             # As
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# FastAPI 实例
+# Top-level handlers + middlewares
+# ──────────────────────────────────────────────────────────────────────────────
+# Plan 27-01 — Extracted from `@app.X(...)` decorator form so that they can be
+# late-bound to any FastAPI instance (the module-level prod `app` AND
+# per-test instances built by `tests.factories.app.create_app`). Behavior is
+# identical to the pre-refactor module-load sequence — `_configure_app(app)` at
+# module bottom replays the same add-order:
+#   add_exception_handler(RateLimitExceeded, ...)
+#   add_middleware(SlowAPIMiddleware)
+#   add_middleware(CORSMiddleware, ...)
+#   middleware("http")(trace_middleware)
+#   middleware("http")(rate_limit_middleware)
+#   add_exception_handler(Exception, global_exception_handler)
+#   get("/metrics")(metrics_endpoint)  [conditional on settings.metrics_enabled]
+#   middleware("http")(auth_middleware)
+#   include_router(router) + include_router(memory_router)
+#   mount("/ui", StaticFiles(...))
+# Pinned by tests/unit/test_main_middleware_order.py.
 # ══════════════════════════════════════════════════════════════════════════════
 def _rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
     return JSONResponse(
@@ -166,41 +185,7 @@ def _rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) -> JS
     )
 
 
-app = FastAPI(
-    title=settings.app_name,
-    version=settings.app_version,
-    description=(
-        "RAG 系统 — 预处理 → 提取 → 文档处理 → 向量化存储 → 检索 → 生成"
-    ),
-    docs_url="/docs" if settings.debug else None,
-    redoc_url="/redoc" if settings.debug else None,
-    openapi_url="/openapi.json" if settings.debug else None,
-    lifespan=lifespan,                          # 生命周期管理器，用于启动和关闭应用
-)
-
-app.state.limiter = _route_limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-app.add_middleware(SlowAPIMiddleware)
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# 中间件栈（顺序：外 → 内）
-# ══════════════════════════════════════════════════════════════════════════════
-
-# 1. CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# 2. (移除) GZipMiddleware —— 与 SSE 流式响应冲突（buffer-then-compress 杀死流）。
-#    JSON 端点的压缩交给上游 Nginx Ingress 处理（k8s/ingress.yaml）。
-
-# 3. 请求追踪中间件（注入 Trace-ID + 记录访问日志）
-@app.middleware("http")
+# ─── 请求追踪中间件（注入 Trace-ID + 记录访问日志）────────────────────────
 async def trace_middleware(request: Request, call_next) -> Response:
     trace_id = request.headers.get("X-Trace-ID") or str(uuid.uuid4())[:8]
     request.state.trace_id = trace_id
@@ -208,7 +193,7 @@ async def trace_middleware(request: Request, call_next) -> Response:
 
     active_requests_gauge.inc()
     try:
-        response = await call_next(request)     # call_next调用下一层处理（路由函数）
+        response = await call_next(request)     # call_next 调用下一层处理（路由函数）
     finally:
         active_requests_gauge.dec()
 
@@ -231,7 +216,7 @@ async def trace_middleware(request: Request, call_next) -> Response:
     return response
 
 
-# 4. IP 限流：Redis 分布式滑动窗口（多 worker / 多节点共享状态）
+# ─── IP 限流：Redis 分布式滑动窗口（多 worker / 多节点共享状态）──────────
 #    降级：Redis 不可用时自动切换为进程内字典（单节点兼容）
 _RATE_WINDOW = 60.0    # 1 分钟滑动窗口（秒）
 
@@ -289,7 +274,6 @@ def _fallback_rate_check(client_ip: str, now: float) -> bool:
     return False
 
 
-@app.middleware("http")
 async def rate_limit_middleware(request: Request, call_next) -> Response:
     """
     分布式 IP 限流中间件。
@@ -328,13 +312,11 @@ async def rate_limit_middleware(request: Request, call_next) -> Response:
     return await call_next(request)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# 全局异常处理器
-# ══════════════════════════════════════════════════════════════════════════════
-@app.exception_handler(Exception)       # 捕获所有未被处理的异常（兜底处理），防止服务崩溃或暴露内部堆栈信息给用户
+# ─── 全局异常处理器 ──────────────────────────────────────────────────────
 async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """捕获所有未被处理的异常（兜底处理），防止服务崩溃或暴露内部堆栈信息给用户。"""
     trace_id = getattr(request.state, "trace_id", "unknown")
-    logger.exception(f"Unhandled exception trace={trace_id}: {exc}")    # exception() 方法会自动打印完整的 Python 错误堆栈，比 error() 多堆栈信息
+    logger.exception(f"Unhandled exception trace={trace_id}: {exc}")    # exception() 方法会自动打印完整的 Python 错误堆栈
     return JSONResponse(
         status_code=500,
         content={
@@ -345,25 +327,13 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
     )
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# Prometheus 指标端点
-# ══════════════════════════════════════════════════════════════════════════════
-if getattr(settings, "metrics_enabled", True):
-    @app.get(
-        getattr(settings, "metrics_path", "/metrics"),
-        include_in_schema=False,
-        summary="Prometheus metrics",
-    )
-    async def metrics_endpoint() -> FastAPIResponse:
-        data, content_type = get_metrics_response()
-        return FastAPIResponse(content=data, media_type=content_type)
+# ─── Prometheus 指标端点 ─────────────────────────────────────────────────
+async def metrics_endpoint() -> FastAPIResponse:
+    data, content_type = get_metrics_response()
+    return FastAPIResponse(content=data, media_type=content_type)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# 认证中间件（Bearer Token → OIDC / 本地 JWT）
-# 注入 request.state.user 供路由函数使用（可选，不强制）
-# ══════════════════════════════════════════════════════════════════════════════
-@app.middleware("http")
+# ─── 认证中间件（Bearer Token → OIDC / 本地 JWT）───────────────────────
 async def auth_middleware(request: Request, call_next) -> Response:
     """
     可选认证中间件：解析 Authorization: Bearer <token>，
@@ -392,18 +362,89 @@ async def auth_middleware(request: Request, call_next) -> Response:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 路由注册
+# `_configure_app` — late-bind middleware + handlers + routers to any FastAPI
+#
+# Plan 27-01 / TD-02. The module-level prod `app` calls this exactly once at
+# import time. `tests.factories.app.create_app` calls it on a fresh
+# `FastAPI(lifespan=lifespan)` per test for isolation. Add-order MUST mirror the
+# pre-refactor sequence — pinned by tests/unit/test_main_middleware_order.py.
 # ══════════════════════════════════════════════════════════════════════════════
-app.include_router(router)
-app.include_router(memory_router)  # Phase 25 / T2 — DELETE /api/v1/memory/forget
+def _configure_app(app: FastAPI) -> None:
+    """Mount every middleware, exception handler, route, and router onto `app`.
 
-# ─── 静态前端 (UI-01 / Phase 9) ───────────────────────────────────────────
-# Inline UI 字符串已抽到 `static/ui.html`，由 FastAPI StaticFiles 直接 serve。
-# 行为契约（per .planning/phases/09-frontend-extraction/09-CONTEXT.md D-03）：
-#   GET /ui  → 307 redirect to /ui/   (FastAPI StaticFiles default — accepted)
-#   GET /ui/ → 200 + static/ui.html   (html=True 让 / 直接返回 index.html 等价物)
-# `app.mount()` 不进 OpenAPI schema — `include_in_schema=False` 等价默认行为。
-app.mount("/ui", StaticFiles(directory="static", html=True), name="ui")
+    Pre-refactor sequence preserved exactly:
+      1. app.state.limiter = _route_limiter
+      2. add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+      3. add_middleware(SlowAPIMiddleware)
+      4. add_middleware(CORSMiddleware, ...)
+      5. middleware("http")(trace_middleware)
+      6. middleware("http")(rate_limit_middleware)
+      7. add_exception_handler(Exception, global_exception_handler)
+      8. [optional] get("/metrics")(metrics_endpoint) -- if settings.metrics_enabled
+      9. middleware("http")(auth_middleware)
+      10. include_router(router) + include_router(memory_router)
+      11. mount("/ui", StaticFiles(...))
+    """
+    # 1-3. SlowAPI rate-limiter integration
+    app.state.limiter = _route_limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    app.add_middleware(SlowAPIMiddleware)
+
+    # 4. CORS
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    # 5. 请求追踪中间件（注入 Trace-ID + 记录访问日志）
+    app.middleware("http")(trace_middleware)
+
+    # 6. IP 限流中间件
+    app.middleware("http")(rate_limit_middleware)
+
+    # 7. 全局异常处理器
+    app.add_exception_handler(Exception, global_exception_handler)
+
+    # 8. Prometheus 指标端点（按配置开关）
+    if getattr(settings, "metrics_enabled", True):
+        app.get(
+            getattr(settings, "metrics_path", "/metrics"),
+            include_in_schema=False,
+            summary="Prometheus metrics",
+        )(metrics_endpoint)
+
+    # 9. 认证中间件（Bearer Token → OIDC / 本地 JWT）
+    app.middleware("http")(auth_middleware)
+
+    # 10. 路由注册
+    app.include_router(router)
+    app.include_router(memory_router)  # Phase 25 / T2 — DELETE /api/v1/memory/forget
+
+    # 11. 静态前端 (UI-01 / Phase 9)
+    # 行为契约（per .planning/phases/09-frontend-extraction/09-CONTEXT.md D-03）：
+    #   GET /ui  → 307 redirect to /ui/   (FastAPI StaticFiles default — accepted)
+    #   GET /ui/ → 200 + static/ui.html   (html=True 让 / 直接返回 index.html 等价物)
+    app.mount("/ui", StaticFiles(directory="static", html=True), name="ui")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# FastAPI 实例（prod entry-point）
+# ══════════════════════════════════════════════════════════════════════════════
+app = FastAPI(
+    title=settings.app_name,
+    version=settings.app_version,
+    description=(
+        "RAG 系统 — 预处理 → 提取 → 文档处理 → 向量化存储 → 检索 → 生成"
+    ),
+    docs_url="/docs" if settings.debug else None,
+    redoc_url="/redoc" if settings.debug else None,
+    openapi_url="/openapi.json" if settings.debug else None,
+    lifespan=lifespan,                          # 生命周期管理器，用于启动和关闭应用
+)
+_configure_app(app)
 
 
 # ══════════════════════════════════════════════════════════════════════════════

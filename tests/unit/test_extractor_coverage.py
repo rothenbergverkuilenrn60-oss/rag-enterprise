@@ -149,7 +149,7 @@ class TestIsScannedPdf:
         import logging
 
         fake_fitz = types.ModuleType("fitz")
-        fake_fitz.open = lambda path: (_ for _ in ()).throw(RuntimeError("fitz open failed"))  # type: ignore
+        fake_fitz.open = lambda path: (_ for _ in ()).throw(RuntimeError("fitz open failed"))  # type: ignore[attr-defined]  # why: fake_fitz is a raw ModuleType; attribute assignment is intentional monkeypatching
         monkeypatch.setitem(sys.modules, "fitz", fake_fitz)
 
         # Use caplog with loguru: loguru propagates to stdlib logging in tests
@@ -297,7 +297,7 @@ class TestDetectHeaderFooterTexts:
     def test_fitz_open_failure_returns_empty_set(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """fitz.open raises → except branch → returns empty set."""
         fake_fitz = types.ModuleType("fitz")
-        fake_fitz.open = lambda path: (_ for _ in ()).throw(RuntimeError("open failed"))  # type: ignore
+        fake_fitz.open = lambda path: (_ for _ in ()).throw(RuntimeError("open failed"))  # type: ignore[attr-defined]  # why: fake_fitz is a raw ModuleType; attribute assignment is intentional monkeypatching
         monkeypatch.setitem(sys.modules, "fitz", fake_fitz)
 
         from services.extractor.extractor import _detect_header_footer_texts

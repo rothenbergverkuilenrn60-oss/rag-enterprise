@@ -123,7 +123,7 @@ AgentQueryPipeline.run_streaming()
   emit synthesizer.final(answer, sources_count)
     │
     ▼
-  _persist_turn → memory_service + audit_service
+  _persist_turn → memory_service + audit_service（v1.7：memory_service 走批量 save_facts，audit_service pool 单例自启）
 ```
 
 **为什么是这样**：
@@ -264,6 +264,9 @@ AgentQueryPipeline.run_streaming()
 | 文件 | 作用 |
 |------|------|
 | `memory/memory_service.py` | 短期：Redis（每 session 最近 N 轮）；长期：PostgreSQL（user_id + tenant_id 维度）。`load_context` 与 `save_turn` 接口，被所有 Pipeline 调用。 |
+| `memory_service.py::LongTermMemory.save_facts` | v1.7 批量写入路径 — 1× embed_batch + 1× bulk dedupe SELECT + 1× executemany；近重复触发 `MEMORY_NEAR_DUPLICATE_SKIPPED` 审计行后 INSERT 仍执行（D-09 审计模式，v1.8 → 静默跳过 SK-01）。 |
+| `memory_service.py::LongTermMemory._is_near_duplicate` | v1.7 余弦距离预检（`<=> $vec < 0.05`，由 `memory_near_duplicate_threshold` 设置控制）。 |
+| `memory_service.py::LongTermMemory._get_pool` / `close` | v1.7 通过 `utils/asyncpg_helper.prepare_dsn(...)` 统一处理 `?ssl=disable` URL 参数（TD-03 集中化）。 |
 
 #### 5.2.12 `services/auth/` — 认证
 
@@ -276,6 +279,9 @@ AgentQueryPipeline.run_streaming()
 | 文件 | 作用 |
 |------|------|
 | `audit/audit_service.py` | 缓冲式审计日志：每条查询记录 user/tenant/query/trace_id/result/latency_ms/sources_count；定时 flush 到 PostgreSQL。 |
+| `audit/audit_service.py::AuditService._create_tables` | v1.7 冷启动 `audit_log` 自动创建（DDL + REVOKE UPDATE/DELETE 保留 INSERT-ONLY 不变式）；首个 `_get_pool` 调用触发，不需手工 DDL（TD-01）。 |
+| `audit/audit_service.py::AuditService._get_pool` / `close` | v1.7 单例 asyncpg pool；通过 `utils/asyncpg_helper.prepare_dsn(...)` 处理 DSN（TD-03）。 |
+| `audit/audit_service.py::AuditAction.MEMORY_NEAR_DUPLICATE_SKIPPED` | v1.7 新增审计动作枚举（near-duplicate 预检命中后写入；INSERT 仍执行，审计模式优先于强制执行）。 |
 
 #### 5.2.14 `services/rules/` — 业务规则引擎
 

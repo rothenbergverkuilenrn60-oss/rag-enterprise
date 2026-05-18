@@ -12,6 +12,8 @@ v1.2 Agentic Layer + Swarm shipped: `agent_mode=True` now executes the real tool
 
 v1.5 Web Search + Multi-Agent Debate + Coverage Lift shipped: replaced the v1.4 `WebSearchTool` placeholder with a real Tavily-backed implementation behind the same `BaseTool` ABC; introduced AGENT-05 verifier sub-agent that runs after `SwarmQueryPipeline`'s peer fan-out when `req.debate=True` and surfaces evidence-supported divergence; raised five high-traffic modules above per-module ≥70% line coverage and wired CI to enforce a per-module floor on combined coverage data.
 
+v1.8 Production Hardening Round 2 shipped: closed the v1.7-deferred backlog — TOCTOU race in `LongTermMemory.save_facts` closed via per-(user_id, tenant_id) advisory lock; near-duplicate audit-mode promoted to silent-skip enforcement (duplicates no longer INSERT; audit row still fires); `extractor_e2e` flakiness fixed via autouse embedder + reranker mock; mypy `--strict` baseline cut 32 → 7 errors with disciplined `# type: ignore[code]  # why:` silence convention; `make_api_error()` helper landed for future openai SDK drift. Zero new user-facing capabilities — pure reliability + test infra polish.
+
 ## Current State
 
 - ✅ **v1.0 Hardening** shipped 2026-04-27 — [archive](milestones/v1.0-ROADMAP.md)
@@ -21,41 +23,68 @@ v1.5 Web Search + Multi-Agent Debate + Coverage Lift shipped: replaced the v1.4 
 - ✅ **v1.4 Agent-First Architecture Inversion** shipped 2026-05-10 — [archive](milestones/v1.4-ROADMAP.md)
 - ✅ **v1.5 Web Search + Multi-Agent Debate + Coverage Lift** shipped 2026-05-11 — [archive](milestones/v1.5-ROADMAP.md)
 - ✅ **v1.6 Memory Tool — Agent-Authored Long-Term Facts** shipped 2026-05-17 — [archive](milestones/v1.6-ROADMAP.md)
+- ✅ **v1.7 Memory Tech-Debt Burn-Down** shipped 2026-05-17 — [archive](milestones/v1.7-ROADMAP.md)
+- ✅ **v1.8 Production Hardening Round 2** shipped 2026-05-17 — [archive](milestones/v1.8-ROADMAP.md) · [audit](milestones/v1.8-MILESTONE-AUDIT.md)
 
-## Current Milestone: v1.7 Memory Tech-Debt Burn-Down
+## Current Milestone: v1.9 Hardening Round 3
 
-**Goal:** Knock out all 7 deferred items surfaced at v1.6 ship — keep the memory subsystem production-clean before adding more features. No new user-facing capabilities; pure refactor + reliability.
+**Goal:** Close v1.8-deferred debt — eliminate residual event-loop singleton leaks, finish mypy `--strict` cleanup, stabilize test infra (autouse mock opt-out + flaky-order failures + sentinel drift), and backfill missing planning artifacts before any feature work.
 
-**Target features:**
-- `audit_log` table auto-create + `?ssl=disable` helper centralization + bge-m3 model dir layout fix (infra hygiene)
-- Per-test `create_app()` factory (kill module-level singleton graph + FastAPI app singleton; cheap test isolation)
-- `save_fact` near-duplicate guard (`<embedding> <=> $vec < 0.05` precheck) + `save_facts(list[ExtractedFact])` batch path (1× embed + executemany)
-- Redis-mock fixture rollout (kill 32 pre-existing Redis-dependent unit-test failures)
-- End-of-milestone doc + CHANGELOG sweep (README, ARCHITECTURE.md, dev runbook for touched modules)
+**Target features (no new user-facing capabilities — pure reliability + test infra polish):**
+- **EVT-02:** Enumerate + fix ~10 residual event-loop singleton leak sites on PG host; `_SINGLETON_INVENTORY` grows toward 48
+- **MYPY-02:** Resolve 7 deferred violations in `.planning/phases/30-test-infra-mypy-hardening/deferred-items.md`
+- **MYPY-03:** Replace bare `# type: ignore` at `services/nlu/nlu_service.py:538` with `[code]  # why:` form
+- **MYPY-04:** Fix asyncpg + pgvector.asyncpg `import-untyped` silences in `tests/integration/memory/test_save_facts_toctou.py:32,57`
+- **TEST-08:** `@pytest.mark.real_embedder` opt-out marker for `tests/integration/conftest.py` autouse mock
+- **TEST-09:** Fix 7 pre-existing order-dependent unit-test failures (registry-singleton pollution + `embed_one`/`embed_batch` mock mismatch)
+- **TEST-10:** Refresh `test_no_v1_5_regression` (q=/query= GenerationRequest schema drift)
+- **TEST-11:** Refresh `test_ui_static_serves_html` `<title>` sentinel since v1.4
+- **DOC-02:** Backfill Nyquist `VALIDATION.md` for Phases 29 + 30
+- **DOC-03:** Backfill MILESTONES.md v1.7 entry (v1.7-close oversight)
 
-**Key context (locked):**
-- All 8 items originate from v1.6 known-deferred list (no scope creep)
-- Continues phase numbering: v1.7 starts at **Phase 26** (no `--reset-phase-numbers` flag)
-- Carry-forward gates still apply: `diff-cover ≥ 80%` on touched files, combined coverage `--fail-under=70`
-- Zero production behavior change required — every refactor must preserve existing API + DB contracts; verified via regression tests on each touched module
-- GSD subagents NOT installed → roadmap generated inline (per init JSON `agents_installed: false`)
+**Carry-forward (NOT v1.9-scoped — still tracked for v1.10+):** Code-acting/SQLTool sandbox · RLS `app.current_tenant` production verification · SSE memory events · per-tenant capacity overrides · UI-03 React/Vue · TEST-07 mutation · UI-02 browser smoke · per-module coverage floor raise · PyMuPDF AGPL · Docker Build CI paddle ABI · Phase 26-04 P1 backport · close-then-reuse `_closed` guard · AuditService `application_name`
 
-**Carried forward (NOT v1.7 scope — tracked for v1.8+):**
-- Code-acting / SQLTool (10x roadmap #4) — sandbox selection still unresolved
-- RLS on `long_term_facts` + asyncpg pool `app.current_tenant` production verification
-- SSE memory events (memory.extracted, memory.recalled)
-- Per-tenant capacity overrides / importance decay
-- UI-03 React/Vue full migration; TEST-07 mutation testing; UI-02 first-deploy browser smoke
-- Per-module coverage floor raise (>70%) or branch-coverage activation
-- PyMuPDF AGPL commercial licensing
-- Docker Build CI fix (paddleocr / paddlex / paddlepaddle ABI churn — currently `continue-on-error: true`)
+## Previous Milestone (Archived): v1.8 Production Hardening Round 2
 
-## Previous Milestone (Archived): v1.6 Memory Tool — Agent-Authored Long-Term Facts
-
-**Shipped:** 2026-05-17 (PRs #5 + #7 + #8 squash-merged).
+**Shipped:** 2026-05-17 (2 phases / 6 plans + 1 superseded / 7 requirements / 7 tech-debt items routed to v1.9).
 
 <details>
-<summary>v1.6 milestone scope (collapsed — see <a href="milestones/v1.6-ROADMAP.md">archive</a> for full snapshot)</summary>
+<summary>v1.8 milestone scope (collapsed — see <a href="milestones/v1.8-ROADMAP.md">archive</a> for full snapshot + <a href="milestones/v1.8-MILESTONE-AUDIT.md">audit</a>)</summary>
+
+**Goal:** Close v1.7-deferred hardening items — promote near-duplicate audit-mode to silent-skip (after closing TOCTOU race), clean up 32 pre-existing openai SDK drift test failures, fix +14 event-loop singleton leaks exposed by the Phase 27 `uses_redis` marker rollout, resolve mypy --strict accumulation, rewrite save_facts precheck tests against bulk-SELECT shape. Zero new user-facing capabilities — pure reliability + test infra polish.
+
+**Delivered:**
+- **Phase 29 — TOCTOU + Silent-Skip Enforcement (TOC-01, SK-01, TEST-INFRA-02):** `pg_advisory_xact_lock(hashtext($1 || '|' || $2))` wraps `save_facts` precheck + INSERT inside outer txn; concurrent integration test confirmed COUNT(*)==1 on live PG. SK-01 silent-skip filter excludes dup zero-indices from `rows_to_insert` before `executemany`; `MEMORY_NEAR_DUPLICATE_SKIPPED` audit row still fires. Precheck unit tests rewritten against C1 bulk-SELECT shape; `nearest_distance=None` branch covered.
+- **Phase 30 — Test Infra + mypy Hardening (OAI-01, TEST-INFRA-01, MYPY-01 + EVT-01 partial/accepted override):** `make_api_error()` helper landed for future SDK drift (32 callsite count was stale; executor pivoted to fix ~4 event-loop sites instead — 1200 unit tests green). `tests/integration/conftest.py` autouse mocks `HuggingFaceEmbedder.__init__` + `CrossEncoderReranker.__init__` (extractor_e2e passes on clean checkout). `config/settings.py:154` typed `list[dict[str, Any]]`; full repo mypy --strict: 32 → 7 errors (NET -25; 1 fix + 25 silences with `# type: ignore[code]  # why:` convention; 7 overflow deferred). Plan 30-01 (EVT-01 +14 sites) superseded by orchestrator decision — ~10 sites deferred to v1.9.
+
+**Bonus delivered (not in roadmap, surfaced during v1.8 close):** Stale D-09 integration test (`test_save_facts_with_near_duplicate_emits_audit_and_still_inserts_real_pg`) rewritten to SK-01 contract (`..._and_skips_silently_real_pg`) in commit e940280 — Plan 29-01 SUMMARY had updated only `tests/unit/memory/` tests and missed this integration test.
+
+**Known deferred (now scoped into v1.9 candidates):** See "Current Milestone" section above for the pre-seeded v1.9 backlog.
+
+</details>
+
+## Previous Milestone (Archived): v1.7 Memory Tech-Debt Burn-Down
+
+**Shipped:** 2026-05-17 (3 phases / 15 plans / 8 requirements / 0 carry-forward blockers).
+
+<details>
+<summary>v1.7 milestone scope (collapsed — see <a href="milestones/v1.7-ROADMAP.md">archive</a> for full snapshot)</summary>
+
+**Goal:** Knock out all 7 deferred items surfaced at v1.6 ship — production-clean the memory subsystem before adding more features. Pure refactor + reliability; no new user-facing capabilities.
+
+**Delivered:**
+- **Phase 26 — Memory Infra Hygiene (TD-01, TD-03, TD-07):** `audit_log` self-bootstraps with INSERT-ONLY invariant on first `audit_service` call; `utils/asyncpg_helper.py` centralizes `?ssl=disable` URL-param strip (`services/memory` + `services/audit` consume helper); bge-m3 loads from vanilla HF cache `{MODEL_DIR}/BAAI/bge-m3/` without symlinks (legacy `{MODEL_DIR}/embedding_models/bge-m3/` fallback maintained).
+- **Phase 27 — Test Isolation + Memory Reliability (TD-02, TD-04, TD-05, TD-06):** `tests/factories/app.py::create_app()` factory + parallel-contamination tests + 34-entry `_SINGLETON_INVENTORY` lint; `redis_mock` fixture + `@pytest.mark.uses_redis` rollout; `LongTermMemory.save_fact` cosine precheck (D-09 audit-mode-only — `MEMORY_NEAR_DUPLICATE_SKIPPED` audit row + INSERT still runs); `save_facts(list[ExtractedFact])` batch path (1× `embed_batch` + 1× `executemany` via `unnest($1::text[]) WITH ORDINALITY` + `vec_txt::vector` cast); ExtractorAgent migrated to batch API; SC-5 benchmark p50 25.31 → 5.51ms.
+- **Phase 28 — Doc Sweep + v1.7 Release (DOC-01):** `docs/RUNBOOK.md` 3-section (Local dev / Ops procedures / Troubleshooting); README + ARCHITECTURE + memory-eviction surgical v1.7 patches; CHANGELOG `[1.7.0]` keep-a-changelog entry; `docs/release-notes-v1.7.md` 5-section public artifact + `.planning/milestones/v1.7-release-tag.md` ceremony; `.planning/REQUIREMENTS-v1.8.md` scaffold (7 pre-seeded items); v1.7 archive (snapshots + `git mv` Phase 26/27/28 → `.planning/milestones/v1.7-phases/`); `MILESTONES.md` repo-root navigation hub.
+
+**Known deferred (now scoped into v1.8):** SK-01 silent-skip enforcement; TOC-01 TOCTOU mitigation; OAI-01 openai SDK drift cleanup (32 tests); EVT-01 +14 event-loop singleton leaks; MYPY-01 mypy --strict sweep; TEST-INFRA-01 extractor_e2e fixture order; TEST-INFRA-02 save_facts precheck test rewrite.
+
+</details>
+
+## Older Milestones (Archived)
+
+<details>
+<summary>v1.6 Memory Tool — Agent-Authored Long-Term Facts (shipped 2026-05-17)</summary>
 
 **Goal:** Ship 10x roadmap #1 (Memory tool) as agent-callable durable facts — background extractor writes, pgvector RecallTool reads, capacity-cap eviction bounds growth.
 
@@ -63,8 +92,6 @@ v1.5 Web Search + Multi-Agent Debate + Coverage Lift shipped: replaced the v1.4 
 - **Background ExtractorAgent** — post-turn `asyncio.create_task` non-blocking dispatch; adversarial refusal for prompt-injection; importance buckets {0.2, 0.5, 0.8}; reuses `services/agent/verifier.py` provider-singleton pattern
 - **pgvector RecallTool** — 4th tool in `AGENT_TOOL_ALLOWLIST`; `LongTermMemory.get_relevant_facts()` rewritten from popularity-rank to semantic cosine; `hnsw.iterative_scan = strict_order` + `ef_search` pattern reused; 4 `load_context` call sites in `services/pipeline.py` regression-tested
 - **Eviction CLI + GDPR forget API** — `scripts/evict_long_term_facts.py` chunked importance-ASC eviction (audit-mode-before-enforce); `DELETE /api/v1/memory/forget` admin-or-self auth + `X-Confirm-Delete` header; audit-log entry per call (audit-write failure does NOT block GDPR action)
-
-**Known deferred (now scoped into v1.7):** audit_log auto-create; per-test create_app factory; asyncpg_helper.py centralization; save_fact dedupe guard; save_facts batch path; Redis-mock fixture; bge-m3 dir layout.
 
 </details>
 
@@ -152,33 +179,61 @@ Every query returns a grounded, auditable answer — no hallucinations, no silen
 - ✓ Admin `DELETE /api/v1/memory/forget` endpoint + admin-or-self auth + `X-Confirm-Delete` header (GDPR-02) — v1.6 Phase 25
 - ✓ Audit-log entry per forget — actor + target + row count + timestamp; audit-write failure does NOT block GDPR action (GDPR-03 + T1) — v1.6 Phase 25
 
+**v1.7 Memory Tech-Debt Burn-Down**
+- ✓ `audit_log` table auto-creates on `services/audit/audit_service.py` startup with INSERT-ONLY invariant (REVOKE UPDATE/DELETE preserved) — no manual DDL (TD-01) — v1.7 Phase 26
+- ✓ `utils/asyncpg_helper.py` centralizes `?ssl=disable` URL-param strip; `services/memory` + `services/audit` consume helper (TD-03) — v1.7 Phase 26
+- ✓ bge-m3 loads from vanilla HF cache `{MODEL_DIR}/BAAI/bge-m3/`; legacy `{MODEL_DIR}/embedding_models/bge-m3/` fallback maintained (TD-07) — v1.7 Phase 26
+- ✓ `tests/factories/app.py::create_app()` factory + 34-entry `_SINGLETON_INVENTORY` lint + parallel-contamination tests; audit + memory integration suites migrated (TD-02) — v1.7 Phase 27
+- ✓ `LongTermMemory.save_fact` cosine precheck (D-09 audit-mode-only): `MEMORY_NEAR_DUPLICATE_SKIPPED` audit row emitted AND INSERT still runs; silent-skip enforcement deferred to v1.8 SK-01 (TD-04) — v1.7 Phase 27
+- ✓ `LongTermMemory.save_facts(list[ExtractedFact])` batch path: 1× `embed_batch` + 1× `executemany` via `unnest($1::text[]) WITH ORDINALITY` + `vec_txt::vector` cast; ExtractorAgent migrated to batch API; benchmark p50 25.31 → 5.51ms (TD-05) — v1.7 Phase 27
+- ✓ `redis_mock` fixture in `tests/conftest.py` + `@pytest.mark.uses_redis` marker rollout (closes 32 v1.6 Redis-dependent baseline failures) (TD-06) — v1.7 Phase 27
+- ✓ `docs/RUNBOOK.md` (3 sections) + README/ARCHITECTURE/memory-eviction surgical v1.7 patches + CHANGELOG `[1.7.0]` keep-a-changelog entry + `docs/release-notes-v1.7.md` + `.planning/milestones/v1.7-release-tag.md` + `.planning/REQUIREMENTS-v1.8.md` scaffold + v1.7 archive + `MILESTONES.md` (DOC-01) — v1.7 Phase 28
+
+**v1.8 Production Hardening Round 2 — shipped 2026-05-17**
+- ✓ `pg_advisory_xact_lock(hashtext($1 || '|' || $2))` closes TOCTOU race in `LongTermMemory.save_facts` precheck+INSERT; concurrent integration test confirmed COUNT(*)==1 (TOC-01) — v1.8 Phase 29
+- ✓ Silent-skip filter excludes near-duplicate zero-indices from `rows_to_insert` before `executemany`; `MEMORY_NEAR_DUPLICATE_SKIPPED` audit row still fires; integration contract confirmed live (SK-01) — v1.8 Phase 29
+- ✓ `save_facts` precheck unit tests rewritten against C1 bulk-SELECT shape (`unnest($1::text[]) WITH ORDINALITY` + `vec_txt::vector` cast); `nearest_distance=None` branch covered; per-file LOC delta ≤ +150 (TEST-INFRA-02) — v1.8 Phase 29
+- ✓ `make_api_error()` helper landed for future openai SDK drift guard; 32 callsite count was stale on master, executor pivoted to fix ~4 event-loop fixture leak sites; 1200 unit tests green (OAI-01) — v1.8 Phase 30
+- ✓ `tests/integration/conftest.py` autouse fixture mocks both `HuggingFaceEmbedder.__init__` and `CrossEncoderReranker.__init__`; `extractor_e2e` passes on clean checkout with `-m integration`; no bge-m3 pre-download (TEST-INFRA-01) — v1.8 Phase 30
+- ✓ `config/settings.py:154` typed `list[dict[str, Any]]`; full repo `mypy --strict`: 32 → 7 errors (NET -25); 1 fix + 25 silences with `# type: ignore[code]  # why:` convention; 7 overflow → `deferred-items.md` (MYPY-01) — v1.8 Phase 30
+- ⚠ **EVT-01 partial** (accepted override): ~4 of 14 event-loop singleton leak sites fixed via 30-00 pivot; Plan 30-01 superseded by orchestrator decision; remaining ~10 sites + `_SINGLETON_INVENTORY` growth (34→48) deferred to v1.9 — v1.8 Phase 30
+
 ### Active
 
-**v1.7 Memory Tech-Debt Burn-Down (in planning — phases to be derived from these 8 requirements):**
-- [ ] **TD-01**: `audit_log` table auto-creates on `audit_service` startup (port `_create_tables` from `LongTermMemory`)
-- [ ] **TD-02**: Per-test `create_app()` factory eliminates module-level singleton graph + FastAPI app singleton; per-test isolation no longer requires monkeypatch
-- [ ] **TD-03**: `utils/asyncpg_helper.py` centralizes `?ssl=disable` URL-param strip; `memory_service` + `audit_service` consume the helper (no duplicated logic)
-- [ ] **TD-04**: `save_fact` near-duplicate guard via `<embedding> <=> $vec < 0.05` precheck (eng-review A3 from Phase 23)
-- [ ] **TD-05**: `save_facts(list[ExtractedFact])` batch path uses 1× `embed_batch` + `executemany` (replaces 3× round-trips per turn)
-- [ ] **TD-06**: Redis-mock fixture rollout closes the 32 pre-existing Redis-dependent unit-test failures
-- [ ] **TD-07**: bge-m3 model dir layout fix — code path matches HF cache layout natively (no symlink workaround)
-- [ ] **DOC-01**: Doc + CHANGELOG sweep — README, ARCHITECTURE.md, dev runbook refreshed for all touched modules; v1.7 CHANGELOG entry added
+**v1.9 Hardening Round 3 (in planning — REQ-IDs assigned in REQUIREMENTS.md after roadmap)**
+- [x] **EVT-02**: Validated in Phase 31 — D-01 PG-host enumeration returned N=0 at baseline (residual sites already remediated upstream by Phase 30-00 pivot); `_SINGLETON_INVENTORY` stays at 34 (D-02 no-padding mandate honored); zero new mypy silences; Phase 30-02 autouse mock unregressed. One environmental real-LLM test re-tiered with `real_llm` marker.
+- [x] **MYPY-02**: Validated in Phase 32 — `./deferred-items.md` drained 7→0; 7 entries resolved via `asyncpg-stubs~=0.30.2` install (4 entries), `pandas-stubs~=3.0.0.260204` install (1 entry, auto-pivoted from research's stale `~=2.2.3` because runtime is pandas 3.0.2), `explicit_package_bases = true` in `[tool.mypy]` (1 structural entry), `rank_bm25` silence-with-why (1 entry, no upstream stubs).
+- [x] **MYPY-03**: Validated in Phase 32 — audit-expanded scope (4 sites, not just 1 named): `services/nlu/nlu_service.py:538 → [func-returns-value]`, `tests/integration/test_ragas_eval.py:442 REMOVED` (no active error per RESEARCH §Q5), `tests/unit/test_extractor_coverage.py:152,300 → [attr-defined]`. Convention now enforced via `scripts/check_typing_hygiene.py` + pre-commit hook + CI step (D1+D3 from plan-eng-review).
+- [x] **MYPY-04**: Validated in Phase 32 — audit-expanded scope (4 sites across 3 files, not just 2 named): `test_save_facts_toctou.py:32,57`, `test_memory_forget_e2e.py:37`, `test_evict_long_term_facts_e2e.py:36`. asyncpg sites resolved by stubs; pgvector.asyncpg site at toctou:57 silenced with canonical `[import-untyped]  # why: ...` form. Cascaded silences in `tests/conftest.py`, `utils/observability.py`, `main.py` to make Gate 3 pass (Rule 2).
+- [ ] **TEST-08**: `@pytest.mark.real_embedder` opt-out marker shipped; autouse mock honors marker
+- [ ] **TEST-09**: 7 order-dependent unit-test failures eliminated (registry-singleton pollution + `embed_one`/`embed_batch` mock parity)
+- [ ] **TEST-10**: `test_no_v1_5_regression` refreshed for GenerationRequest `query=` (post-v1.5 schema)
+- [ ] **TEST-11**: `test_ui_static_serves_html` `<title>` sentinel refreshed for v1.4 frontend
+- [ ] **DOC-02**: Phase 29 + 30 `*-VALIDATION.md` backfilled (Nyquist coverage)
+- [ ] **DOC-03**: MILESTONES.md v1.7 entry backfilled
 
-**v1.6 Memory Tool — Agent-Authored Long-Term Facts (validated, see above)**
+**v1.7 Memory Tech-Debt Burn-Down (validated, see archive):** TD-01..07 + DOC-01 all shipped 2026-05-17.
 
-**v1.5 Web Search + Multi-Agent Debate + Coverage Lift (validated, moved below)**
+**v1.6 Memory Tool — Agent-Authored Long-Term Facts (validated, see archive):** MEM-01..10 + EVICT-01..03 + GDPR-01..03 + T1 all shipped 2026-05-17.
 
-**v1.4 Agent-First Architecture Inversion (now validated, moved below)**
+**v1.5 Web Search + Multi-Agent Debate + Coverage Lift (validated, see archive)**
 
-**Carried over (not v1.7-scoped, still tracked):**
+**v1.4 Agent-First Architecture Inversion (validated, see archive)**
+
+**Carried over (not v1.8-scoped, still tracked for v1.9+):**
 - [ ] asyncpg pool + RLS: verify `app.current_tenant` per-connection in production pool
 - [ ] PyMuPDF AGPL license: resolve commercial licensing for on-premise deployments
 - [ ] Phase 9/14 visual diff vs v1.0 + Docker live build (deferred to first deploy)
-- [ ] Phase 10/15 live PR through CI confirms `coverage-combine` job + HTML artifact (natural confirmation on first PR)
-- [ ] Push tags `v1.1`, `v1.2`, `v1.3` to origin (currently local-only)
-- [ ] v1.6+ follow-up: Memory tool (10x roadmap #1) — needs `/office-hours` first
-- [ ] v1.6+ follow-up: Code-acting / SQLTool (10x roadmap #4) — sandbox selection unresolved
-- [ ] v1.6+ follow-up: UI-03 React/Vue full migration; TEST-07 mutation testing; UI-02 first-deploy browser smoke test
+- [ ] Push tags `v1.1`..`v1.7` to origin (currently local-only)
+- [ ] v1.9+ follow-up: Code-acting / SQLTool (10x roadmap #4) — sandbox selection unresolved
+- [ ] v1.9+ follow-up: UI-03 React/Vue full migration; TEST-07 mutation testing; UI-02 first-deploy browser smoke test
+- [ ] v1.9+ follow-up: SSE memory events (memory.extracted, memory.recalled)
+- [ ] v1.9+ follow-up: Per-tenant capacity overrides / importance decay for `LongTermMemory`
+- [ ] v1.9+ follow-up: Per-module coverage floor raise (>70%) or branch-coverage activation
+- [ ] v1.9+ follow-up: Docker Build CI fix (paddleocr / paddlex / paddlepaddle ABI churn — currently `continue-on-error: true`)
+- [ ] v1.9+ follow-up: Backport Phase 26 Plan 26-04 P1 fix to `LongTermMemory._get_pool` (same partial-init bug in v1.6 MEM-* path)
+- [ ] v1.9+ follow-up: Graceful-shutdown close-then-reuse `_closed: bool` guard pattern across services
+- [ ] v1.9+ follow-up: `application_name=audit_service` on AuditService pool for `pg_stat_activity` visibility
 
 ### Out of Scope
 
@@ -274,4 +329,4 @@ Every query returns a grounded, auditable answer — no hallucinations, no silen
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-17 — v1.7 Memory Tech-Debt Burn-Down milestone opened*
+*Last updated: 2026-05-18 — Phase 32 (mypy --strict Cleanup / MYPY-02+03+04) complete — deferred-items 7→0; 4 bare ignores resolved; asyncpg-stubs + pandas-stubs installed; typing-hygiene CI/pre-commit gate live.*

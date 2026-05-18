@@ -17,8 +17,8 @@ import pytest
 
 from services.nlu.filter_extractor import ExtractionResult, FilterExtractor
 
-# Module-level marker: integration tier only.
-pytestmark = [pytest.mark.integration]
+# Module-level marker: integration tier; real_llm tier (live external API call).
+pytestmark = [pytest.mark.integration, pytest.mark.real_llm]
 
 
 @pytest.mark.asyncio

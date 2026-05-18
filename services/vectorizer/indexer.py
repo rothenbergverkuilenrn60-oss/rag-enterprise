@@ -27,7 +27,9 @@ class BM25Index:
 
     def build(self, texts: list[str], ids: list[str]) -> None:
         try:
-            from rank_bm25 import BM25Okapi
+            from rank_bm25 import (
+                BM25Okapi,  # type: ignore[import-untyped]  # why: rank_bm25 has no stubs and no py.typed marker; last released 2022; tracking: NA
+            )
             self._corpus = texts
             self._ids = ids
             self._model = BM25Okapi([t.lower().split() for t in texts])

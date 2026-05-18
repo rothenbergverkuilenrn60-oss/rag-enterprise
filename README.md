@@ -104,7 +104,7 @@ services/
     retriever/              Dense + BM25 + RRF fusion + reranker
     generator/              LLM client (Ollama / OpenAI / Anthropic / Azure)
     nlu/                    Filter extraction (intent classification by Planner — Phase 16)
-    memory/                 Redis short-term + PostgreSQL long-term
+    memory/                 Redis short-term + PostgreSQL long-term (v1.7: save_facts batch + near-duplicate audit guard)
     auth/                   OIDC/JWT validation
     audit/                  Buffered audit log
     rules/                  Business rules engine (ABC enforcement)
@@ -243,12 +243,14 @@ cp .env.docker .env
 #   ANTHROPIC_API_KEY=sk-ant-...
 
 # 3. Install dependencies
-conda activate torch_env
-pip install -r requirements.txt
+uv venv
+uv sync
 
 # 4. Run
-uvicorn main:app --reload --port 8000
+uv run uvicorn main:app --reload --port 8000
 ```
+
+Detailed runbook: [docs/RUNBOOK.md](docs/RUNBOOK.md).
 
 ### cURL example
 
@@ -283,19 +285,20 @@ All settings are read from environment variables (or `.env` file). Key variables
 | `REDIS_URL` | No | Default `redis://localhost:6379/0` |
 | `ENVIRONMENT` | No | `development` / `staging` / `production` |
 | `CORS_ORIGINS` | Production | Comma-separated allowed origins (no localhost in prod) |
+| `MEMORY_NEAR_DUPLICATE_THRESHOLD` | No | Cosine distance threshold for save_fact near-duplicate audit (default `0.05`, v1.7 audit-mode-only — see CHANGELOG v1.7 + SK-01). |
 
 See `config/settings.py` for the full list with defaults.
 
 ## Project status
 
-**Current release:** v1.4 — Agent-First Architecture Inversion (Phases 16–19).
+**Current release:** v1.7 — Memory Tech-Debt Burn-Down (Phases 26–28). Prior milestones: v1.4 Agent-First Architecture Inversion (Phases 16–19), v1.5 Web Search + Multi-Agent Debate + Coverage Lift (Phases 20–22), v1.6 Memory Tool — Agent-Authored Long-Term Facts (Phases 23–25).
 
 - **Design doc:** [docs/v1.4-design.md](docs/v1.4-design.md) — the architectural-inversion thesis (Approach A: incremental refactor, no framework lock-in).
-- **Phase summaries:** [Planner + Executor Extraction](.planning/phases/16-planner-executor-extraction/16-03-SUMMARY.md) · [Tool Abstraction + RetrieveTool](.planning/phases/17-tool-abstraction-retrievetool/17-03-SUMMARY.md) · [SSE Event Stream](.planning/phases/18-sse-planner-trace-event-stream/18-03-SUMMARY.md) · Agent-First Docs + Demo + Release (this milestone).
-- **Changelog:** [CHANGELOG.md](CHANGELOG.md) (keep-a-changelog 1.1.0 format; v1.0 → v1.4 reverse-chronological).
+- **Phase summaries:** [Phase 26 — Memory Infra Hygiene](.planning/phases/26-memory-infra-hygiene/26-05-SUMMARY.md) · [Phase 27 — Test Isolation + Memory Reliability](.planning/phases/27-test-isolation-memory-reliability/27-04-SUMMARY.md).
+- **Changelog:** [CHANGELOG.md](CHANGELOG.md) (keep-a-changelog 1.1.0 format; v1.0 → v1.7 reverse-chronological).
 - **Roadmap:** [.planning/ROADMAP.md](.planning/ROADMAP.md).
 
-Prior milestones (archived): v1.0 Hardening · v1.1 Retrieval Depth & Frontend · v1.2 Agentic Layer + Swarm · v1.3 Fork Swarm, NLU & Quality. Per-milestone roadmaps live under `.planning/milestones/`.
+Prior milestones (archived): v1.0 Hardening · v1.1 Retrieval Depth & Frontend · v1.2 Agentic Layer + Swarm · v1.3 Fork Swarm, NLU & Quality · v1.4 Agent-First Architecture Inversion · v1.5 Web Search + Multi-Agent + Coverage · v1.6 Memory Tool — Agent-Authored Long-Term Facts. Per-milestone roadmaps live under `.planning/milestones/`.
 
 ## License
 

@@ -21,6 +21,10 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+# Plan 27-02 / TD-06 — auto-attach redis_mock fixture for every test in this
+# module (tests/conftest.py:pytest_collection_modifyitems hook).
+pytestmark = pytest.mark.uses_redis
+
 # ─── Shared helpers ─────────────────────────────────────────────────────────
 
 
@@ -111,6 +115,23 @@ def _patch_pipeline_infra(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     monkeypatch.setattr("services.pipeline.get_retriever", lambda: stub_retriever)
     monkeypatch.setattr("services.pipeline.get_llm_client", lambda: stub_llm)
     monkeypatch.setattr("services.pipeline.get_tool_registry", lambda: stub_tool_registry)
+    # Prevent Redis-dependent helpers from creating connections that are bound to
+    # the current event loop and cause "Future attached to a different loop"
+    # failures in subsequent tests (EVT-01 root cause).
+    monkeypatch.setattr(
+        "services.pipeline._ab_assign_and_map",
+        AsyncMock(return_value=(None, None)),
+    )
+    monkeypatch.setattr(
+        "services.pipeline._store_last_qa",
+        AsyncMock(),
+    )
+    # Prevent dispatch_extraction from creating background asyncio tasks that
+    # outlive the test event loop and contaminate the next test's loop.
+    monkeypatch.setattr(
+        "services.pipeline.dispatch_extraction",
+        MagicMock(),
+    )
 
     return {
         "memory": stub_memory,
@@ -696,6 +717,24 @@ def _patch_query_pipeline_infra(monkeypatch: pytest.MonkeyPatch) -> dict[str, An
     # cache_get returns None (cache miss), cache_set is no-op
     monkeypatch.setattr("services.pipeline.cache_get", AsyncMock(return_value=None))
     monkeypatch.setattr("services.pipeline.cache_set", AsyncMock())
+
+    # Prevent Redis-dependent helpers from creating connections that are bound to
+    # the current event loop and cause "Future attached to a different loop"
+    # failures in subsequent tests (EVT-01 root cause).
+    monkeypatch.setattr(
+        "services.pipeline._ab_assign_and_map",
+        AsyncMock(return_value=(None, None)),
+    )
+    monkeypatch.setattr(
+        "services.pipeline._store_last_qa",
+        AsyncMock(),
+    )
+    # Prevent dispatch_extraction from creating background asyncio tasks that
+    # outlive the test event loop and contaminate the next test's loop.
+    monkeypatch.setattr(
+        "services.pipeline.dispatch_extraction",
+        MagicMock(),
+    )
 
     return {
         "retriever": stub_retriever,

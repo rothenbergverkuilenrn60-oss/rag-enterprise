@@ -133,7 +133,9 @@ class PgVectorStore(BaseVectorStore):
     async def _get_pool(self):
         if self._pool is None:
             import asyncpg as _asyncpg
-            from pgvector.asyncpg import register_vector
+            from pgvector.asyncpg import (
+                register_vector,  # type: ignore[import-untyped]  # why: pgvector.asyncpg lacks stubs as of 2026-05
+            )
 
             async def _init_conn(conn: _asyncpg.Connection) -> None:
                 await register_vector(conn)
@@ -145,7 +147,7 @@ class PgVectorStore(BaseVectorStore):
             parsed = urlparse(dsn)
             qs = {k: v for k, v in parse_qs(parsed.query).items() if k.lower() != "ssl"}
             dsn = urlunparse(parsed._replace(query=urlencode(qs, doseq=True)))
-            self._pool = await _asyncpg.create_pool(
+            self._pool = await _asyncpg.create_pool(  # type: ignore[assignment]  # why: asyncpg-stubs Pool[Record] generic conflicts with None-initialized field; full Pool annotation deferred (T2.5 drift)
                 dsn,
                 min_size=2,
                 max_size=10,
@@ -434,7 +436,7 @@ class PgVectorStore(BaseVectorStore):
 class ChromaVectorStore(BaseVectorStore):
 
     def __init__(self) -> None:
-        import chromadb
+        import chromadb  # type: ignore[import-not-found]  # why: chromadb has no stubs as of 2026-05
         self._client = chromadb.PersistentClient(
             path=str(settings.index_dir / "chroma")
         )
