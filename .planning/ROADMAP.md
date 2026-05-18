@@ -11,7 +11,7 @@
 - ✅ **v1.6 Memory Tool — Agent-Authored Long-Term Facts** — Phases 23–25 (shipped 2026-05-17) — [archive](milestones/v1.6-ROADMAP.md)
 - ✅ **v1.7 Memory Tech-Debt Burn-Down** — Phases 26–28 (shipped 2026-05-17) — [archive](milestones/v1.7-ROADMAP.md)
 - ✅ **v1.8 Production Hardening Round 2** — Phases 29–30 (shipped 2026-05-17) — [archive](milestones/v1.8-ROADMAP.md)
-- 📝 **v1.9 Hardening Round 3** — Phases 31–35 (in planning; opened 2026-05-18) — see below
+- ✅ **v1.9 Hardening Round 3** — Phases 31–35 (shipped 2026-05-18) — [archive](milestones/v1.9-ROADMAP.md)
 
 <details>
 <summary>✅ v1.7 Memory Tech-Debt Burn-Down (Phases 26–28) — SHIPPED 2026-05-17</summary>
@@ -26,115 +26,21 @@ See [milestones/v1.7-ROADMAP.md](milestones/v1.7-ROADMAP.md) for full phase deta
 
 ## Phases
 
-## v1.9 Hardening Round 3 (Phases 31–35) — IN PLANNING
+<details>
+<summary>✅ v1.9 Hardening Round 3 (Phases 31–35) — SHIPPED 2026-05-18</summary>
 
-**Milestone goal:** Close v1.8-deferred debt — eliminate residual event-loop singleton leaks, finish mypy `--strict` cleanup, stabilize test infra (autouse-mock opt-out + flaky-order failures + sentinel drift), and backfill missing planning artifacts. Zero new user-facing capabilities — pure reliability + test infra polish + process polish.
+- [x] Phase 31: Event-Loop Leak Sweep (1/1 plan) — EVT-02
+- [x] Phase 32: mypy `--strict` Cleanup (1/1 plan) — MYPY-02/03/04
+- [x] Phase 33: Autouse-Mock Opt-Out + Order-Dependent Failures (2/2 plans, parallel worktrees) — TEST-08/09
+- [x] Phase 34: Sentinel Drift Refresh (inline) — TEST-10/11
+- [x] Phase 35: Planning Artifact Backfill (inline) — DOC-02/03
 
-**Carry-forward gates** (inherited from v1.8): `diff-cover ≥ 80%` on touched files; combined coverage `--fail-under=70`; INSERT-ONLY `audit_log` invariant; audit-mode-before-enforce; audit-write failure must NOT block destructive action; `# type: ignore[code]  # why:` silence convention (mypy violations cap = 25; deferred-items cap = 7); `BaseTool` ABC + `AGENT_TOOL_ALLOWLIST` constant preserved.
+Ship: PR #10 (squash `e917a9e`) + PR #12 (squash `d89ca90`); tag `v1.9`.
+v1.10 carry-forward: TEST-12 (OCR Cluster C semaphore-loop-binding), TEST-13 (llm_client coverage 68→≥70).
 
-**Phase summary checklist:**
-- [x] **Phase 31: Event-Loop Leak Sweep** — enumerate + fix ~10 residual singleton leak sites; grow `_SINGLETON_INVENTORY` 34→48 on PG host
-- [x] **Phase 32: mypy `--strict` Cleanup** — drain `deferred-items.md` (7), replace bare ignore in nlu_service.py, silence asyncpg/pgvector.asyncpg untyped imports
-- [x] **Phase 33: Autouse-Mock Opt-Out + Order-Dependent Failures** — `@pytest.mark.real_embedder` marker + fix 7 registry-pollution + mock-parity failures
-- [x] **Phase 34: Sentinel Drift Refresh** — refresh `test_no_v1_5_regression` (q=→query=) + `test_ui_static_serves_html` (`<title>` + `<h1>` post-v1.4)
-- [x] **Phase 35: Planning Artifact Backfill** — Phase 29 + 30 Nyquist VALIDATION.md + MILESTONES.md v1.7 entry
+See [milestones/v1.9-ROADMAP.md](milestones/v1.9-ROADMAP.md) for full phase details and [milestones/v1.9-REQUIREMENTS.md](milestones/v1.9-REQUIREMENTS.md) for requirements traceability.
 
-### Phase 31: Event-Loop Leak Sweep
-**Goal:** Eliminate residual module-level singleton-bound-to-import-time-loop failures so the PG-host integration suite reports zero "different loop" errors and `_SINGLETON_INVENTORY` reaches authoritative coverage.
-**Depends on:** Nothing — runs first; PG-host enumeration unblocks downstream phases.
-**Requirements:** EVT-02
-**Canonical refs:** `tests/factories/app.py::_SINGLETON_INVENTORY`, `tests/factories/app.py::create_app()`, `.planning/milestones/v1.8-MILESTONE-AUDIT.md` tech-debt block, `.planning/milestones/v1.8-phases/30-test-infra-mypy-hardening/30-VERIFICATION.md` (Plan 30-01 supersession record)
-**Success Criteria** (what must be TRUE):
-  1. Full PG-host run `pytest -m integration --uses-redis` reports zero `RuntimeError: ... attached to a different loop` failures.
-  2. `_SINGLETON_INVENTORY` in `tests/factories/app.py` grows from 34 toward 48 — each new entry traces to a real leak site fixed by either `create_app()` migration or explicit per-test loop fixture (no padding entries).
-  3. `_SINGLETON_INVENTORY` lint passes (count matches enumeration); enumeration command `pytest tests/integration/ -v 2>&1 | grep "no current event loop" | sort -u` returns empty on PG host post-fix.
-  4. Integration-suite green count does not regress vs v1.8 close baseline; any newly surfaced unrelated failures triaged + documented (not silently absorbed).
-**Plans:** 1 plan (Wave 1; autonomous: false — Task 1 checkpoints to user on actual N)
-Plans:
-- [x] 31-00-PLAN.md — Wave 1 (execute, autonomous:false): D-01 PG-host enumeration → per-site triage (factory-fit vs factory-unfit) → Wave A grow _SINGLETON_INVENTORY → Wave B per-test event_loop fixtures → re-run zero-error gate → D-04 baseline compare → 31-00-SUMMARY
-
-### Phase 32: mypy `--strict` Cleanup
-**Goal:** Drain the `--strict` debt to zero net new violations vs v1.8 close, replace every bare `# type: ignore` with the disciplined `[code]  # why:` form, and resolve the two asyncpg/pgvector.asyncpg untyped-import silences left out of the Phase 30 sweep window.
-**Depends on:** v1.8 Phase 30-03 silence convention (inherited).
-**Requirements:** MYPY-02, MYPY-03, MYPY-04
-**Canonical refs:** `.planning/milestones/v1.8-phases/30-test-infra-mypy-hardening/deferred-items.md` (7 overflow entries), `services/nlu/nlu_service.py:538` (bare ignore), `tests/integration/memory/test_save_facts_toctou.py:32,57` (asyncpg + pgvector.asyncpg)
-**Success Criteria** (what must be TRUE):
-  1. `deferred-items.md` lists 0 outstanding entries; each of the 7 v1.8-overflow violations is either fixed or moved into the live silence convention with `# why:` rationale.
-  2. `services/nlu/nlu_service.py:538` carries `# type: ignore[<concrete-code>]  # why: <reason>` (no bare ignore); `mypy --strict services/nlu/nlu_service.py` exits 0.
-  3. `tests/integration/memory/test_save_facts_toctou.py:32,57` no longer surface `[import-untyped]` for asyncpg + pgvector.asyncpg (resolved via upstream stubs OR local `stubs/` OR `[import-untyped]  # why:` with upstream tracking link); `mypy --strict tests/integration/memory/test_save_facts_toctou.py` exits 0 with no `[import-untyped]` errors.
-  4. Full-repo `mypy --strict` total silence count stays ≤ 25 (cap honored); no new bare ignores introduced; convention auditable via grep (`# type: ignore[` always followed by bracketed code).
-**Plans:** 1 plan (Wave 1; autonomous: false — T6 multi-grep verification sweep checkpoints to user)
-Plans:
-- [x] 32-00-PLAN.md — Wave 1 (execute, autonomous:false): T0 pyproject `[tool.mypy]` + explicit_package_bases → T1 install asyncpg-stubs~=0.30.2 + pandas-stubs~=2.2.3 in pyproject + requirements-dev.txt → T2 remove now-unused asyncpg/pandas silences (with T2.5 generic-arg drift check) → T3 drain deferred-items.md to 0 (rank_bm25 + datasets silence-with-why) → T4 replace 4 bare ignores (3 coded + 1 removed per RESEARCH §Q5) → T5 resolve 4 asyncpg + pgvector.asyncpg test-file untyped imports → T6 D-VERIFY-01 sweep + SUMMARY draft (checkpoint) → T7 D-VERIFY-02 integration suite baseline check → 32-00-SUMMARY
-
-### Phase 33: Autouse-Mock Opt-Out + Order-Dependent Failures
-**Goal:** Restore test-infra correctness on two fronts that v1.8 left unbalanced — give the integration suite a real-embedder escape hatch from the autouse mock, and kill the 7 order-dependent unit failures rooted in registry-singleton pollution + `embed_one`/`embed_batch` mock-shape drift.
-**Depends on:** v1.8 Phase 30-02 (`tests/integration/conftest.py` autouse mock); v1.7 Phase 27 batch API (`embed_batch`).
-**Canonical refs:** `tests/integration/conftest.py` (autouse fixture), `tests/conftest.py` (unit registry resets), `pyproject.toml` / `pytest.ini` (marker registration), `docs/RUNBOOK.md` test-infra section
-**Success Criteria** (what must be TRUE):
-  1. `@pytest.mark.real_embedder` marker registered (`pyproject.toml` / `pytest.ini`); autouse fixture in `tests/integration/conftest.py` conditionally early-returns when `request.node.get_closest_marker("real_embedder")` is non-None; at least one canary integration test exercises real `HuggingFaceEmbedder` + `CrossEncoderReranker` on PG host and passes.
-  2. Marker behavior + opt-out semantics documented in `docs/RUNBOOK.md` test-infra section (so future contributors don't re-discover it).
-  3. Unit suite passes under `pytest --random-order --random-order-seed=<fixed>` for at least 3 distinct seeds; previously-flaky 7 tests all green in every seed.
-  4. Registry singletons (tool / embedder mock targets) reset via fixture in `tests/conftest.py`; `embed_one` vs `embed_batch` consumer-path mocks patch the same callable signature regardless of single-vs-batch consumer path (no shape divergence).
-**Requirements:** TEST-08, TEST-09
-**Plans:** 2 plans (Wave 1; both autonomous:true; parallel worktrees per D-PLAN-01; zero file overlap)
-Plans:
-- [x] 33-00-PLAN.md — Wave 1 (execute, autonomous:true): T1 register `real_embedder` marker in pytest.ini → T2 add opt-out branch to `_mock_local_model_inits` autouse fixture (signature + early-return) → T3 create canary `tests/integration/test_real_embedder_canary.py` with skipif precondition → T4 document Test Infrastructure section in docs/RUNBOOK.md → 33-00-SUMMARY
-- [x] 33-01-PLAN.md — Wave 1 (execute, autonomous:true): T1 dual-write `pytest-randomly>=3.16.0` to pyproject.toml + requirements-dev.txt → T2 fix `embed_batch` mock-shape parity at tests/unit/test_memory_service_extra.py (Cluster B) → T3 add `_reset_tool_registry` autouse fixture in tests/conftest.py (pkgutil-walk + idempotent guard per eng-review D1/D2) → T4 verify 3 seeds (12345/67890/99999) with OCR Cluster C deselected → 33-01-SUMMARY
-
-### Phase 34: Sentinel Drift Refresh
-**Goal:** Refresh two sentinel-bound tests so they once again assert against current contracts — `GenerationRequest.query=` (post-v1.5 schema) and `static/ui.html` `<title>` (post-v1.4 frontend rewrite) — without scope-creeping the original test intent.
-**Depends on:** v1.5 GenerationRequest schema; v1.4 UI rewrite.
-**Requirements:** TEST-10, TEST-11
-**Canonical refs:** `tests/test_pipeline_load_context_audit.py::test_no_v1_5_regression`, `tests/test_ui_static.py::test_ui_static_serves_html`, `static/ui.html` (current `<title>` value), `utils/models.py::GenerationRequest`
-**Success Criteria** (what must be TRUE):
-  1. `tests/test_pipeline_load_context_audit::test_no_v1_5_regression` instantiates `GenerationRequest` with `query=` (current Pydantic V2 field name); test passes against current `services/pipeline.py`; original v1.5-regression assertion intent preserved verbatim (no added/removed assertions beyond the kwarg rename).
-  2. `tests/test_ui_static::test_ui_static_serves_html` `<title>` sentinel updated to match current served `static/ui.html` value; test passes; HTTP-200 + content-type assertions unchanged.
-  3. Commit message for the title-sentinel refresh records the v1.4-drift root cause (so future UI title changes have a tracking precedent and the next drift surfaces faster).
-**Plans:** Inline execution (trivial scope — 2 files, ~5 LOC; no plan/agent ceremony per /gsd-quick decision)
-- [x] TEST-10: tests/integration/test_pipeline_load_context_audit.py:329 — `q=` → `query=` kwarg rename (commit b94a* — see git log)
-- [x] TEST-11: tests/integration/test_ui_static.py:41-42 — refresh title + h1 sentinels (RAG → Agent) post-v1.4 frontend rewrite; partial-match h1 to avoid version-string re-drift
-**UI hint**: yes
-
-### Phase 35: Planning Artifact Backfill
-**Goal:** Close the v1.8 process gaps — emit Nyquist `VALIDATION.md` for Phases 29 + 30 against the archived plan directories, and backfill the missing v1.7 entry in `MILESTONES.md` so the ledger is chronologically complete.
-**Depends on:** v1.8 archived phase directories (`.planning/milestones/v1.8-phases/29-*`, `.../30-*`); v1.7 archived ROADMAP.
-**Requirements:** DOC-02, DOC-03
-**Canonical refs:** `.planning/milestones/v1.8-phases/29-toctou-silent-skip-enforcement/`, `.planning/milestones/v1.8-phases/30-test-infra-mypy-hardening/`, `.planning/MILESTONES.md` (v1.6 + v1.8 entries as format precedent), `.planning/milestones/v1.7-ROADMAP.md` (cross-reference target)
-**Success Criteria** (what must be TRUE):
-  1. `.planning/milestones/v1.8-phases/29-toctou-silent-skip-enforcement/29-VALIDATION.md` exists, documents Nyquist gates considered + evidence assembled + verdict; `gsd-nyquist-auditor` returns `passed`.
-  2. `.planning/milestones/v1.8-phases/30-test-infra-mypy-hardening/30-VALIDATION.md` exists with the same shape; `gsd-nyquist-auditor` returns `passed`.
-  3. `MILESTONES.md` ledger contains a v1.7 entry inserted in chronological order between v1.6 and v1.8; format matches surrounding entries (same headers, same fields, same 6-deliverable bullet shape); cross-references `.planning/milestones/v1.7-ROADMAP.md`.
-**Plans:** Inline execution (pure docs — 3 files; no plan/agent ceremony per /gsd-quick decision)
-- [x] DOC-02a: `.planning/milestones/v1.8-phases/29-toctou-silent-skip-enforcement/29-VALIDATION.md` — backfilled retroactively against 29-VERIFICATION evidence
-- [x] DOC-02b: `.planning/milestones/v1.8-phases/30-test-infra-mypy-hardening/30-VALIDATION.md` — same shape; EVT-01 deferral cross-referenced to v1.9 Phase 31 closure
-- [x] DOC-03: `.planning/MILESTONES.md` v1.7 entry inserted between v1.6 and v1.8; 6 key accomplishments, deferred items, bonus delivered, archive cross-ref
-
-### Coverage (v1.9)
-
-| REQ-ID | Phase |
-|--------|-------|
-| EVT-02 | 31 |
-| MYPY-02 | 32 |
-| MYPY-03 | 32 |
-| MYPY-04 | 32 |
-| TEST-08 | 33 |
-| TEST-09 | 33 |
-| TEST-10 | 34 |
-| TEST-11 | 34 |
-| DOC-02 | 35 |
-| DOC-03 | 35 |
-
-**Coverage:** 10/10 requirements mapped. No orphans. No duplicates.
-
-### Deviations from input split
-
-None. The suggested 5-phase breakdown maps cleanly onto natural dependency + observability boundaries:
-- Phase 31 (EVT-02) blocks nothing downstream and benefits from running first on PG host while singleton enumeration is fresh.
-- Phase 32 consolidates all three mypy items behind a single discipline (`# type: ignore[code]  # why:`) — splitting MYPY-02/03/04 across phases would fragment the convention audit.
-- Phase 33 pairs TEST-08 + TEST-09 because both share fixture-reset + consumer-path mock patterns and benefit from a single registry-reset implementation.
-- Phase 34 keeps the two sentinel-drift refreshes together because they're identical in shape (one-line value update + scope-preservation discipline) and trivially independent.
-- Phase 35 runs last because process polish has no runtime dependency and the Phase 29/30 validation only needs the archived directories that already exist.
+</details>
 
 ---
 
