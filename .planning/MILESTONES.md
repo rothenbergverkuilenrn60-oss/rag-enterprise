@@ -162,6 +162,38 @@
 
 ---
 
+## v1.7 Memory Tech-Debt Burn-Down — 2026-05-17
+
+**Shipped:** 2026-05-17
+**Phases:** 26, 27, 28 | **Plans:** 15 (5 + 5 + 5) | **Commits:** PR #9 squash for Phase 26; Phases 27 + 28 landed direct on master
+**Timeline:** 2026-05-17 → 2026-05-17 (1 day; intense post-v1.6 same-day burn-down)
+
+**Delivered:** Knocked out the 7 deferred items surfaced at v1.6 ship — production-clean the memory subsystem before adding features. Pure refactor + reliability: `audit_log` self-bootstraps, asyncpg URL handling centralized, bge-m3 loads from vanilla HF cache, `create_app()` factory + redis_mock for cheap per-test isolation, `LongTermMemory` gets cosine near-duplicate audit + batch `save_facts` path. Zero new user-facing capabilities.
+
+**Key accomplishments:**
+1. **TD-01 (Phase 26):** `audit_log` table self-bootstraps on first `services/audit/audit_service.py` call with INSERT-ONLY grants preserved (REVOKE UPDATE/DELETE); real-PG integration test covers cold-start path. No manual DDL step.
+2. **TD-03 (Phase 26):** `utils/asyncpg_helper.py` centralizes `?ssl=disable` URL-param strip (asyncpg URL parser misreads literal `ssl=disable`); both `memory_service.py` and `audit_service.py` now route through helper. `rg "ssl=disable" services/` returns zero.
+3. **TD-07 (Phase 26):** `config/settings.py::resolve_embedding_model_path` resolves bge-m3 from vanilla HF cache layout (`{MODEL_DIR}/BAAI/bge-m3/`) with backwards-compat for legacy `embedding_models/` layout.
+4. **TD-02 + TD-06 (Phase 27):** `create_app()` factory in `tests/factories/app.py` enables isolated app per test; `redis_mock` fixture rolls out to 4 files via `uses_redis` marker; ShortTermMemory delegates to `utils.cache.get_redis`. Parallel-contamination test confirms isolation. `_SINGLETON_INVENTORY` seeded with 34 entries.
+5. **TD-04 + TD-05 (Phase 27):** `LongTermMemory.save_fact` cosine precheck (`<embedding> <=> $vec < 0.05`) emits `MEMORY_NEAR_DUPLICATE_SKIPPED` audit row in audit-mode-before-enforce shape (v1.7 ships audit-only; enforcement deferred to v1.8 SK-01). `save_facts` batch path: 1× `embed_batch` + 1× `executemany` for an N-fact turn; benchmark capture p50 25.31→5.51ms with mocks.
+6. **DOC-01 (Phase 28):** `README.md` / `ARCHITECTURE.md` / new `docs/RUNBOOK.md` (Local dev / Ops / Troubleshooting) / `docs/memory-eviction.md` refresh; `CHANGELOG.md` v1.7 entry with audit-mode-before-enforce call-out; `docs/release-notes-v1.7.md` + tag ceremony. `.planning/REQUIREMENTS-v1.8.md` scaffold pre-seeded with 7 follow-ups.
+
+**Known deferred items (v1.8 candidates):**
+- **TOC-01** — `save_fact` precheck/INSERT TOCTOU race window; mitigation via `pg_advisory_xact_lock` (shipped v1.8 Phase 29-00)
+- **SK-01** — promote near-duplicate audit-mode → silent-skip enforcement (shipped v1.8 Phase 29-01)
+- **OAI-01** — 32 openai-SDK-drift unit-test failures surfaced when v1.7 lint gate fixed (Phase 30-00 — vacuous on payload but `make_api_error()` helper landed)
+- **EVT-01** — ~14 newly-exposed event-loop singleton leaks from `uses_redis` marker rollout (partial fix Phase 30-00; residual ~10 → v1.9 Phase 31)
+- **TEST-INFRA-01** — `extractor_e2e` autouse mock for `HuggingFaceEmbedder` + `CrossEncoderReranker` (shipped v1.8 Phase 30-02)
+- **MYPY-01** — repo-wide `--strict` sweep 32 → 7 (shipped v1.8 Phase 30-03; v1.9 Phase 32 drained overflow to 0)
+
+**Bonus delivered (not in roadmap, surfaced during ship):**
+- ShortTermMemory `_get_client` delegate to `utils.cache.get_redis` (TD-06 bonus) — additional decoupling beyond required scope
+- `27-02-DIAGNOSTIC.md` capture of singleton-graph diagnosis during fixture rollout — informed `_SINGLETON_INVENTORY` 34-entry seed
+
+**Archive:** [milestones/v1.7-ROADMAP.md](milestones/v1.7-ROADMAP.md) · [milestones/v1.7-REQUIREMENTS.md](milestones/v1.7-REQUIREMENTS.md)
+
+---
+
 ## v1.8 Production Hardening Round 2 — 2026-05-17
 
 **Shipped:** 2026-05-17
